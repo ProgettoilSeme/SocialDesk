@@ -3,15 +3,17 @@
 <head>
  <meta charset="UTF-8">
  <meta name="viewport" content="width=device-width,initial-scale=1">
- <meta http-equiv="Content-Security-Policy" content="default-src 'self';script-src 'self';style-src 'self';img-src 'self' data:;connect-src 'none';object-src 'none';base-uri 'none';form-action 'none'">
- <title>Social</title>
+ <meta http-equiv="Content-Security-Policy" content="default-src 'self';script-src 'self' 'wasm-unsafe-eval';style-src 'self';img-src 'self' data: blob:;font-src 'self' data: blob:;worker-src 'self' blob:;connect-src 'self';object-src 'none';base-uri 'none';form-action 'none'">
+ <title>SocialDesk</title>
  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
- <header class="app-header"><div class="shell"><strong>Social</strong><span id="subtitle">Nuovo post</span></div></header>
+ <header class="app-header"><div class="shell"><button class="app-brand" id="brand-home" type="button" aria-label="SocialDesk — Home"><img class="brand-icon" src="assets/socialdesk-logo.svg" alt="" aria-hidden="true">SocialDesk</button><nav class="header-nav" aria-label="Navigazione principale"><a href="#posts" data-nav="posts">Tutti i post</a><a href="#drafts" data-nav="drafts">Post in bozza</a><a href="#create" data-nav="create">Crea nuovo post</a></nav></div></header>
  <nav class="shell progress" aria-label="Passaggi" id="progress"></nav>
  <main class="shell" id="main"></main>
  <footer class="shell footer" id="footer"></footer>
+ <script src="post-filters.js"></script>
+ <script src="illustrator-preview.js"></script>
  <script src="renderer.js"></script>
 </body>
 </html>

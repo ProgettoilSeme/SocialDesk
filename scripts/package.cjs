@@ -17,21 +17,22 @@ const os = require('node:os');
     const staging = await fs.mkdtemp(path.join(os.tmpdir(), 'social-package-'));
     try {
     const result = await packager({
-      dir: root, name: 'Social', out: staging, platform, arch,
+      dir: root, name: pkg.productName, out: staging, platform, arch,
       electronVersion: pkg.devDependencies.electron,
       appBundleId: 'it.progettoilseme.social',
+      icon: path.join(root, 'build', platform === 'darwin' ? 'socialdesk.icns' : 'socialdesk.ico'),
       appCopyright: 'Progetto il Seme',
       overwrite: true, prune: true, asar: false,
-      ignore: [/^\/(?:test|scripts)(?:\/|$)/, /^\/package-lock\.json$/],
+      ignore: [/^\/(?:test|scripts)(?:\/|$)/, /^\/package-lock\.json$/, /^\/node_modules\/@napi-rs(?:\/|$)/],
       ...(cacheRoot ? { download: { cacheRoot } } : {}),
     });
     if (platform === 'darwin' && process.platform === 'darwin') {
       for (const folder of result) {
-        const bundle = path.join(folder, 'Social.app');
+        const bundle = path.join(folder, pkg.productName+'.app');
         execFileSync('/usr/bin/xattr', ['-cr', bundle]);
         execFileSync('/usr/bin/codesign', ['--force', '--deep', '--sign', '-', bundle], {stdio:'inherit'});
         execFileSync('/usr/bin/codesign', ['--verify', '--deep', '--strict', bundle], {stdio:'inherit'});
-        execFileSync('/usr/bin/ditto', ['-c', '-k', '--norsrc', '--noextattr', '--keepParent', bundle, path.join(out, `Social-Mac-${arch}.zip`)]);
+        execFileSync('/usr/bin/ditto', ['-c', '-k', '--norsrc', '--noextattr', '--keepParent', bundle, path.join(out, `${pkg.productName}-Mac-${arch}.zip`)]);
       }
     }
     for (const folder of result) {
