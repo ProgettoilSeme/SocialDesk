@@ -1,0 +1,35 @@
+# Dipendenze e cache
+node_modules/
+.npm/
+.cache/
+coverage/
+*.log
+
+# Distribuzioni generate
+/dist/
+/out/
+/distribuzioni/
+*.app/
+*.exe
+*.dmg
+*.asar
+*.zip
+
+# File locali e credenziali
+.DS_Store
+Thumbs.db
+.env
+.env.*
+!.env.example
+
+# Dati editoriali e file di lavoro: esterni ai sorgenti
+*.xlsx
+*.xls
+*.ai
+/00_template/
+/01_Facebook/
+/02_Instagram/
+/03_LinkedIn/
+.social-backups/
+.social-stage-*/
+.social-create.lock
