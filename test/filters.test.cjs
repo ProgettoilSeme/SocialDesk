@@ -1,7 +1,7 @@
 'use strict';
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {matchesPost,statusTone}=require('../ui/post-filters.js');
+const {matchesPost,statusTone,groupById}=require('../ui/post-filters.js');
 const today='2026-11-04';
 const filters={year:'2026',channels:['Facebook','LinkedIn','Instagram'],status:'',month:''};
 const posts=[
@@ -46,4 +46,14 @@ test('tutti i mesi include anche le bozze senza data; mese e anno sono indipende
   assert.equal(matchesPost({year:2027,channel:'LinkedIn',status:'pubblicato',date:'2027-'+value+'-15'},{...filters,year:'2027',month:value}),true);
  }
  assert.equal(matchesPost({year:2026,channel:'Facebook',status:'pubblicato',date:'2027-11-04'},{...filters,month:'11'}),false);
+});
+test('raggruppa solo ID dello stesso anno, preserva ordine e post senza ID',()=>{
+ const entries=[
+  {key:'2026:2',year:2026,id:7,channel:'Facebook'},
+  {key:'2026:3',year:2026,id:null,channel:'Instagram'},
+  {key:'2026:4',year:2026,id:7,channel:'Instagram'},
+  {key:'2027:2',year:2027,id:7,channel:'LinkedIn'},
+ ];
+ assert.deepEqual(groupById(entries).map(group=>group.posts.map(post=>post.key)),[['2026:2','2026:4'],['2026:3'],['2027:2']]);
+ assert.deepEqual(groupById(entries.filter(post=>post.channel==='Instagram')).map(group=>group.posts.map(post=>post.key)),[['2026:3'],['2026:4']]);
 });

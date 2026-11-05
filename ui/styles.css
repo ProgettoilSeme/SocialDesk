@@ -96,6 +96,14 @@ body.details-modal-open{overflow:hidden}
 .post-actions .icon-btn svg{display:block;width:22px;height:22px;pointer-events:none}
 .post-actions .status-action,.post-actions .date-action{height:42px;min-height:42px;display:inline-flex;align-items:center;justify-content:center;padding:8px 12px;border:1px solid #aab5c3;border-radius:6px;font-size:14px;line-height:1.2;white-space:nowrap}
 .post-actions .status-action{font-weight:700}
+.list-heading{display:flex;align-items:center;gap:12px;margin-bottom:12px}.list-heading h1{margin:0}
+.refresh-icon{width:40px;height:40px;min-height:40px;padding:8px;display:grid;place-items:center;color:#405268}.refresh-icon svg{width:22px;height:22px;display:block}
+.group-toggle{display:flex;align-items:center;gap:10px;min-height:46px;white-space:nowrap;cursor:pointer;font-size:14px}.group-toggle input{width:18px;height:18px}
+.post-group{border-bottom:1px solid var(--line)}.group-summary{list-style:none;cursor:pointer;border-bottom:0}.group-summary::-webkit-details-marker{display:none}.group-summary:hover h2{text-decoration:underline;text-underline-offset:3px}
+.post-icon-stack{display:inline-flex;align-items:center;flex:none}.post-icon-stack .post-social-icon{display:grid;place-items:center;width:26px;height:26px;margin:0;padding:2px;border:1px solid #fff;border-radius:50%;background:#fff}.post-icon-stack .post-social-icon+.post-social-icon{margin-left:-7px}
+.post-icon-stack [data-channel="Facebook"]{--social-color:#0866ff}.post-icon-stack [data-channel="Instagram"]{--social-color:#c13584}.post-icon-stack [data-channel="LinkedIn"]{--social-color:#0a66c2}
+.group-chevron{width:42px;height:42px;display:grid;place-items:center;flex:none;color:#405268}.group-chevron svg{width:22px;height:22px;transition:transform .15s ease}.post-group[open] .group-chevron svg{transform:rotate(180deg)}
+.group-children{padding-left:20px;margin-left:12px;border-left:2px solid var(--line)}.group-children .draft-item:last-child{border-bottom:0}
 .post-topic{display:inline-flex;align-items:center;gap:5px;min-width:0;max-width:min(320px,100%);vertical-align:middle}
 .post-topic svg{display:block;width:16px;height:16px;flex:none}
 .post-topic-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

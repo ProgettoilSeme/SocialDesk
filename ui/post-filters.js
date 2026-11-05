@@ -13,7 +13,18 @@
   if(filters.month&&(!post.date||post.date.slice(0,7)!==String(filters.year)+'-'+filters.month))return false;
   return true;
  }
- const api={matchesPost,statusTone};
+ function groupById(posts){
+  const groups=[],byId=new Map();
+  for(const post of posts){
+   if(post.id===null||post.id===undefined||post.id===''){groups.push({key:post.key,posts:[post]});continue;}
+   const key=`${post.year}:${post.id}`;
+   let group=byId.get(key);
+   if(!group){group={key,posts:[]};byId.set(key,group);groups.push(group);}
+   group.posts.push(post);
+  }
+  return groups;
+ }
+ const api={matchesPost,statusTone,groupById};
  if(typeof module==='object'&&module.exports)module.exports=api;
  else root.SocialPostFilters=Object.freeze(api);
 })(globalThis);
