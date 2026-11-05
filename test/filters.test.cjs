@@ -47,6 +47,14 @@ test('tutti i mesi include anche le bozze senza data; mese e anno sono indipende
  }
  assert.equal(matchesPost({year:2026,channel:'Facebook',status:'pubblicato',date:'2027-11-04'},{...filters,month:'11'}),false);
 });
+test('nascondi pubblicati esclude solo i pubblicati',()=>{
+ const base={year:2026,channel:'Facebook',date:null};
+ const filters={year:'2026',channels:['Facebook'],status:'',month:'',hidePublished:true};
+ assert.equal(matchesPost({...base,status:' Pubblicato '},filters),false);
+ assert.equal(matchesPost({...base,status:'testi da creare'},filters),true);
+ assert.equal(matchesPost({...base,status:''},filters),true);
+ assert.equal(matchesPost({...base,status:'pubblicato'},{...filters,hidePublished:false}),true);
+});
 test('raggruppa solo ID dello stesso anno, preserva ordine e post senza ID',()=>{
  const entries=[
   {key:'2026:2',year:2026,id:7,channel:'Facebook'},

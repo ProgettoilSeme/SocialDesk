@@ -8,6 +8,7 @@
  function matchesPost(post,filters){
   if(String(post.year)!==String(filters.year)||!filters.channels.includes(post.channel))return false;
   const status=normalized(post.status);
+  if(filters.hidePublished&&status==='pubblicato')return false;
   if(filters.status==='__none'&&status)return false;
   if(filters.status&&filters.status!=='__none'&&status!==normalized(filters.status))return false;
   if(filters.month&&(!post.date||post.date.slice(0,7)!==String(filters.year)+'-'+filters.month))return false;

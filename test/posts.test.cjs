@@ -30,7 +30,7 @@ test('creazione: stesso ID per due social, file corretti, testi vuoti e template
  assert.equal(result.id,0);assert.equal(result.rowsAdded,2);
  for(const c of result.created){
   const suffix=c.channel.toLowerCase();
-  assert.equal((await fs.readFile(path.join(c.path,'01_Sorgenti',`Nuovo-post-di-prova_${suffix}.txt`))).length,0);
+  assert.equal((await fs.readFile(path.join(c.path,'01_Sorgenti',`Nuovo-post-di-prova_${suffix}.md`))).length,0);
   const template=path.join(r,'00_template',`base ${c.channel}.ai`);
   assert.deepEqual(await fs.readFile(path.join(c.path,'01_Sorgenti',`Nuovo-post-di-prova_${suffix}.ai`)),await fs.readFile(template));
   for(const sub of ['01_Sorgenti','02_Asset','03_Export'])assert.equal((await fs.stat(path.join(c.path,sub))).isDirectory(),true);

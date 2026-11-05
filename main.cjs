@@ -1,9 +1,10 @@
 'use strict';
-const {app,BrowserWindow,ipcMain,dialog,shell,Menu}=require('electron');
+const {app,BrowserWindow,ipcMain,dialog,shell,Menu,clipboard}=require('electron');
 const fs=require('node:fs/promises');
 const path=require('node:path');
 const {pathToFileURL}=require('node:url');
 const {rootInfo,planPost,createPost,PostError,assertContained}=require('./lib/posts.cjs');
+const {syncAssetArchive}=require('./lib/assets.cjs');
 const {listDrafts,planDraftDate,updateDraftDate}=require('./lib/drafts.cjs');
 const {listPosts,planPostEdit,savePostEdit}=require('./lib/editor.cjs');
 const {postDetails,resolvePostText,resolvePostFolder}=require('./lib/details.cjs');
@@ -52,8 +53,9 @@ else{
   await preferences();
   if(process.platform==='darwin')Menu.setApplicationMenu(Menu.buildFromTemplate([{role:'appMenu'},{role:'editMenu'},{role:'windowMenu'}]));else Menu.setApplicationMenu(null);
   endpoint('social:initial',async()=>{
-   if(!root)return{root:'',valid:false};
-   try{await rootInfo(root);return{root,valid:true};}catch(e){return{root,valid:false,message:errorMessage(e).message};}
+   const version=app.getVersion();
+   if(!root)return{root:'',valid:false,version};
+   try{await rootInfo(root);return{root,valid:true,version};}catch(e){return{root,valid:false,version,message:errorMessage(e).message};}
   });
   endpoint('social:choose',async()=>{
    if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');
@@ -77,6 +79,8 @@ else{
   endpoint('social:posts',async()=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return listPosts(root);});
   endpoint('social:details',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return postDetails(root,input);});
   endpoint('social:open-text',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');const file=await resolvePostText(root,input);const error=await shell.openPath(file);if(error)throw new Error(error);return true;});
+  endpoint('social:sync-assets',async()=>{if(busy)throw new PostError('BUSY','Un’operazione è già in corso.');busy=true;try{return await syncAssetArchive(root);}finally{busy=false;}});
+  endpoint('social:copy-text',async text=>{if(typeof text!=='string'||Buffer.byteLength(text)>1024*1024)throw new PostError('INPUT','Il testo da copiare non è valido.');clipboard.writeText(text);return true;});
   endpoint('social:open-post-folder',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');const folder=await resolvePostFolder(root,input);const error=await shell.openPath(folder);if(error)throw new Error(error);return true;});
   endpoint('social:illustrator-files',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return illustratorFiles(root,input);});
   endpoint('social:illustrator-data',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return illustratorData(root,input);});

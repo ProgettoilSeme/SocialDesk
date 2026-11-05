@@ -16,7 +16,7 @@ async function seed(t){
  const p=await planPost(root,post);await createPost(root,post,p.fingerprint);
  const list=await listPosts(root),row=list.posts.find(p=>p.title===post.title&&p.channel==='Facebook');
  const folder=path.join(root,'01_Facebook/2026/11-04_Dettaglio-prova/01_Sorgenti');
- return{root,folder,file:path.join(root,'Piano editoriale.xlsx'),text:path.join(folder,'Dettaglio-prova_facebook.txt'),input:{key:row.key,revision:list.revision},base};
+ return{root,folder,file:path.join(root,'Piano editoriale.xlsx'),text:path.join(folder,'Dettaglio-prova_facebook.md'),input:{key:row.key,revision:list.revision},base};
 }
 test('dettagli: tutti i campi e TXT del solo canale, lettura senza modifiche',async t=>{
  const {root,folder,file,text,input}=await seed(t),before=await fs.readFile(file);
@@ -24,7 +24,7 @@ test('dettagli: tutti i campi e TXT del solo canale, lettura senza modifiche',as
  await fs.writeFile(text,content);await fs.writeFile(path.join(folder,'AAA-riferimento.txt'),'Riferimento aggiuntivo');
  const result=await postDetails(root,input);
  assert.equal(result.post.id,0);assert.equal(result.post.channel,'Facebook');assert.equal(result.post.date,'2026-11-04');assert.equal(result.post.topic,'Inclusione');assert.equal(result.post.format,'Carosello');assert.equal(result.post.status,'testi da creare');assert.ok(result.post.sourcesRelative.endsWith('/01_Sorgenti'));
- assert.equal(result.textFiles.length,2);assert.equal(result.textFiles[0].name,'Dettaglio-prova_facebook.txt');assert.equal(result.textFiles[0].content,content);assert.equal(result.textFiles[1].content,'Riferimento aggiuntivo');
+ assert.equal(result.textFiles.length,2);assert.equal(result.textFiles[0].name,'Dettaglio-prova_facebook.md');assert.equal(result.textFiles[0].content,content);assert.equal(result.textFiles[1].content,'Riferimento aggiuntivo');
  assert.deepEqual(await fs.readFile(file),before);assert.equal(await fs.readFile(text,'utf8'),content);
  const list=await listPosts(root),ig=list.posts.find(p=>p.title==='Dettaglio prova'&&p.channel==='Instagram');
  assert.equal((await postDetails(root,{key:ig.key,revision:list.revision})).textFiles[0].content,'');
@@ -32,7 +32,7 @@ test('dettagli: tutti i campi e TXT del solo canale, lettura senza modifiche',as
 test('TXT vuoto o mancante: conserva i metadati e distingue i due casi',async t=>{
  const {root,text,input}=await seed(t);
  assert.equal((await postDetails(root,input)).textFiles[0].content,'');
- await fs.unlink(text);const missing=await postDetails(root,input);assert.equal(missing.post.title,'Dettaglio prova');assert.deepEqual(missing.textFiles,[]);assert.match(missing.textMessage,/Nessun file TXT/);
+ await fs.unlink(text);const missing=await postDetails(root,input);assert.equal(missing.post.title,'Dettaglio prova');assert.deepEqual(missing.textFiles,[]);assert.match(missing.textMessage,/Nessun file di testo/);
 });
 test('codifiche testo: UTF8 BOM, UTF16 Windows e Windows-1252',async t=>{
  const {root,text,input}=await seed(t);
@@ -50,7 +50,7 @@ test('cartella assente: informazioni del piano disponibili, messaggio sul testo'
 });
 test('non legge TXT collegati fuori dalla cartella Social',async t=>{
  const {root,folder,text,input,base}=await seed(t);await fs.unlink(text);const secret=path.join(base,'privato.txt');await fs.writeFile(secret,'Non leggere');await fs.symlink(secret,path.join(folder,'testo.txt'));
- const result=await postDetails(root,input);assert.equal(result.textFiles.length,0);assert.match(result.textMessage,/Nessun file TXT/);
+ const result=await postDetails(root,input);assert.equal(result.textFiles.length,0);assert.match(result.textMessage,/Nessun file di testo/);
 });
 test('piano aperto leggibile; selezioni errate e revisioni scadute rifiutate',async t=>{
  const {root,file,input}=await seed(t);await fs.writeFile(path.join(root,'~$Piano editoriale.xlsx'),'Excel');
@@ -80,4 +80,15 @@ test('cartella post: apre il livello sopra Sorgenti e rifiuta revisioni superate
  assert.deepEqual(await fs.readFile(file),before);
  await fs.appendFile(file,'\n');
  await assert.rejects(()=>resolvePostFolder(root,input),e=>e.code==='CHANGED');
+});
+test('testi storici .txt: restano leggibili, apribili e il .md canonico ha la precedenza',async t=>{
+ const {root,folder,text,input}=await seed(t);
+ const legacy=path.join(folder,'Dettaglio-prova_facebook.txt');
+ await fs.rename(text,legacy);await fs.writeFile(legacy,'Testo storico');
+ let result=await postDetails(root,input);
+ assert.equal(result.editableText.name,'Dettaglio-prova_facebook.txt');assert.equal(result.editableText.content,'Testo storico');
+ assert.equal(await resolvePostText(root,{...input,name:'Dettaglio-prova_facebook.txt'}),legacy);
+ await fs.writeFile(text,'# Testo nuovo');
+ result=await postDetails(root,input);
+ assert.equal(result.textFiles[0].name,'Dettaglio-prova_facebook.md');assert.equal(result.editableText.name,'Dettaglio-prova_facebook.md');
 });

@@ -29,12 +29,12 @@ test('testo del post: modifica il TXT del solo social selezionato e lo rinomina 
  const {root,old,input,selected}=await seed(t);
  const details=await postDetails(root,{key:selected.key,revision:input.revision});
  const original=details.editableText;
- assert.equal(original.name,'Titolo-originale_facebook.txt');
+ assert.equal(original.name,'Titolo-originale_facebook.md');
  const edit={...input,postText:'Testo Facebook aggiornato\nSeconda riga',textName:original.name,textRevision:original.revision};
  const plan=await planPostEdit(root,edit);assert.equal(plan.textChanged,true);
  const result=await savePostEdit(root,edit,plan.fingerprint);
- assert.equal(await fs.readFile(path.join(root,result.newRelative,'01_Sorgenti/Nuovo-titolo_facebook.txt'),'utf8'),edit.postText);
- assert.equal(await fs.readFile(path.join(root,'02_Instagram/2026/xx-xx_Titolo-originale/01_Sorgenti/Titolo-originale_instagram.txt'),'utf8'),'');
+ assert.equal(await fs.readFile(path.join(root,result.newRelative,'01_Sorgenti/Nuovo-titolo_facebook.md'),'utf8'),edit.postText);
+ assert.equal(await fs.readFile(path.join(root,'02_Instagram/2026/xx-xx_Titolo-originale/01_Sorgenti/Titolo-originale_instagram.md'),'utf8'),'');
  assert.equal(await fs.stat(old).then(()=>true,()=>false),false);
 });
 test('testo del post: blocca una versione superata e ripristina TXT, nomi ed Excel se il salvataggio fallisce',async t=>{
@@ -52,7 +52,7 @@ test('testo del post: blocca una versione superata e ripristina TXT, nomi ed Exc
 });
 test('modifica completa: rinomina cartella, AI/TXT ed export; conserva contenuti, ID e altro canale',async t=>{
  const {root,file,old,selected,input}=await seed(t);
- await fs.writeFile(path.join(old,'01_Sorgenti/Titolo-originale_facebook.txt'),'Testo originale da mantenere');
+ await fs.writeFile(path.join(old,'01_Sorgenti/Titolo-originale_facebook.md'),'Testo originale da mantenere');
  await fs.writeFile(path.join(old,'03_Export/Titolo-originale_Facebook-1.jpg'),'export');
  await fs.writeFile(path.join(old,'02_Asset/foto-originale.png'),'asset indipendente');
  const ai=await fs.readFile(path.join(old,'01_Sorgenti/Titolo-originale_facebook.ai')),before=await fs.readFile(file);
@@ -60,7 +60,7 @@ test('modifica completa: rinomina cartella, AI/TXT ed export; conserva contenuti
  const result=await savePostEdit(root,input,plan.fingerprint),target=path.join(root,result.newRelative);
  assert.equal(await fs.stat(old).then(()=>true,()=>false),false);
  assert.deepEqual(await fs.readFile(path.join(target,'01_Sorgenti/Nuovo-titolo_facebook.ai')),ai);
- assert.equal(await fs.readFile(path.join(target,'01_Sorgenti/Nuovo-titolo_facebook.txt'),'utf8'),'Testo originale da mantenere');
+ assert.equal(await fs.readFile(path.join(target,'01_Sorgenti/Nuovo-titolo_facebook.md'),'utf8'),'Testo originale da mantenere');
  assert.equal(await fs.readFile(path.join(target,'03_Export/Nuovo-titolo_Facebook-1.jpg'),'utf8'),'export');
  assert.equal(await fs.readFile(path.join(target,'02_Asset/foto-originale.png'),'utf8'),'asset indipendente');
  const rows=new Book(await fs.readFile(file)).posts(),fb=rows.find(p=>p.key===selected.key),ig=rows.find(p=>p.title==='Titolo originale'&&p.channel==='Instagram');
@@ -74,7 +74,7 @@ test('modifica completa: rinomina cartella, AI/TXT ed export; conserva contenuti
  const list=await listPosts(root),again={...input,revision:list.revision,undefinedDate:true,status:'da pubblicare'};
  const q=await planPostEdit(root,again);await savePostEdit(root,again,q.fingerprint);
  assert.equal(new Book(await fs.readFile(file)).posts().find(p=>p.key===selected.key).date,null);
- assert.ok(await fs.stat(path.join(root,'01_Facebook/2026/xx-xx_Nuovo-titolo/01_Sorgenti/Nuovo-titolo_facebook.txt')));
+ assert.ok(await fs.stat(path.join(root,'01_Facebook/2026/xx-xx_Nuovo-titolo/01_Sorgenti/Nuovo-titolo_facebook.md')));
 });
 for(const fault of ['failAfterFileRename','failAfterFolderRename'])test(`rollback completo: ${fault}`,async t=>{
  const {root,file,old,input}=await seed(t),before=await fs.readFile(file),ai=await fs.readFile(path.join(old,'01_Sorgenti/Titolo-originale_facebook.ai'));
@@ -86,9 +86,9 @@ for(const fault of ['failAfterFileRename','failAfterFolderRename'])test(`rollbac
 });
 test('collisione file: nessuna sovrascrittura e nessuna rinomina parziale',async t=>{
  const {file,old,root,input}=await seed(t),before=await fs.readFile(file);
- await fs.writeFile(path.join(old,'01_Sorgenti/Nuovo-titolo_facebook.txt'),'già presente');
+ await fs.writeFile(path.join(old,'01_Sorgenti/Nuovo-titolo_facebook.md'),'già presente');
  await assert.rejects(()=>planPostEdit(root,input),e=>e.code==='EXISTS');
- assert.deepEqual(await fs.readFile(file),before);assert.equal(await fs.readFile(path.join(old,'01_Sorgenti/Nuovo-titolo_facebook.txt'),'utf8'),'già presente');
+ assert.deepEqual(await fs.readFile(file),before);assert.equal(await fs.readFile(path.join(old,'01_Sorgenti/Nuovo-titolo_facebook.md'),'utf8'),'già presente');
 });
 test('collisione cartella: conserva la destinazione esistente',async t=>{
  const {root,file,input}=await seed(t),before=await fs.readFile(file);
@@ -97,9 +97,9 @@ test('collisione cartella: conserva la destinazione esistente',async t=>{
 });
 test('file modificati dopo il riepilogo: blocca la rinomina e preserva il nuovo contenuto',async t=>{
  const {root,file,old,input}=await seed(t),before=await fs.readFile(file),plan=await planPostEdit(root,input);
- await fs.writeFile(path.join(old,'01_Sorgenti/Titolo-originale_facebook.txt'),'Modifica successiva');
+ await fs.writeFile(path.join(old,'01_Sorgenti/Titolo-originale_facebook.md'),'Modifica successiva');
  await assert.rejects(()=>savePostEdit(root,input,plan.fingerprint),e=>e.code==='CHANGED');
- assert.deepEqual(await fs.readFile(file),before);assert.equal(await fs.readFile(path.join(old,'01_Sorgenti/Titolo-originale_facebook.txt'),'utf8'),'Modifica successiva');
+ assert.deepEqual(await fs.readFile(file),before);assert.equal(await fs.readFile(path.join(old,'01_Sorgenti/Titolo-originale_facebook.md'),'utf8'),'Modifica successiva');
 });
 test('metadati: preserva i nomi se il titolo e la data non cambiano',async t=>{
  const {root,old,input,selected}=await seed(t),edit={...input,title:selected.title,undefinedDate:true};
@@ -115,7 +115,7 @@ test('validazione, Excel aperto e revisioni scadute impediscono il salvataggio',
 test('sorgenti con nomi storici e Unicode: rinomina i principali senza toccare gli asset',async t=>{
  const {root,old,input}=await seed(t);
  await fs.rename(path.join(old,'01_Sorgenti/Titolo-originale_facebook.ai'),path.join(old,'01_Sorgenti/vecchio.ai'));
- await fs.rename(path.join(old,'01_Sorgenti/Titolo-originale_facebook.txt'),path.join(old,'01_Sorgenti/testo storico.txt'));
+ await fs.rename(path.join(old,'01_Sorgenti/Titolo-originale_facebook.md'),path.join(old,'01_Sorgenti/testo storico.txt'));
  const edit={...input,title:'Novità e inclusione'};const plan=await planPostEdit(root,edit);await savePostEdit(root,edit,plan.fingerprint);
  assert.ok(await fs.stat(path.join(root,plan.newRelative,'01_Sorgenti/Novità-e-inclusione_facebook.ai')));
  assert.ok(await fs.stat(path.join(root,plan.newRelative,'01_Sorgenti/Novità-e-inclusione_facebook.txt')));
@@ -137,5 +137,5 @@ test('rinomina con sole maiuscole/minuscole: aggiorna nomi reali e link',async t
  const folders=await fs.readdir(path.join(root,'01_Facebook/2026'));
  assert.ok(folders.includes('xx-xx_titolo-originale'));
  const files=await fs.readdir(path.join(root,'01_Facebook/2026/xx-xx_titolo-originale/01_Sorgenti'));
- assert.ok(files.includes('titolo-originale_facebook.ai'));assert.ok(files.includes('titolo-originale_facebook.txt'));
+ assert.ok(files.includes('titolo-originale_facebook.ai'));assert.ok(files.includes('titolo-originale_facebook.md'));
 });
