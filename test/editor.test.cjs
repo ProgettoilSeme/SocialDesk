@@ -7,7 +7,7 @@ const os=require('node:os');
 const {unzipSync}=require('fflate');
 const {Book}=require('../lib/workbook.cjs');
 const {planPost,createPost}=require('../lib/posts.cjs');
-const {listPosts,planPostEdit,savePostEdit}=require('../lib/editor.cjs');
+const {listPosts,planPostEdit,savePostEdit,saveTextBackup,resolveTextBackup}=require('../lib/editor.cjs');
 const {postDetails}=require('../lib/details.cjs');
 const fixture=process.env.SOCIAL_TEST_FIXTURE;
 if(!fixture)throw new Error('Impostare SOCIAL_TEST_FIXTURE su una copia di test.');
@@ -47,7 +47,7 @@ test('testo del post: blocca una versione superata e ripristina TXT, nomi ed Exc
  assert.deepEqual(await fs.readFile(file),beforeBook);
  assert.deepEqual(await fs.readFile(path.join(old,'01_Sorgenti',original.name)),beforeText);
  await fs.writeFile(path.join(old,'01_Sorgenti',original.name),'Modifica esterna');
- await assert.rejects(()=>savePostEdit(root,edit,plan.fingerprint),e=>e.code==='CHANGED');
+ await assert.rejects(()=>savePostEdit(root,edit,plan.fingerprint),e=>e.code==='TEXT_CHANGED');
  assert.equal(await fs.readFile(path.join(old,'01_Sorgenti',original.name),'utf8'),'Modifica esterna');
 });
 test('modifica completa: rinomina cartella, AI/TXT ed export; conserva contenuti, ID e altro canale',async t=>{
@@ -138,4 +138,31 @@ test('rinomina con sole maiuscole/minuscole: aggiorna nomi reali e link',async t
  assert.ok(folders.includes('xx-xx_titolo-originale'));
  const files=await fs.readdir(path.join(root,'01_Facebook/2026/xx-xx_titolo-originale/01_Sorgenti'));
  assert.ok(files.includes('titolo-originale_facebook.ai'));assert.ok(files.includes('titolo-originale_facebook.md'));
+});
+test('testo cambiato da altri: errore dedicato e copia di sicurezza senza toccare originale ed Excel',async t=>{
+ const {root,file,old,input}=await seed(t);
+ const list=await listPosts(root),selected=list.posts.find(p=>p.key===input.key);
+ const opened=(await postDetails(root,{key:selected.key,revision:list.revision})).editableText;
+ const text=path.join(old,'01_Sorgenti',opened.name);
+ await fs.writeFile(text,'Versione del collega');
+ const edit={...input,revision:list.revision,postText:'# Il mio testo\n**importante**',textName:opened.name,textRevision:opened.revision};
+ await assert.rejects(()=>planPostEdit(root,edit),e=>e.code==='TEXT_CHANGED');
+ const before=await fs.readFile(file);
+ const first=await saveTextBackup(root,{key:selected.key,revision:list.revision,textName:opened.name,content:edit.postText});
+ const second=await saveTextBackup(root,{key:selected.key,revision:list.revision,textName:opened.name,content:'altra copia'});
+ assert.match(first.relative,/^01_Facebook\/2026\/xx-xx_Titolo-originale\/01_Sorgenti\/Copie di sicurezza\/Titolo-originale_facebook - copia \d{4}-\d{2}-\d{2} \d{2}\.\d{2}\.md$/);
+ assert.notEqual(first.name,second.name);
+ assert.equal(await fs.readFile(path.join(root,first.relative),'utf8'),'# Il mio testo\n**importante**');
+ assert.equal(await fs.readFile(text,'utf8'),'Versione del collega');assert.deepEqual(await fs.readFile(file),before);
+ // La copia non cambia il testo principale riconosciuto dall'app.
+ assert.equal((await postDetails(root,{key:selected.key,revision:list.revision})).editableText.name,opened.name);
+ for(const bad of ['../x.md','x.ai','a/b.md',''])await assert.rejects(()=>saveTextBackup(root,{key:selected.key,revision:list.revision,textName:bad,content:'x'}),e=>e.code==='INPUT');
+});
+test('apertura copia di sicurezza: solo file .md nella cartella copie del post',async t=>{
+ const {root,input}=await seed(t);
+ const list=await listPosts(root),selected=list.posts.find(p=>p.key===input.key);
+ const opened=(await postDetails(root,{key:selected.key,revision:list.revision})).editableText;
+ const saved=await saveTextBackup(root,{key:selected.key,revision:list.revision,textName:opened.name,content:'copia'});
+ assert.equal(await resolveTextBackup(root,{key:selected.key,revision:list.revision,name:saved.name}),path.join(root,saved.relative));
+ for(const name of ['../'+opened.name,opened.name,'assente.md','x.txt',''])await assert.rejects(()=>resolveTextBackup(root,{key:selected.key,revision:list.revision,name}));
 });

@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld('socialAPI',{
  details:input=>ipcRenderer.invoke('social:details',input),
  openText:input=>ipcRenderer.invoke('social:open-text',input),
  syncAssets:()=>ipcRenderer.invoke('social:sync-assets'),
+ saveTextBackup:input=>ipcRenderer.invoke('social:save-text-backup',input),
+ openTextBackup:input=>ipcRenderer.invoke('social:open-text-backup',input),
  copyText:text=>ipcRenderer.invoke('social:copy-text',text),
  openPostFolder:input=>ipcRenderer.invoke('social:open-post-folder',input),
  illustratorFiles:input=>ipcRenderer.invoke('social:illustrator-files',input),

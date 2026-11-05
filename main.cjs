@@ -6,7 +6,7 @@ const {pathToFileURL}=require('node:url');
 const {rootInfo,planPost,createPost,PostError,assertContained}=require('./lib/posts.cjs');
 const {syncAssetArchive}=require('./lib/assets.cjs');
 const {listDrafts,planDraftDate,updateDraftDate}=require('./lib/drafts.cjs');
-const {listPosts,planPostEdit,savePostEdit}=require('./lib/editor.cjs');
+const {listPosts,planPostEdit,savePostEdit,saveTextBackup,resolveTextBackup}=require('./lib/editor.cjs');
 const {postDetails,resolvePostText,resolvePostFolder}=require('./lib/details.cjs');
 const {illustratorFiles,resolveIllustrator,illustratorData}=require('./lib/illustrator.cjs');
 const {planPostStatus,savePostStatus}=require('./lib/status.cjs');
@@ -80,6 +80,8 @@ else{
   endpoint('social:details',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return postDetails(root,input);});
   endpoint('social:open-text',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');const file=await resolvePostText(root,input);const error=await shell.openPath(file);if(error)throw new Error(error);return true;});
   endpoint('social:sync-assets',async()=>{if(busy)throw new PostError('BUSY','Un’operazione è già in corso.');busy=true;try{return await syncAssetArchive(root);}finally{busy=false;}});
+  endpoint('social:save-text-backup',async input=>{if(busy)throw new PostError('BUSY','Un’operazione è già in corso.');busy=true;try{return await saveTextBackup(root,input);}finally{busy=false;}});
+  endpoint('social:open-text-backup',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');const file=await resolveTextBackup(root,input);const error=await shell.openPath(file);if(error)throw new Error(error);return true;});
   endpoint('social:copy-text',async text=>{if(typeof text!=='string'||Buffer.byteLength(text)>1024*1024)throw new PostError('INPUT','Il testo da copiare non è valido.');clipboard.writeText(text);return true;});
   endpoint('social:open-post-folder',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');const folder=await resolvePostFolder(root,input);const error=await shell.openPath(folder);if(error)throw new Error(error);return true;});
   endpoint('social:illustrator-files',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return illustratorFiles(root,input);});

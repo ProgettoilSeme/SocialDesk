@@ -337,6 +337,42 @@ function openDateModal(post,opener){
 }
 function editInput(){return{key:state.selected.key,revision:state.revision,...state.editValues};}
 function editOptions(current,values){return [...new Set([current,...values])].map(value=>`<option value="${escape(value)}" ${value===current?'selected':''}>${escape(value||'Non indicato')}</option>`).join('');}
+function openTextConflictModal(){
+ if(document.querySelector('dialog[open]'))return;
+ const v=state.editValues,d=state.selected,opener=document.getElementById('save-post');
+ const modal=document.createElement('dialog');modal.className='date-modal conflict-modal';modal.setAttribute('aria-labelledby','conflict-title');
+ modal.innerHTML=`<div class="date-modal-heading"><h2 id="conflict-title">Qualcun altro ha modificato il testo</h2><button class="modal-close" type="button" aria-label="Chiudi" data-cancel>×</button></div><div class="conflict-body"><p>Mentre lavoravi, un'altra persona ha modificato e salvato <strong>${escape(v.textName)}</strong>. Le tue modifiche non sono state salvate, per non sovrascrivere il suo lavoro.</p><p>Vuoi salvare il tuo testo in una copia di sicurezza? Verrà messa in <strong>01_Sorgenti/Copie di sicurezza</strong> e il file dell'altra persona resterà com'è. Poi l'editor mostrerà il testo aggiornato, mantenendo le altre modifiche (titolo, data, stato…).</p></div><p class="error" role="alert" id="conflict-error"></p><div class="date-modal-actions"><button class="btn" type="button" data-cancel>Annulla</button><button class="btn primary" type="button" id="conflict-save">Salva copia di sicurezza</button></div>`;
+ document.body.appendChild(modal);let busy=false;
+ const close=()=>{if(!busy)modal.close();};
+ modal.addEventListener('cancel',event=>{event.preventDefault();close();});
+ modal.addEventListener('click',event=>{if(event.target===modal)close();});
+ modal.addEventListener('close',()=>{modal.remove();opener?.focus();},{once:true});
+ modal.querySelectorAll('[data-cancel]').forEach(button=>button.addEventListener('click',close));
+ const save=modal.querySelector('#conflict-save'),errorBox=modal.querySelector('#conflict-error');
+ save.addEventListener('click',async()=>{
+  if(busy)return;busy=true;save.disabled=true;save.textContent='Salvataggio…';errorBox.textContent='';
+  modal.querySelectorAll('[data-cancel]').forEach(button=>button.disabled=true);
+  try{
+   const result=await call('saveTextBackup',{key:d.key,revision:state.revision,textName:v.textName,content:v.postText});
+   const details=await call('details',{key:d.key,revision:state.revision});
+   const fresh=details.editableText;
+   if(fresh){
+    v.postText=fresh.content.replace(/\r\n/g,'\n');v.textName=fresh.name;v.textRevision=fresh.revision;
+    Object.assign(state.editOriginal,{postText:v.postText,textName:v.textName,textRevision:v.textRevision});
+   }
+   render();
+   modal.querySelector('.conflict-body').innerHTML=`<p>Copia salvata: <strong>${escape(result.relative)}</strong>.</p><p>${fresh?"L'editor ora mostra il testo aggiornato dall'altra persona. Le altre modifiche non salvate sono state mantenute: controlla e premi Salva modifiche.":'Non riesco a ricaricare il testo aggiornato: torna all’elenco e riapri il post.'}</p>`;
+   modal.querySelector('#conflict-title').textContent='Copia di sicurezza salvata';
+   modal.querySelector('.date-modal-actions').innerHTML=`<div class="conflict-open"><button class="btn" type="button" id="conflict-open-backup">Apri copia di sicurezza</button>${fresh?'<button class="btn" type="button" id="conflict-open-original">Apri file originale</button>':''}</div><button class="btn primary" type="button" id="conflict-done">Ho capito</button>`;
+   const openWith=async(button,method,name)=>{if(button.disabled)return;button.disabled=true;errorBox.textContent='';try{await call(method,{key:d.key,revision:state.revision,name});}catch(e){errorBox.textContent=e.message;}finally{button.disabled=false;}};
+   const backupButton=modal.querySelector('#conflict-open-backup');backupButton.addEventListener('click',()=>openWith(backupButton,'openTextBackup',result.name));
+   const originalButton=modal.querySelector('#conflict-open-original');originalButton?.addEventListener('click',()=>openWith(originalButton,'openText',fresh.name));
+   busy=false;modal.querySelector('#conflict-done').addEventListener('click',()=>modal.close());modal.querySelector('#conflict-done').focus();
+   modal.querySelector('.modal-close').disabled=false;
+  }catch(e){busy=false;save.disabled=false;save.textContent='Salva copia di sicurezza';modal.querySelectorAll('[data-cancel]').forEach(button=>button.disabled=false);errorBox.textContent=e.message;}
+ });
+ modal.showModal();save.focus();
+}
 function confirmDiscardEdit(){
  return new Promise(resolve=>{
   const modal=document.createElement('dialog');modal.className='date-modal';modal.setAttribute('aria-labelledby','discard-edit-title');
@@ -444,7 +480,7 @@ function renderPostEdit(){
    const result=await call('saveEdit',input,plan.fingerprint);
    if(result.canceled)return;
    state.notice=`Post aggiornato per ${result.channel}: ${result.changes.title}.`;state.loading=false;await loadList(state.listMode);return;
-  }catch(e){state.error=e.message;}
+  }catch(e){if(e.code==='TEXT_CHANGED'&&v.textName){state.loading=false;render();openTextConflictModal();return;}state.error=e.message;}
   finally{state.loading=false;render();}
  });
 }
