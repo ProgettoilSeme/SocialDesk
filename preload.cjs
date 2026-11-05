@@ -2,6 +2,9 @@ const {contextBridge,ipcRenderer}=require('electron');
 contextBridge.exposeInMainWorld('socialAPI',{
  initial:()=>ipcRenderer.invoke('social:initial'),
  chooseRoot:()=>ipcRenderer.invoke('social:choose'),
+ settings:()=>ipcRenderer.invoke('social:settings'),
+ chooseSetting:kind=>ipcRenderer.invoke('social:choose-setting',kind),
+ saveSettings:input=>ipcRenderer.invoke('social:save-settings',input),
  drafts:()=>ipcRenderer.invoke('social:drafts'),
  posts:()=>ipcRenderer.invoke('social:posts'),
  details:input=>ipcRenderer.invoke('social:details',input),

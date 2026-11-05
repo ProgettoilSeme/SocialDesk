@@ -1,7 +1,7 @@
 (function(root){
  'use strict';
  const normalized=value=>String(value||'').trim().toLowerCase();
- const tones=new Map([['testi da creare','text-needed'],['immagine da creare','image-needed'],['da pubblicare','ready'],['pubblicato','published']]);
+ const tones=new Map([['testi da creare','text-needed'],['testi in bozza','text-draft'],['immagine da creare','image-needed'],['da pubblicare','ready'],['pubblicato','published']]);
  function statusTone(status){
   return tones.get(normalized(status))||'unassigned';
  }

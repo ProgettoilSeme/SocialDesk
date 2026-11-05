@@ -87,10 +87,14 @@ test('piano modificato, Excel aperto, data e anno errati: salvataggio bloccato',
  await fs.writeFile(file,Buffer.concat([before,Buffer.from('\n')]));
  await assert.rejects(()=>updateDraftDate(root,input,p.fingerprint),e=>e.code==='CHANGED');
 });
-test('un post diventato pubblicato non è modificabile dalla vecchia selezione',async t=>{
+test('anche un post pubblicato può aggiornare la data senza cambiare lo stato',async t=>{
  const {root,file,input,draft}=await seed(t);
  await changeXml(file,doc=>{const c=Array.from(doc.getElementsByTagName('c')).find(c=>c.getAttribute('r')==='G'+draft.row);c.getElementsByTagName('t')[0].textContent='pubblicato';});
  const list=await listDrafts(root);
  assert.equal(list.drafts.some(d=>d.key===draft.key),false);
- await assert.rejects(()=>planDraftDate(root,{...input,revision:list.revision}),e=>e.code==='MISSING');
+ const request={...input,revision:list.revision},plan=await planDraftDate(root,request);
+ await updateDraftDate(root,request,plan.fingerprint);
+ const post=new Book(await fs.readFile(file)).posts().find(d=>d.key===draft.key);
+ assert.equal(post.status,'pubblicato');assert.equal(post.date,input.date);
+ assert.equal((await fs.stat(path.join(root,'01_Facebook/2026/12-15_Bozza-da-aggiornare'))).isDirectory(),true);
 });

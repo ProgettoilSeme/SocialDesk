@@ -1,27 +1,42 @@
 'use strict';
 const api=window.socialAPI;
 const localToday=()=>{const d=new Date();return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
-const initialPost=()=>({channels:[],title:'',topic:'',format:'',date:localToday(),undefinedDate:false,year:String(new Date().getFullYear())});
-const state={route:'home',step:0,visited:0,root:'',rootValid:false,post:initialPost(),plan:null,result:null,error:'',loading:false,drafts:[],revision:'',selected:null,notice:'',filterYear:String(new Date().getFullYear()),filterChannels:['Facebook','LinkedIn','Instagram'],filterStatus:'',filterMonth:'',years:[],listMode:'drafts',editValues:null,editPlan:null};
+const initialPost=()=>({channels:[],title:'',topic:'',channelFormats:{},channelDates:{},year:String(new Date().getFullYear())});
+const state={route:'home',step:0,visited:0,root:'',rootValid:false,post:initialPost(),plan:null,result:null,error:'',loading:false,drafts:[],revision:'',selected:null,notice:'',filterYear:String(new Date().getFullYear()),filterChannels:['Facebook','LinkedIn','Instagram'],filterStatus:'',filterMonth:'',years:[],listMode:'drafts',editValues:null,editOriginal:null,editReturn:null,settings:null};
 const main=document.getElementById('main'),footer=document.getElementById('footer'),progress=document.getElementById('progress');
+const actionIcons={
+ topic:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h10l8 8-9 9-9-9V4Z"/><circle cx="8" cy="9" r="1.2"/></svg>',
+ edit:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9M4 16.5V20h3.5L19 8.5 15.5 5 4 16.5Z"/><path d="m13.5 7 3.5 3.5"/></svg>'
+};
 const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function call(method,...args){if(!api)throw new Error('Apri SocialDesk dall’applicazione per accedere ai file.');const response=await api[method](...args);if(!response.ok){const e=new Error(response.error.message);e.code=response.error.code;throw e;}return response.value;}
-function valid(){if(state.step===0)return state.rootValid&&state.post.channels.length>0;if(state.step===1)return state.post.title.trim().length>0&&state.post.title.trim().length<=140&&!!state.post.format;if(state.step===2)return state.post.undefinedDate?/^\d{4}$/.test(state.post.year)&&Number(state.post.year)>=1900&&Number(state.post.year)<=9999:/^\d{4}-\d{2}-\d{2}$/.test(state.post.date);return !!state.plan;}
+function valid(){
+ if(state.step===0)return state.rootValid&&state.post.channels.length>0;
+ if(state.step===1)return state.post.title.trim().length>0&&state.post.title.trim().length<=140&&state.post.channels.length>0&&state.post.channels.every(channel=>!!state.post.channelFormats[channel]);
+ if(state.step===2){
+  const selections=state.post.channels.map(channel=>state.post.channelDates[channel]);
+  if(!selections.length||selections.some(value=>!value||(!value.undefinedDate&&!/^\d{4}-\d{2}-\d{2}$/.test(value.date))))return false;
+  const years=new Set(selections.filter(value=>!value.undefinedDate).map(value=>value.date.slice(0,4)));
+  return years.size>1?false:years.size===1?true:/^\d{4}$/.test(state.post.year)&&Number(state.post.year)>=1900&&Number(state.post.year)<=9999;
+ }
+ return !!state.plan;
+}
 function updateContinue(){const next=document.getElementById('next');if(next)next.disabled=state.loading||!valid();}
 function render(){
  renderHeader();
  progress.hidden=state.route!=='create';
  document.body.dataset.screen=state.route;
  const section=state.listMode==='posts'?'Tutti i post':'Post in bozza';
- document.title=state.route==='home'?'SocialDesk':state.route==='create'?'SocialDesk — Nuovo post':'SocialDesk — '+section;
+ document.title=state.route==='home'?'SocialDesk':state.route==='create'?'SocialDesk — Nuovo post':state.route==='settings'?'SocialDesk — Impostazioni':'SocialDesk — '+section;
  if(state.route==='home')return renderHome();
+ if(state.route==='settings')return renderSettings();
  if(state.route==='drafts'||state.route==='posts')return renderDrafts();
  if(state.route==='edit-post')return renderPostEdit();
  renderWizard();
  if(!state.loading){const home=document.createElement('button');home.type='button';home.className='home-link';home.textContent='Torna alla home';home.addEventListener('click',goHome);footer.appendChild(home);}
 }
 function renderHeader(){
- const active=state.route==='home'?'':state.route==='create'?'create':state.listMode;
+ const active=state.route==='home'||state.route==='settings'?'':state.route==='create'?'create':state.listMode;
  document.getElementById('brand-home').disabled=state.loading;
  document.querySelectorAll('[data-nav]').forEach(link=>{
   if(link.dataset.nav===active)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');
@@ -35,20 +50,28 @@ function renderWizard(){
  progress.innerHTML=['Social','Post','Data','Riepilogo'].map((name,i)=>`<button class="step ${i===state.step?'current':i<state.step?'complete':''}" type="button" data-step="${i}" ${i>state.visited||state.loading||state.result?'disabled':''} ${i===state.step?'aria-current="step"':''}><span class="number">${i+1}</span><span>${name}</span></button>`).join('');
  if(state.result){renderSuccess();return;}
  let content='';
- if(state.step===0)content=`<h1>Dove vuoi pubblicare?</h1><p class="lead">Seleziona uno o più social per questo post.</p><div class="social-list">${['Facebook','Instagram','LinkedIn'].map(c=>`<label class="social-option"><input type="checkbox" name="social" value="${c}" ${state.post.channels.includes(c)?'checked':''}><span>${c}</span></label>`).join('')}</div><div class="folder-setting"><label>Cartella Social</label><div class="folder-path" title="${escape(state.root)}"><span>${escape(state.root||'Nessuna cartella selezionata')}</span></div><button class="btn" id="choose-root" type="button">${state.root?'Cambia cartella':'Scegli cartella'}</button></div>`;
- if(state.step===1)content=`<h1>Di cosa parla il post?</h1><p class="lead">Questi dati saranno uguali per i social selezionati.</p><div class="fields"><div class="field"><label for="title">Titolo</label><input class="text-input" id="title" maxlength="140" autocomplete="off" value="${escape(state.post.title)}"></div><div class="field"><label for="topic">Argomento <span class="optional">(facoltativo)</span></label><input class="text-input" id="topic" maxlength="200" autocomplete="off" value="${escape(state.post.topic)}"></div><div class="field"><label for="format">Formato</label><select class="select-input" id="format"><option value="">Scegli un formato</option>${['Immagine singola','Carosello','Video','Reel','Storia'].map(f=>`<option ${state.post.format===f?'selected':''}>${f}</option>`).join('')}</select></div></div>`;
- if(state.step===2)content=`<h1>Quando vuoi pubblicare?</h1><p class="lead">Scegli una data oppure lasciala da definire.</p><div class="fields"><div class="field"><label for="date">Data pubblicazione</label><input class="text-input" type="date" id="date" value="${escape(state.post.date)}" ${state.post.undefinedDate?'disabled':''}></div><label class="check-line"><input type="checkbox" id="undefined-date" ${state.post.undefinedDate?'checked':''}><span>Data da definire</span></label>${state.post.undefinedDate?`<div class="field year-field"><label for="year">Anno</label><input class="text-input" id="year" type="number" inputmode="numeric" min="1900" max="9999" step="1" value="${escape(state.post.year)}"><p class="hint">La cartella inizierà con xx-xx.</p></div>`:''}</div>`;
- if(state.step===3){const p=state.plan;content=p?`<h1>È tutto pronto?</h1><p class="lead">Controlla i dati prima di creare il post.</p><dl class="review"><dt>Titolo</dt><dd>${escape(p.title)}</dd><dt>Social</dt><dd>${escape(p.channels.join(', '))}</dd><dt>Pubblicazione</dt><dd>${p.undefinedDate?'Da definire · '+p.year:escape(p.date.split('-').reverse().join('/'))}</dd><dt>Argomento</dt><dd>${escape(p.topic||'—')}</dd><dt>Formato</dt><dd>${escape(p.format)}</dd><dt>ID post</dt><dd>${p.id}</dd></dl><div class="destinations">${p.folders.map(f=>`<div class="destination"><strong>${escape(f.channel)}</strong><span class="destination-path">${escape(f.relative)}</span><span class="file-note">${escape(f.aiName)} · ${escape(f.textName)}</span></div>`).join('')}</div><p class="review-total">${p.channels.length===1?'Verranno create una cartella e una riga':'Verranno create '+p.channels.length+' cartelle e '+p.channels.length+' righe'} nel piano editoriale, nella scheda ${p.year}.</p>`:`<h1>Controllo dei dati</h1><p class="loading">Verifico cartelle, template e piano editoriale…</p>`;}
+ if(state.step===0)content=`<h1>Dove vuoi pubblicare?</h1><p class="lead">Seleziona uno o più social per questo post.</p><div class="social-list">${['Facebook','Instagram','LinkedIn'].map(c=>`<label class="social-option"><input type="checkbox" name="social" value="${c}" ${state.post.channels.includes(c)?'checked':''}><span>${c}</span></label>`).join('')}</div>${state.rootValid?'':'<div class="create-settings-notice" role="alert"><p>La cartella Social non è configurata.</p><button class="btn" id="create-open-settings" type="button">Apri Impostazioni</button></div>'}`;
+ if(state.step===1)content=`<h1>Di cosa parla il post?</h1><p class="lead">Titolo e argomento saranno uguali per i social selezionati. Scegli il formato per ciascuno.</p><div class="fields"><div class="field"><label for="title">Titolo</label><input class="text-input" id="title" maxlength="140" autocomplete="off" value="${escape(state.post.title)}"></div><div class="field"><label for="topic">Argomento <span class="optional">(facoltativo)</span></label><input class="text-input" id="topic" maxlength="200" autocomplete="off" value="${escape(state.post.topic)}"></div><div class="channel-dates channel-formats">${state.post.channels.map(channel=>{const id=channel.toLowerCase();return `<fieldset class="channel-date-card" data-channel="${channel}"><legend>${socialIcon(channel)}<span>${channel}</span></legend><div class="field"><label for="format-${id}">Formato</label><select class="select-input" id="format-${id}" data-channel-format="${channel}"><option value="">Scegli un formato</option>${['Immagine singola','Carosello','Video','Reel','Storia'].map(format=>`<option value="${format}" ${state.post.channelFormats[channel]===format?'selected':''}>${format}</option>`).join('')}</select></div></fieldset>`;}).join('')}</div></div>`;
+ if(state.step===2){
+  const allUndefined=state.post.channels.every(channel=>state.post.channelDates[channel]?.undefinedDate);
+  content=`<h1>Quando vuoi pubblicare?</h1><p class="lead">Scegli la data per ogni social, oppure lasciala da definire.</p><div class="channel-dates">${state.post.channels.map(channel=>{const item=state.post.channelDates[channel],id=channel.toLowerCase();return `<fieldset class="channel-date-card" data-channel="${channel}"><legend>${socialIcon(channel)}<span>${channel}</span></legend><div class="field"><label for="date-${id}">Data pubblicazione</label><input class="text-input" type="date" id="date-${id}" data-channel-date="${channel}" value="${escape(item.date)}" ${item.undefinedDate?'disabled':''}></div><label class="check-line"><input type="checkbox" data-undefined-date="${channel}" ${item.undefinedDate?'checked':''}><span>Data da definire</span></label></fieldset>`;}).join('')}</div>${allUndefined?`<div class="field year-field"><label for="year">Anno</label><input class="text-input" id="year" type="number" inputmode="numeric" min="1900" max="9999" step="1" value="${escape(state.post.year)}"><p class="hint">Le cartelle inizieranno con xx-xx.</p></div>`:''}<p class="hint channel-date-hint">I social dello stesso post devono restare nello stesso anno per condividere l’ID.</p>`;
+ }
+ if(state.step===3){
+  const p=state.plan;
+  content=p?`<h1>È tutto pronto?</h1><p class="lead">Controlla i dati prima di creare il post.</p><dl class="review"><dt>Titolo</dt><dd>${escape(p.title)}</dd><dt>Social</dt><dd>${escape(p.channels.join(', '))}</dd><dt>Anno</dt><dd>${p.year}</dd><dt>Argomento</dt><dd>${escape(p.topic||'—')}</dd><dt>ID post</dt><dd>${p.id}</dd></dl><div class="destinations">${p.folders.map(f=>`<div class="destination"><strong>${escape(f.channel)}</strong><span class="destination-format">Formato: ${escape(f.format)}</span><span class="destination-date">${f.date?escape(f.date.split('-').reverse().join('/')):'Data da definire'}</span><span class="destination-path">${escape(f.relative)}</span><span class="file-note">${escape(f.aiName)} · ${escape(f.textName)}</span></div>`).join('')}</div><p class="review-total">${p.channels.length===1?'Verranno create una cartella e una riga':'Verranno create '+p.channels.length+' cartelle e '+p.channels.length+' righe'} nel piano editoriale, nella scheda ${p.year}.</p>`:`<h1>Controllo dei dati</h1><p class="loading">Verifico cartelle, template e piano editoriale…</p>`;
+ }
  main.innerHTML=`<div class="screen-enter">${content}<div class="error" role="alert" id="error">${escape(state.error)}</div></div>`;
  footer.innerHTML=`<span class="step-caption">Passo ${state.step+1} di 4</span><div class="footer-actions"><button class="btn" id="back" type="button" ${state.step===0||state.loading?'disabled':''}>Indietro</button><button class="btn primary" id="next" type="button" ${!valid()||state.loading?'disabled':''}>${state.loading?'Attendi…':state.step===3?'Crea post':'Continua'}</button></div>`;
  wire();
 }
 function error(message){state.error=message;const box=document.getElementById('error');if(box)box.textContent=message;}
 function wire(){
- document.querySelectorAll('[name=social]').forEach(input=>input.addEventListener('change',()=>{state.post.channels=Array.from(document.querySelectorAll('[name=social]:checked')).map(x=>x.value);state.plan=null;error('');updateContinue();}));
- document.getElementById('choose-root')?.addEventListener('click',async()=>{try{const result=await call('chooseRoot');if(result){state.root=result.root;state.rootValid=result.valid;state.plan=null;state.error='';render();}}catch(e){error(e.message);}});
- for(const id of ['title','topic','format','date','year'])document.getElementById(id)?.addEventListener('input',event=>{state.post[id]=event.target.value;state.plan=null;error('');updateContinue();});
- document.getElementById('undefined-date')?.addEventListener('change',event=>{state.post.undefinedDate=event.target.checked;state.plan=null;state.error='';render();if(state.post.undefinedDate)document.getElementById('year')?.focus();});
+ document.querySelectorAll('[name=social]').forEach(input=>input.addEventListener('change',()=>{state.post.channels=Array.from(document.querySelectorAll('[name=social]:checked')).map(x=>x.value);for(const channel of state.post.channels){state.post.channelDates[channel]??={date:localToday(),undefinedDate:false};state.post.channelFormats[channel]??='';}state.plan=null;error('');updateContinue();}));
+ document.getElementById('create-open-settings')?.addEventListener('click',openSettings);
+ for(const id of ['title','topic','year'])document.getElementById(id)?.addEventListener('input',event=>{state.post[id]=event.target.value;state.plan=null;error('');updateContinue();});
+ document.querySelectorAll('[data-channel-format]').forEach(input=>input.addEventListener('change',event=>{state.post.channelFormats[event.target.dataset.channelFormat]=event.target.value;state.plan=null;error('');updateContinue();}));
+ document.querySelectorAll('[data-channel-date]').forEach(input=>input.addEventListener('input',event=>{state.post.channelDates[event.target.dataset.channelDate].date=event.target.value;state.plan=null;error('');updateContinue();}));
+ document.querySelectorAll('[data-undefined-date]').forEach(input=>input.addEventListener('change',event=>{state.post.channelDates[event.target.dataset.undefinedDate].undefinedDate=event.target.checked;state.plan=null;state.error='';render();}));
  document.getElementById('back')?.addEventListener('click',()=>go(state.step-1));
  document.getElementById('next')?.addEventListener('click',async()=>{if(state.step===3)await submit();else await go(state.step+1);});
  progress.querySelectorAll('[data-step]').forEach(button=>button.addEventListener('click',()=>go(Number(button.dataset.step))));
@@ -77,28 +100,38 @@ function renderSuccess(){
  document.querySelectorAll('[data-open-post]').forEach(button=>button.addEventListener('click',async()=>{button.disabled=true;try{await call('openResult',button.dataset.openPost);}catch(e){error(e.message);}finally{button.disabled=false;}}));
  document.getElementById('new-post').addEventListener('click',()=>{state.step=0;state.visited=0;state.post=initialPost();state.plan=null;state.result=null;state.error='';render();});
 }
-function folderSetting(){return `<div class="folder-setting"><label>Cartella Social</label><div class="folder-path" title="${escape(state.root)}"><span>${escape(state.root||'Nessuna cartella selezionata')}</span></div><button class="btn" id="choose-root" type="button" ${state.loading?'disabled':''}>${state.root?'Cambia cartella':'Scegli cartella'}</button></div>`;}
-function goHome(){if(state.loading)return;state.route='home';state.error='';state.notice='';state.selected=null;render();window.scrollTo({top:0});}
-async function chooseHomeRoot(){
- try{const result=await call('chooseRoot');if(result){state.root=result.root;state.rootValid=result.valid;state.error='';state.drafts=[];state.revision='';render();}}
- catch(e){error(e.message);}
-}
+async function goHome(){if(state.loading||state.route==='edit-post'&&!await confirmEditExit())return;state.route='home';state.error='';state.notice='';state.selected=null;render();window.scrollTo({top:0});}
 function renderHome(){
- main.innerHTML=`<div class="home-screen"><h1>SocialDesk</h1><div class="home-actions"><button class="home-action home-action-posts" id="all-posts" type="button" ${state.loading?'disabled':''}><img src="assets/calendar.png" alt="" width="240" height="240"><span>Tutti i post</span></button><button class="home-action home-action-drafts" id="drafts" type="button" ${state.loading?'disabled':''}><img src="assets/draft.png" alt="" width="240" height="240"><span>Post in bozza</span></button><button class="home-action home-action-create" id="create-new" type="button" ${state.loading?'disabled':''}><img src="assets/megaphone.png" alt="" width="240" height="240"><span>Crea nuovo post</span></button></div>${folderSetting()}<div class="error" id="error" role="alert">${escape(state.error)}</div></div>`;
+ main.innerHTML=`<div class="home-screen"><h1>SocialDesk</h1><div class="home-actions"><button class="home-action home-action-posts" id="all-posts" type="button" ${state.loading?'disabled':''}><img src="assets/calendar.png" alt="" width="240" height="240"><span>Tutti i post</span></button><button class="home-action home-action-drafts" id="drafts" type="button" ${state.loading?'disabled':''}><img src="assets/draft.png" alt="" width="240" height="240"><span>Post in bozza</span></button><button class="home-action home-action-create" id="create-new" type="button" ${state.loading?'disabled':''}><img src="assets/megaphone.png" alt="" width="240" height="240"><span>Crea nuovo post</span></button></div><div class="home-settings"><button class="btn" id="open-settings" type="button">⚙ Impostazioni</button></div><div class="error" id="error" role="alert">${escape(state.error)}</div></div>`;
  footer.innerHTML='';
- document.getElementById('choose-root').addEventListener('click',chooseHomeRoot);
+ document.getElementById('open-settings').addEventListener('click',openSettings);
  document.getElementById('drafts').addEventListener('click',loadDrafts);
  document.getElementById('all-posts').addEventListener('click',loadPosts);
  document.getElementById('create-new').addEventListener('click',startCreate);
+}
+async function openSettings(){
+ state.route='settings';state.error='';state.notice='';render();
+ if(!state.rootValid)return;
+ try{state.settings=await call('settings');render();}catch(e){error(e.message);}
+}
+function renderSettings(){
+ const s=state.settings;
+ const row=(label,key,value)=>`<div class="settings-row"><label for="setting-${key}">${label}</label><div class="settings-control"><input class="text-input" id="setting-${key}" value="${escape(value||'')}" ${!s?'disabled':''}><button class="btn" type="button" data-pick="${key}" ${!s?'disabled':''}>Sfoglia</button></div></div>`;
+ main.innerHTML=`<div class="settings-screen"><h1>Impostazioni</h1><p class="lead">I percorsi vengono salvati in <strong>00_template/socialdesk-settings.json</strong>. Mac e Windows mantengono impostazioni separate.</p><div class="settings-section"><h2>Cartella Social</h2><div class="settings-control"><div class="folder-path" title="${escape(state.root)}"><span>${escape(state.root||'Nessuna cartella selezionata')}</span></div><button class="btn" id="settings-root" type="button">${state.root?'Cambia cartella':'Scegli cartella'}</button></div></div>${s?`<div class="settings-section"><h2>Template Illustrator</h2><p class="hint">Scegli un file .ai per ogni social. I percorsi relativi partono dalla cartella Social.</p>${row('Facebook','Facebook',s.templates.Facebook)}${row('Instagram','Instagram',s.templates.Instagram)}${row('LinkedIn','LinkedIn',s.templates.LinkedIn)}</div><div class="settings-section"><h2>Cestino</h2><p class="hint">La cartella deve trovarsi dentro Social. Se non esiste, verrà creata quando elimini un post.</p>${row('Cartella cestino','trash',s.trash)}</div><p class="hint">Piano editoriale: Piano editoriale.xlsx nella cartella Social.</p><button class="btn primary" id="save-settings" type="button">Salva impostazioni</button>`:''}<div class="error" role="alert" id="error">${escape(state.error)}</div>${state.notice?`<p class="notice" role="status">${escape(state.notice)}</p>`:''}</div>`;
+ footer.innerHTML='<button class="btn" id="settings-home" type="button">Torna alla home</button>';
+ document.getElementById('settings-home').addEventListener('click',goHome);
+ document.getElementById('settings-root').addEventListener('click',async()=>{try{const result=await call('chooseRoot');if(result){state.root=result.root;state.rootValid=result.valid;state.settings=await call('settings');state.error='';state.notice='';render();}}catch(e){error(e.message);}});
+ document.querySelectorAll('[data-pick]').forEach(button=>button.addEventListener('click',async()=>{try{const value=await call('chooseSetting',button.dataset.pick);if(value!==null)document.getElementById('setting-'+button.dataset.pick).value=value;}catch(e){error(e.message);}}));
+ document.getElementById('save-settings')?.addEventListener('click',async()=>{const input={socialRoot:state.root,templates:{},trash:document.getElementById('setting-trash').value};for(const channel of ['Facebook','Instagram','LinkedIn'])input.templates[channel]=document.getElementById('setting-'+channel).value;try{state.settings=await call('saveSettings',input);state.notice='Impostazioni salvate.';state.error='';render();}catch(e){error(e.message);}});
 }
 async function loadDrafts(){return loadList('drafts');}
 async function loadPosts(){return loadList('posts');}
 async function loadList(kind){
  if(state.loading)return;
- if(!state.rootValid){error('Scegli prima la cartella Social qui sotto.');return;}
+ if(!state.rootValid){error('Configura prima la cartella Social in Impostazioni.');return;}
  const reset=state.route==='home'||state.listMode!==kind;
  state.loading=true;state.error='';render();
- try{const result=await call(kind);state.drafts=result.posts||result.drafts;state.revision=result.revision;state.years=result.years||[];state.route=kind;state.listMode=kind;state.selected=null;state.editPlan=null;if(reset){state.filterYear=String(new Date().getFullYear());state.filterChannels=['Facebook','LinkedIn','Instagram'];state.filterStatus='';state.filterMonth='';}}
+ try{const result=await call(kind);state.drafts=result.posts||result.drafts;state.revision=result.revision;state.years=result.years||[];state.route=kind;state.listMode=kind;state.selected=null;if(reset){state.filterYear=String(new Date().getFullYear());state.filterChannels=['Facebook','LinkedIn','Instagram'];state.filterStatus='';state.filterMonth='';}}
  catch(e){state.error=e.message;}
  finally{state.loading=false;render();}
 }
@@ -114,12 +147,17 @@ function renderDrafts(){
  const all=state.listMode==='posts',today=localToday(),year=today.slice(0,4);
  const years=[...new Set([year,...state.years.map(String),...state.drafts.map(d=>String(d.year))])].sort().reverse();
  if(!years.includes(state.filterYear))state.filterYear=year;
- const statuses=[...new Set(['testi da creare','immagine da creare','da pubblicare','pubblicato',...state.drafts.map(d=>d.status.trim().toLowerCase()).filter(Boolean)])];
+ const statuses=[...new Set(['testi da creare','testi in bozza','immagine da creare','da pubblicare','pubblicato',...state.drafts.map(d=>d.status.trim().toLowerCase()).filter(Boolean)])];
  const items=state.drafts.filter(d=>SocialPostFilters.matchesPost(d,{year:state.filterYear,channels:state.filterChannels,status:state.filterStatus,month:state.filterMonth}));
  const channels=['Facebook','LinkedIn','Instagram'];
  const chips=`<div class="channel-chips" role="group" aria-label="Filtra per canale">${channels.map(channel=>`<button class="channel-chip" type="button" data-channel-filter="${channel}" aria-pressed="${state.filterChannels.includes(channel)}" ${state.loading?'disabled':''}>${socialIcon(channel)}<span>${channel}</span></button>`).join('')}</div>`;
  const toolbar=`<div class="draft-toolbar"><div class="field"><label for="filter-year">Anno</label><select id="filter-year" class="select-input" ${state.loading?'disabled':''}>${years.map(y=>`<option ${state.filterYear===y?'selected':''}>${y}</option>`).join('')}</select></div><div class="field"><label for="filter-status">Stato</label><select id="filter-status" class="select-input status-filter" data-status="${state.filterStatus?SocialPostFilters.statusTone(state.filterStatus):'all'}" ${state.loading?'disabled':''}><option value="">Tutti gli stati</option>${statuses.map(status=>`<option value="${escape(status)}" data-status="${SocialPostFilters.statusTone(status)}" ${state.filterStatus===status?'selected':''}>${escape(status)}</option>`).join('')}<option value="__none" ${state.filterStatus==='__none'?'selected':''}>Non indicato</option></select></div><div class="field"><label for="filter-month">Mese</label><select id="filter-month" class="select-input" ${state.loading?'disabled':''}><option value="">Tutti i mesi</option>${['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'].map((name,index)=>{const value=String(index+1).padStart(2,'0');return `<option value="${value}" ${state.filterMonth===value?'selected':''}>${name}</option>`;}).join('')}</select></div><button class="btn" id="refresh" type="button" ${state.loading?'disabled':''}>${state.loading?'Attendi…':'Aggiorna elenco'}</button></div>`;
- const rows=items.map(d=>`<article class="draft-item" data-channel="${escape(d.channel)}"><div class="post-body post-summary" data-details="${escape(d.key)}" title="Visualizza dettagli del post"><div class="post-heading"><span class="post-social-icon" role="img" aria-label="${escape(d.channel)}" title="${escape(d.channel)}">${socialIcon(d.channel)}</span><h2><button class="post-title-button" type="button">${escape(d.title)}</button></h2></div><p class="draft-meta post-details"><span class="status-badge" data-status="${SocialPostFilters.statusTone(d.status)}">${escape(d.status||'Non indicato')}</span>${d.date?`<span class="post-date">${escape(d.date.split('-').reverse().join('/'))}</span>`:''}${d.id!==null&&d.id!==''?`<span>ID ${escape(d.id)}</span>`:''}</p></div><div class="post-actions"><button class="btn" data-change-status="${escape(d.key)}" type="button" ${state.loading?'disabled':''}>Cambia stato</button><button class="btn" data-draft="${escape(d.key)}" type="button" ${state.loading?'disabled':''}>${all?'Modifica':'Aggiorna data'}</button></div></article>`).join('');
+ const rows=items.map(d=>{
+  const status=d.status||'Non indicato',date=d.date?d.date.split('-').reverse().join('/'):'Da definire';
+  const topic=d.topic?.trim()?`<span class="post-topic" title="Argomento: ${escape(d.topic)}">${actionIcons.topic}<span class="sr-only">Argomento: </span><span class="post-topic-text">${escape(d.topic)}</span></span>`:'';
+  const id=d.id!==null&&d.id!==''?`<span>ID ${escape(d.id)}</span>`:'';
+  return `<article class="draft-item" data-channel="${escape(d.channel)}"><div class="post-body post-summary" data-details="${escape(d.key)}" title="Visualizza dettagli del post"><div class="post-heading"><span class="post-social-icon" role="img" aria-label="${escape(d.channel)}" title="${escape(d.channel)}">${socialIcon(d.channel)}</span><h2><button class="post-title-button" type="button">${escape(d.title)}</button></h2></div>${topic||id?`<p class="draft-meta post-details">${topic}${id}</p>`:''}</div><div class="post-actions"><button class="btn status-action status-badge" data-status="${SocialPostFilters.statusTone(d.status)}" data-change-status="${escape(d.key)}" type="button" aria-label="Cambia stato: ${escape(status)}" title="Cambia stato" ${state.loading?'disabled':''}>${escape(status)}</button><button class="btn date-action" data-change-date="${escape(d.key)}" type="button" aria-label="Aggiorna data: ${escape(date)}" title="Aggiorna data" ${state.loading?'disabled':''}>${escape(date)}</button><button class="btn icon-btn" data-draft="${escape(d.key)}" type="button" aria-label="Modifica" title="Modifica" ${state.loading?'disabled':''}>${actionIcons.edit}</button></div></article>`;
+ }).join('');
  main.innerHTML=`<h1>${all?'Tutti i post':'Post in bozza'}</h1><p class="lead list-intro">${all?'Pubblicati e bozze. Modifica i dati del singolo social.':'Tutti i post non ancora pubblicati. Aggiorna la data del singolo social.'}</p>${chips}${toolbar}${state.notice?`<div class="notice" role="status">${escape(state.notice)}</div>`:''}<p class="draft-count">${items.length} post</p><div class="draft-list">${rows||`<p class="empty-state">${state.filterChannels.length?'Nessun post per questi filtri.':'Seleziona almeno un social per visualizzare i post.'}</p>`}</div><div class="error" id="error" role="alert">${escape(state.error)}</div>`;
  footer.innerHTML=`<button class="btn" id="home" type="button" ${state.loading?'disabled':''}>Torna alla home</button>`;
  document.getElementById('home').addEventListener('click',goHome);
@@ -139,16 +177,30 @@ function renderDrafts(){
  main.querySelectorAll('[data-change-status]').forEach(button=>button.addEventListener('click',()=>{
   const post=state.drafts.find(d=>d.key===button.dataset.changeStatus);if(post)openStatusModal(post,button);
  }));
- main.querySelectorAll('[data-draft]').forEach(button=>button.addEventListener('click',()=>{
+ main.querySelectorAll('[data-change-date]').forEach(button=>button.addEventListener('click',()=>{
+  const post=state.drafts.find(d=>d.key===button.dataset.changeDate);if(post)openDateModal(post,button);
+ }));
+ main.querySelectorAll('[data-draft]').forEach(button=>button.addEventListener('click',async()=>{
+  if(state.loading)return;
+  state.editReturn={route:state.listMode,scrollY:window.scrollY};
   state.selected=state.drafts.find(d=>d.key===button.dataset.draft);
-  if(all){const d=state.selected;state.editValues={title:d.title,topic:d.topic,format:d.format,status:d.status,undefinedDate:!d.date,date:d.date||(d.year===new Date().getFullYear()?localToday():d.year+'-01-01')};state.editPlan=null;state.error='';state.route='edit-post';render();return;}
-  openDateModal(state.selected,button);
+  const d=state.selected;state.loading=true;button.disabled=true;
+  let editable=null,note='';
+  try{
+   const details=await call('details',{key:d.key,revision:state.revision});
+   editable=details.editableText;
+   if(!editable)note=details.textMessage||'Il TXT principale non è individuabile: controlla i file nella cartella Sorgenti.';
+  }catch(e){note=e.message;}
+  state.editValues={title:d.title,topic:d.topic,format:d.format,status:d.status,undefinedDate:!d.date,date:d.date||(d.year===new Date().getFullYear()?localToday():d.year+'-01-01')};
+  if(editable){state.editValues.postText=editable.content.replace(/\r\n/g,'\n');state.editValues.textName=editable.name;state.editValues.textRevision=editable.revision;}
+  state.editOriginal={...state.editValues};
+  state.editTextNote=note;state.error='';state.loading=false;state.route='edit-post';render();
  }));
 }
 function openStatusModal(post,opener){
  if(document.querySelector('dialog[open]'))return;
  const mode=state.listMode,scrollY=window.scrollY,current=post.status.trim().toLowerCase();
- const statuses=['testi da creare','immagine da creare','da pubblicare','pubblicato'];
+ const statuses=['testi da creare','testi in bozza','immagine da creare','da pubblicare','pubblicato'];
  const initial=statuses.includes(current)?current:'';
  const modal=document.createElement('dialog');modal.id='status-modal';modal.className='date-modal';modal.setAttribute('aria-labelledby','status-modal-title');modal.setAttribute('aria-describedby','status-modal-post');
  modal.innerHTML=`<form><div class="date-modal-heading"><h2 id="status-modal-title">Cambia stato</h2><button type="button" class="modal-close" id="status-close" aria-label="Chiudi">×</button></div><p id="status-modal-post" class="date-modal-post">${escape(post.title)}</p><p class="date-modal-channel">${escape(post.channel)} · ${post.year}</p><div class="field"><label for="quick-status">Nuovo stato</label><select class="select-input status-filter" id="quick-status" required data-status="${SocialPostFilters.statusTone(initial)}">${initial?'':`<option value="" disabled selected>${escape(post.status?'Attuale: '+post.status:'Scegli uno stato')}</option>`}${statuses.map(status=>`<option value="${status}" ${initial===status?'selected':''}>${status}</option>`).join('')}</select><p class="hint">La modifica riguarda solo ${escape(post.channel)}.</p></div><p class="error" id="status-error" role="alert"></p><div class="date-modal-actions"><button class="btn" id="status-cancel" type="button">Annulla</button><button class="btn primary" id="status-save" type="submit" disabled>Salva stato</button></div></form>`;
@@ -220,7 +272,7 @@ function openPostDetails(post,opener){
 }
 function openDateModal(post,opener){
  if(document.getElementById('date-modal'))return;
- const scrollY=window.scrollY;
+ const mode=state.listMode,scrollY=window.scrollY;
  const initial=post.date||(post.year===new Date().getFullYear()?localToday():post.year+'-01-01');
  const modal=document.createElement('dialog');modal.id='date-modal';modal.className='date-modal';modal.setAttribute('aria-labelledby','date-modal-title');modal.setAttribute('aria-describedby','date-modal-post');
  modal.innerHTML=`<form id="date-modal-form"><div class="date-modal-heading"><h2 id="date-modal-title">Aggiorna data</h2><button type="button" class="modal-close" id="date-modal-close" aria-label="Chiudi">×</button></div><p id="date-modal-post" class="date-modal-post">${escape(post.title)}</p><p class="date-modal-channel">${escape(post.channel)} · ${post.year}</p><div class="field"><label for="draft-date">Data pubblicazione</label><input class="text-input" type="date" id="draft-date" required min="${post.year}-01-01" max="${post.year}-12-31" value="${escape(initial)}" autofocus><p class="hint">La modifica riguarda solo ${escape(post.channel)}.</p></div><p class="error" id="date-modal-error" role="alert"></p><div class="date-modal-actions"><button class="btn" id="date-modal-cancel" type="button">Annulla</button><button class="btn primary" id="date-modal-save" type="submit">Salva data</button></div></form>`;
@@ -242,9 +294,9 @@ function openDateModal(post,opener){
    const result=await call('updateDate',request,plan.fingerprint);
    if(result.canceled)return;
    state.notice=`Data aggiornata per ${result.channel}: ${result.date.split('-').reverse().join('/')}.`;
-   busy(false);closeModal();await loadDrafts();
+   busy(false);closeModal();await loadList(mode);
    window.scrollTo({top:scrollY});
-   const current=main.querySelector(`[data-draft="${post.key}"]`);current?.focus({preventScroll:true});
+   const current=main.querySelector(`[data-change-date="${post.key}"]`);current?.focus({preventScroll:true});
   }catch(e){message.textContent=e.message;}
   finally{if(modal.isConnected)busy(false);else state.loading=false;}
  });
@@ -252,34 +304,53 @@ function openDateModal(post,opener){
 }
 function editInput(){return{key:state.selected.key,revision:state.revision,...state.editValues};}
 function editOptions(current,values){return [...new Set([current,...values])].map(value=>`<option value="${escape(value)}" ${value===current?'selected':''}>${escape(value||'Non indicato')}</option>`).join('');}
+function confirmDiscardEdit(){
+ return new Promise(resolve=>{
+  const modal=document.createElement('dialog');modal.className='date-modal';modal.setAttribute('aria-labelledby','discard-edit-title');
+  modal.innerHTML='<div class="date-modal-heading"><h2 id="discard-edit-title">Uscire senza salvare?</h2></div><p>Le modifiche a questo post andranno perse.</p><div class="date-modal-actions"><button class="btn" id="stay-edit" type="button">Resta qui</button><button class="btn danger" id="discard-edit" type="button">Esci senza salvare</button></div>';
+  document.body.appendChild(modal);
+  modal.addEventListener('close',()=>{modal.remove();resolve(modal.returnValue==='discard');},{once:true});
+  modal.querySelector('#stay-edit').addEventListener('click',()=>modal.close('stay'));
+  modal.querySelector('#discard-edit').addEventListener('click',()=>modal.close('discard'));
+  modal.showModal();modal.querySelector('#stay-edit').focus();
+ });
+}
+async function leavePostEdit(){
+ if(state.loading||!await confirmEditExit())return;
+ const previous=state.editReturn;
+ state.route=previous?.route||state.listMode;state.error='';render();
+ requestAnimationFrame(()=>window.scrollTo(0,previous?.scrollY||0));
+}
+async function confirmEditExit(){
+ const changed=Object.keys(state.editOriginal||{}).some(name=>state.editValues[name]!==state.editOriginal[name]);
+ return !changed||await confirmDiscardEdit();
+}
 function renderPostEdit(){
- const d=state.selected,v=state.editValues,p=state.editPlan;
- const preview=p?`<section class="date-summary" id="edit-summary"><h2>Controlla le modifiche</h2><dl class="review"><dt>Titolo</dt><dd>${escape(p.changes.title)}</dd><dt>Argomento</dt><dd>${escape(p.changes.topic||'—')}</dd><dt>Formato</dt><dd>${escape(p.changes.format||'Non indicato')}</dd><dt>Stato</dt><dd>${escape(p.changes.status||'Non indicato')}</dd><dt>Data</dt><dd>${p.changes.date?escape(p.changes.date.split('-').reverse().join('/')):'Da definire'}</dd></dl><p>Cartella: ${escape(p.oldRelative)} → ${escape(p.newRelative)}</p>${p.renames.length?`<p>File da rinominare (${p.renames.length}):</p><ul class="rename-list">${p.renames.map(r=>`<li>${escape(r.from)} → ${escape(r.to)}</li>`).join('')}</ul>`:'<p>I nomi dei file rimarranno invariati.</p>'}<p>La modifica riguarda solo ${escape(p.channel)}. ID e contenuto dei file saranno conservati.</p></section>`:'';
- main.innerHTML=`<h1>Modifica post</h1><p class="lead">${escape(d.channel)} · ${d.year}${d.id!==null&&d.id!==''?' · ID '+escape(d.id):''}</p><div class="edit-fields"><div class="field"><label for="edit-title">Titolo</label><input class="text-input" id="edit-title" maxlength="140" value="${escape(v.title)}" ${state.loading?'disabled':''}></div><div class="field"><label for="edit-topic">Argomento</label><input class="text-input" id="edit-topic" maxlength="200" value="${escape(v.topic)}" ${state.loading?'disabled':''}></div><div class="edit-pair"><div class="field"><label for="edit-format">Formato</label><select class="select-input" id="edit-format" ${state.loading?'disabled':''}>${editOptions(v.format,['Immagine singola','Carosello','Video','Reel','Storia'])}</select></div><div class="field"><label for="edit-status">Stato pubblicazione</label><select class="select-input" id="edit-status" ${state.loading?'disabled':''}>${editOptions(v.status,['testi da creare','immagine da creare','da pubblicare','pubblicato'])}</select></div></div><div class="field"><label for="edit-date">Data pubblicazione</label><input class="text-input" id="edit-date" type="date" min="${d.year}-01-01" max="${d.year}-12-31" value="${escape(v.date)}" ${v.undefinedDate||state.loading?'disabled':''}><p class="hint">La data deve rimanere nel ${d.year}.</p></div><label class="check-line"><input type="checkbox" id="edit-undefined" ${v.undefinedDate?'checked':''} ${state.loading?'disabled':''}><span>Data da definire</span></label></div>${preview}<section class="delete-post-section" aria-label="Eliminazione del post"><h2>Elimina post</h2><p>Rimuove la riga di ${escape(d.channel)} dal piano editoriale e sposta la sua cartella in <strong>00_cestino</strong>.</p><button class="btn danger" id="delete-post" type="button" ${state.loading?'disabled':''}>Elimina post</button></section><div class="error" role="alert" id="error">${escape(state.error)}</div>`;
- footer.innerHTML=`<button class="btn" id="back-posts" type="button" ${state.loading?'disabled':''}>Torna ai post</button><button class="btn primary" id="save-post" type="button" ${state.loading||!v.title.trim()?'disabled':''}>${state.loading?'Attendi…':p?'Salva modifiche':'Controlla modifiche'}</button>`;
- document.getElementById('back-posts').addEventListener('click',()=>{state.route='posts';state.error='';render();});
- for(const name of ['title','topic','format','status','date'])document.getElementById('edit-'+name).addEventListener('input',e=>{v[name]=e.target.value;state.editPlan=null;document.getElementById('edit-summary')?.remove();const b=document.getElementById('save-post');b.textContent='Controlla modifiche';b.disabled=!v.title.trim();error('');});
- document.getElementById('edit-undefined').addEventListener('change',e=>{v.undefinedDate=e.target.checked;state.editPlan=null;state.error='';render();});
+ const d=state.selected,v=state.editValues;
+ main.innerHTML=`<button class="btn edit-back" id="back-posts" type="button" ${state.loading?'disabled':''}>← Torna indietro</button><h1>Modifica post</h1><p class="lead">${escape(d.channel)} · ${d.year}${d.id!==null&&d.id!==''?' · ID '+escape(d.id):''}</p><div class="edit-fields"><div class="field"><label for="edit-title">Titolo</label><input class="text-input" id="edit-title" maxlength="140" value="${escape(v.title)}" ${state.loading?'disabled':''}></div><div class="field"><label for="edit-topic">Argomento</label><input class="text-input" id="edit-topic" maxlength="200" value="${escape(v.topic)}" ${state.loading?'disabled':''}></div><div class="edit-pair"><div class="field"><label for="edit-format">Formato</label><select class="select-input" id="edit-format" ${state.loading?'disabled':''}>${editOptions(v.format,['Immagine singola','Carosello','Video','Reel','Storia'])}</select></div><div class="field"><label for="edit-status">Stato pubblicazione</label><select class="select-input" id="edit-status" ${state.loading?'disabled':''}>${editOptions(v.status,['testi da creare','testi in bozza','immagine da creare','da pubblicare','pubblicato'])}</select></div></div><div class="field"><label for="edit-date">Data pubblicazione</label><input class="text-input" id="edit-date" type="date" min="${d.year}-01-01" max="${d.year}-12-31" value="${escape(v.date)}" ${v.undefinedDate||state.loading?'disabled':''}><p class="hint">La data deve rimanere nel ${d.year}.</p></div><label class="check-line"><input type="checkbox" id="edit-undefined" ${v.undefinedDate?'checked':''} ${state.loading?'disabled':''}><span>Data da definire</span></label><div class="field"><label for="edit-post-text">Testo del post</label>${v.textName?`<textarea class="post-text-input" id="edit-post-text" maxlength="1048576" spellcheck="true" ${state.loading?'disabled':''}>${escape(v.postText)}</textarea><p class="hint">${escape(v.textName)} · Modifichi solo il testo di ${escape(d.channel)}.</p>`:`<p class="hint">${escape(state.editTextNote||'Nessun TXT modificabile presente nei Sorgenti.')}</p>`}</div></div><section class="delete-post-section" aria-label="Eliminazione del post"><h2>Elimina post</h2><p>Rimuove la riga di ${escape(d.channel)} dal piano editoriale e sposta la sua cartella in <strong>00_cestino</strong>.</p><button class="btn danger" id="delete-post" type="button" ${state.loading?'disabled':''}>Elimina post</button></section><div class="error" role="alert" id="error">${escape(state.error)}</div>`;
+ footer.innerHTML=`<span></span><button class="btn primary" id="save-post" type="button" ${state.loading||!v.title.trim()?'disabled':''}>${state.loading?'Attendi…':'Salva modifiche'}</button>`;
+ document.getElementById('back-posts').addEventListener('click',leavePostEdit);
+ for(const name of ['title','topic','format','status','date'])document.getElementById('edit-'+name).addEventListener('input',e=>{v[name]=e.target.value;document.getElementById('save-post').disabled=!v.title.trim();error('');});
+ document.getElementById('edit-post-text')?.addEventListener('input',e=>{v.postText=e.target.value;error('');});
+ document.getElementById('edit-undefined').addEventListener('change',e=>{v.undefinedDate=e.target.checked;state.error='';render();});
  document.getElementById('delete-post').addEventListener('click',async()=>{
   if(state.loading)return;
   const request={key:d.key,revision:state.revision};state.loading=true;state.error='';render();
   try{
    const result=await call('deletePost',request);if(result.canceled)return;
-   state.notice=`Post eliminato per ${result.channel}: ${result.title}. Cartella spostata in ${result.trashRelative}.`;state.loading=false;await loadPosts();return;
+   state.notice=`Post eliminato per ${result.channel}: ${result.title}. Cartella spostata in ${result.trashRelative}.`;state.loading=false;await loadList(state.listMode);return;
   }catch(e){state.error=e.message;}
   finally{state.loading=false;render();}
  });
  document.getElementById('save-post').addEventListener('click',async()=>{
   if(state.loading)return;
-  const plan=state.editPlan;state.loading=true;state.error='';render();
+  state.loading=true;state.error='';render();
   try{
-   if(!plan)state.editPlan=await call('planEdit',editInput());
-   else{
-    const result=await call('saveEdit',editInput(),plan.fingerprint);
-    if(result.canceled)return;
-    state.notice=`Post aggiornato per ${result.channel}: ${result.changes.title}.`;state.loading=false;await loadPosts();return;
-   }
-  }catch(e){state.error=e.message;state.editPlan=null;}
+   const input=editInput(),plan=await call('planEdit',input);
+   const result=await call('saveEdit',input,plan.fingerprint);
+   if(result.canceled)return;
+   state.notice=`Post aggiornato per ${result.channel}: ${result.changes.title}.`;state.loading=false;await loadList(state.listMode);return;
+  }catch(e){state.error=e.message;}
   finally{state.loading=false;render();}
  });
 }
@@ -288,6 +359,7 @@ function renderPostEdit(){
 document.getElementById('brand-home').addEventListener('click',goHome);
 document.querySelectorAll('[data-nav]').forEach(link=>link.addEventListener('click',async event=>{
  event.preventDefault();if(state.loading||document.querySelector('dialog[open]'))return;
+ if(state.route==='edit-post'&&!await confirmEditExit())return;
  if(link.dataset.nav==='create'){startCreate();return;}
  await loadList(link.dataset.nav);window.scrollTo({top:0});
 }));

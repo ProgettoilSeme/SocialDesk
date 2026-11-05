@@ -10,6 +10,7 @@ const {postDetails,resolvePostText,resolvePostFolder}=require('./lib/details.cjs
 const {illustratorFiles,resolveIllustrator,illustratorData}=require('./lib/illustrator.cjs');
 const {planPostStatus,savePostStatus}=require('./lib/status.cjs');
 const {planDeletePost,deletePost}=require('./lib/delete.cjs');
+const settings=require('./lib/settings.cjs');
 if(process.env.SOCIAL_TEST_USER_DATA)app.setPath('userData',process.env.SOCIAL_TEST_USER_DATA);
 let window,root='',busy=false,lastResult=null;
 const page=pathToFileURL(path.join(__dirname,'ui/index.html')).href;
@@ -18,6 +19,7 @@ async function preferences(){
  const files=[config(),...['Social','social-post-assistant'].map(name=>path.join(app.getPath('appData'),name,'social-preferences.json'))];
  for(const file of files){try{const data=JSON.parse(await fs.readFile(file,'utf8'));if(typeof data.root==='string'&&data.root){root=data.root;break;}}catch{}}
  if(process.env.SOCIAL_TEST_ROOT)root=process.env.SOCIAL_TEST_ROOT;
+ else if(root){try{const doc=await settings.read(root),configured=doc[settings.platform()]?.socialRoot;if(typeof configured==='string'&&configured)root=configured;}catch{}}
 }
 async function remember(){await fs.mkdir(path.dirname(config()),{recursive:true});const temp=config()+'.tmp';await fs.writeFile(temp,JSON.stringify({root}));await fs.rename(temp,config());}
 function errorMessage(e){
@@ -59,6 +61,17 @@ else{
    if(result.canceled)return null;
    const selected=result.filePaths[0];await rootInfo(selected);root=selected;await remember();return{root,valid:true};
   });
+  endpoint('social:settings',async()=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');await rootInfo(root);return settings.current(root);});
+  endpoint('social:choose-setting',async(kind)=>{
+   if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');
+   const current=await settings.current(root);
+   if(!['Facebook','Instagram','LinkedIn','trash'].includes(kind))throw new PostError('INPUT','Percorso non valido.');
+   const isTrash=kind==='trash',previous=isTrash?current.trash:current.templates[kind];
+   const location=path.isAbsolute(previous)?previous:path.join(root,previous);
+   const result=await dialog.showOpenDialog(window,{title:isTrash?'Scegli la cartella cestino':`Scegli il template ${kind}`,properties:[isTrash?'openDirectory':'openFile'],defaultPath:location,filters:isTrash?undefined:[{name:'Adobe Illustrator',extensions:['ai']}]});
+   return result.canceled?null:settings.relativeOrAbsolute(root,result.filePaths[0]);
+  });
+  endpoint('social:save-settings',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');await rootInfo(root);return settings.save(root,input);});
   endpoint('social:plan',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine della creazione.');return planPost(root,input);});
   endpoint('social:drafts',async()=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return listDrafts(root);});
   endpoint('social:posts',async()=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return listPosts(root);});

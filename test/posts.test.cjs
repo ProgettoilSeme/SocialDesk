@@ -42,6 +42,35 @@ test('creazione: stesso ID per due social, file corretti, testi vuoti e template
  const a=unzipSync(before),b=unzipSync(after);
  for(const name of Object.keys(a))if(!['xl/worksheets/sheet1.xml','xl/worksheets/_rels/sheet1.xml.rels','xl/tables/table1.xml','xl/workbook.xml','xl/_rels/workbook.xml.rels','[Content_Types].xml'].includes(name))assert.deepEqual(b[name],a[name],name);
 });
+test('date distinte per canale: cartelle e righe Excel seguono la rispettiva data con ID condiviso',async t=>{
+ const r=await root(t),input={...base,title:'Date per social',channels:['Facebook','Instagram','LinkedIn'],channelDates:{Facebook:{date:'2026-11-20',undefinedDate:false},Instagram:{date:'2026-12-03',undefinedDate:false},LinkedIn:{date:'',undefinedDate:true}}};
+ const plan=await planPost(r,input);assert.equal(plan.year,2026);assert.equal(plan.id,0);
+ assert.deepEqual(plan.folders.map(f=>[f.channel,f.date,f.relative.split(path.sep).at(-1)]),[['Facebook','2026-11-20','11-20_Date-per-social'],['Instagram','2026-12-03','12-03_Date-per-social'],['LinkedIn',null,'xx-xx_Date-per-social']]);
+ const result=await createPost(r,input,plan.fingerprint);assert.equal(result.rowsAdded,3);
+ const rows=new Book(await book(r)).posts().filter(p=>p.title==='Date per social');
+ assert.deepEqual(rows.map(p=>[p.channel,p.id,p.date]),[['Facebook',0,'2026-11-20'],['Instagram',0,'2026-12-03'],['LinkedIn',0,null]]);
+ const sheet=strFromU8(unzipSync(await book(r))['xl/worksheets/sheet1.xml']);
+ assert.match(sheet,/testi da creare,testi in bozza,immagine da creare,da pubblicare,pubblicato/);
+ for(const folder of result.created)assert.equal((await fs.stat(folder.path)).isDirectory(),true);
+});
+test('formati distinti per canale: il riepilogo e ogni riga Excel usano il formato scelto',async t=>{
+ const r=await root(t),input={...base,title:'Formati per social',channels:['Facebook','Instagram','LinkedIn'],channelFormats:{Facebook:'Immagine singola',Instagram:'Reel',LinkedIn:'Carosello'}};
+ delete input.format;
+ const plan=await planPost(r,input);
+ assert.deepEqual(plan.folders.map(folder=>[folder.channel,folder.format]),[['Facebook','Immagine singola'],['Instagram','Reel'],['LinkedIn','Carosello']]);
+ await createPost(r,input,plan.fingerprint);
+ const rows=new Book(await book(r)).posts().filter(post=>post.title==='Formati per social');
+ assert.deepEqual(rows.map(post=>[post.channel,post.format]),[['Facebook','Immagine singola'],['Instagram','Reel'],['LinkedIn','Carosello']]);
+ assert.throws(()=>validate({...input,channelFormats:{Facebook:'Immagine singola',Instagram:'Reel'}}),e=>e.code==='INPUT');
+ assert.throws(()=>validate({...input,channelFormats:{...input.channelFormats,LinkedIn:'Non valido'}}),e=>e.code==='INPUT');
+});
+test('date di anni diversi: rifiuta il post senza scrivere file',async t=>{
+ const r=await root(t),before=await snapshot(r);
+ const input={...base,channelDates:{Facebook:{date:'2026-12-31',undefinedDate:false},Instagram:{date:'2027-01-01',undefinedDate:false}}};
+ assert.throws(()=>validate(input),e=>e.code==='YEAR');
+ await assert.rejects(()=>planPost(r,input),e=>e.code==='YEAR');
+ assert.deepEqual(await snapshot(r),before);
+});
 test('numerazione annuale: prosegue nello stesso anno, riparte da zero nel nuovo anno',async t=>{
  const r=await root(t);
  for(const [title,expected] of [['Primo',0],['Secondo',1]]){const input={...base,title};const p=await planPost(r,input);assert.equal(p.id,expected);await createPost(r,input,p.fingerprint);}

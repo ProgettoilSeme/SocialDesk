@@ -1,0 +1,33 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os');
+const {current,save,fileFor,templatePath,trashPath}=require('../lib/settings.cjs');
+const {planPost,createPost}=require('../lib/posts.cjs');
+const {listPosts}=require('../lib/editor.cjs');
+const {planDeletePost,deletePost}=require('../lib/delete.cjs');
+const fixture=process.env.SOCIAL_TEST_FIXTURE;if(!fixture)throw Error('Impostare SOCIAL_TEST_FIXTURE.');
+test('impostazioni: JSON per piattaforma, template personalizzato e cestino usato dall’eliminazione',async t=>{
+ const base=await fs.mkdtemp(path.join(os.tmpdir(),'social-settings-'));t.after(()=>fs.rm(base,{recursive:true,force:true}));
+ const root=path.join(base,'Social');await fs.cp(fixture,root,{recursive:true});
+ const custom=path.join(root,'00_template','speciale Facebook.ai');await fs.writeFile(custom,'AI speciale');
+ const initial=await current(root);assert.equal(initial.socialRoot,root);
+ const settings=await save(root,{socialRoot:root,templates:{...initial.templates,Facebook:'00_template/speciale Facebook.ai'},trash:'00_cestino_personalizzato'});
+ assert.equal(settings.templates.Facebook,'00_template/speciale Facebook.ai');
+ const doc=JSON.parse(await fs.readFile(fileFor(root),'utf8'));
+ assert.equal(doc.version,1);assert.equal(doc[process.platform==='win32'?'mac':'windows'].socialRoot,'');
+ assert.equal(await templatePath(root,'Facebook'),custom);assert.equal(await trashPath(root),path.join(root,'00_cestino_personalizzato'));
+ const input={title:'Post impostazioni',topic:'',format:'Carosello',channels:['Facebook'],date:'2026-11-21',undefinedDate:false};
+ const plan=await planPost(root,input);await createPost(root,input,plan.fingerprint);
+ const source=path.join(root,'01_Facebook/2026/11-21_Post-impostazioni/01_Sorgenti/Post-impostazioni_facebook.ai');
+ assert.equal(await fs.readFile(source,'utf8'),'AI speciale');
+ const list=await listPosts(root),post=list.posts.find(p=>p.title===input.title),deletion=await planDeletePost(root,{key:post.key,revision:list.revision});
+ assert.match(deletion.trashRelative,/^00_cestino_personalizzato\//);
+ await deletePost(root,{key:post.key,revision:list.revision},deletion.fingerprint);
+ assert.equal((await fs.stat(path.join(root,deletion.trashRelative))).isDirectory(),true);
+});
+test('impostazioni: rifiuta file mancanti, percorsi fuori Social e JSON non valido',async t=>{
+ const base=await fs.mkdtemp(path.join(os.tmpdir(),'social-settings-invalid-'));t.after(()=>fs.rm(base,{recursive:true,force:true}));
+ const root=path.join(base,'Social');await fs.cp(fixture,root,{recursive:true});const original=await current(root);
+ await assert.rejects(()=>save(root,{...original,templates:{...original.templates,Facebook:'../esterno.ai'}}),e=>e.code==='PATH');
+ await assert.rejects(()=>save(root,{...original,templates:{...original.templates,Facebook:'00_template/manca.ai'}}),e=>e.code==='TEMPLATE');
+ await fs.writeFile(fileFor(root),'{non json');await assert.rejects(()=>current(root),e=>e.code==='SETTINGS');
+});

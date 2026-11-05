@@ -28,9 +28,9 @@ test('stato rapido: cambia solo G della riga selezionata, mantenendo gli altri d
  assert.equal(await fs.readFile(txt,'utf8'),'Testo da mantenere');assert.deepEqual(await fs.readFile(result.backup),before);
  const a=unzipSync(before),b=unzipSync(after);for(const part of Object.keys(a))if(part!=='xl/worksheets/sheet1.xml')assert.deepEqual(b[part],a[part],part);
 });
-test('tutti i quattro stati consentiti e passaggio da pubblicato a bozza',async t=>{
+test('tutti i cinque stati consentiti e passaggio da pubblicato a bozza',async t=>{
  const {root,file,post}=await seed(t);
- for(const status of ['immagine da creare','da pubblicare','pubblicato','testi da creare']){
+ for(const status of ['immagine da creare','da pubblicare','pubblicato','testi da creare','testi in bozza']){
   const list=await listPosts(root);await savePostStatus(root,{key:post.key,revision:list.revision,status});
   const book=new Book(await fs.readFile(file));assert.equal(book.posts().find(p=>p.key===post.key).status,status);assert.equal(book.drafts().some(p=>p.key===post.key),status!=='pubblicato');
  }

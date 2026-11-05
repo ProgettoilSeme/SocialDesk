@@ -32,8 +32,8 @@ test('stato: combina anno, mese e canali; gestisce anche stati vuoti',()=>{
  assert.equal(apply({status:'__none'}).length,1);
  assert.equal(matchesPost({...posts[0],status:' Pubblicato '},{...filters,status:'pubblicato'},today),true);
 });
-test('colori degli stati: quattro toni distinti e fallback neutro',()=>{
- assert.equal(new Set(['testi da creare','immagine da creare','da pubblicare','pubblicato'].map(statusTone)).size,4);
+test('colori degli stati: cinque toni distinti e fallback neutro',()=>{
+ assert.equal(new Set(['testi da creare','testi in bozza','immagine da creare','da pubblicare','pubblicato'].map(statusTone)).size,5);
  assert.equal(statusTone(' Pubblicato '),'published');assert.equal(statusTone(''),'unassigned');
  assert.equal(statusTone('__proto__'),'unassigned');assert.equal(statusTone('constructor'),'unassigned');
 });
