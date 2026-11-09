@@ -134,7 +134,7 @@ header,main{--page-width:960px}
 .post-group::after{content:none}
 .group-children .draft-item+.draft-item{border-top:var(--border-width,1px) solid #dce2e9}
 .post-social-icon,.post-icon-stack{margin-top:.1em}
-.post-details{color:#626d7b;opacity:1;font-weight:400}
+.post-details{color:#626d7b;opacity:1;font-weight:400;line-height:1.1}
 .group-toggle{flex:0 0 auto;width:auto;gap:var(--gap-paragraphs)}
 
 @media(max-width:660px){.home-action img{max-width:130px}}
