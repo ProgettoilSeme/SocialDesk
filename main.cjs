@@ -13,7 +13,21 @@ const {planPostStatus,savePostStatus}=require('./lib/status.cjs');
 const {planDeletePost,deletePost}=require('./lib/delete.cjs');
 const settings=require('./lib/settings.cjs');
 if(process.env.SOCIAL_TEST_USER_DATA)app.setPath('userData',process.env.SOCIAL_TEST_USER_DATA);
-let window,root='',busy=false,lastResult=null;
+let window,root='',busy=false,lastResult=null,startupFailed=false;
+// Registro di avvio: aiuta a capire perché l'app non si apre (es. su Windows/NAS).
+const startupLog=()=>path.join(app.getPath('userData'),'socialdesk-avvio.log');
+function log(message){
+ try{const file=startupLog();require('node:fs').mkdirSync(path.dirname(file),{recursive:true});
+  try{if(require('node:fs').statSync(file).size>256*1024)require('node:fs').renameSync(file,file+'.old');}catch{}
+  require('node:fs').appendFileSync(file,`${new Date().toISOString()} ${message}\n`);}catch{}
+}
+function fatal(title,detail){
+ if(startupFailed)return;startupFailed=true;log(`ERRORE ${title}: ${detail}`);
+ try{dialog.showErrorBox(`SocialDesk — ${title}`,`${detail}\n\nRegistro: ${startupLog()}`);}catch{}
+ app.exit(1);
+}
+process.on('uncaughtException',e=>fatal('Errore imprevisto',e?.stack||String(e)));
+process.on('unhandledRejection',e=>fatal('Errore imprevisto',e?.stack||String(e)));
 const page=pathToFileURL(path.join(__dirname,'ui/index.html')).href;
 const config=()=>path.join(app.getPath('userData'),'social-preferences.json');
 async function preferences(){
@@ -39,18 +53,32 @@ async function confirmSave(){
  return result.response===1;
 }
 function createWindow(){
+ log('creazione finestra');
  window=new BrowserWindow({width:1000,height:820,minWidth:580,minHeight:620,title:'SocialDesk',backgroundColor:'#ffffff',show:false,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
  window.webContents.setWindowOpenHandler(()=>({action:'deny'}));
  window.webContents.on('will-navigate',(event,url)=>{if(url!==page)event.preventDefault();});
  window.on('close',event=>{if(busy){event.preventDefault();dialog.showMessageBox(window,{type:'info',message:'Un’operazione è in corso. Attendi il completamento prima di chiudere.'});}});
- window.once('ready-to-show',()=>window.show());
+ const reveal=()=>{if(window&&!window.isDestroyed()&&!window.isVisible()){window.show();log('finestra mostrata');}};
+ window.once('ready-to-show',reveal);
+ // Se la pagina non è pronta in 15 secondi, mostra comunque la finestra.
+ setTimeout(()=>{if(window&&!window.isDestroyed()&&!window.isVisible()){log('pagina non pronta dopo 15 s: mostro la finestra');reveal();}},15000);
+ window.webContents.on('render-process-gone',(event,details)=>fatal('La finestra si è chiusa in modo imprevisto',`Motivo: ${details.reason} (codice ${details.exitCode}).\nSe hai avviato SocialDesk da una cartella di rete, installalo sul PC con il programma di installazione SocialDesk-Setup.`));
+ window.webContents.on('did-fail-load',(event,code,description,url)=>{if(url===page)fatal('Impossibile caricare la pagina',`${description} (${code}).`);});
+ window.webContents.on('preload-error',(event,file,error)=>fatal('Errore di caricamento',`${file}: ${error?.message||error}`));
  window.loadFile(path.join(__dirname,'ui/index.html'));
 }
-if(!app.requestSingleInstanceLock())app.quit();
+app.on('child-process-gone',(event,details)=>log(`processo interno terminato: ${details.type} ${details.reason} (${details.exitCode})`));
+if(!app.requestSingleInstanceLock()){log('già in esecuzione: passo il controllo alla finestra aperta');app.quit();}
 else{
- app.on('second-instance',()=>{if(window){if(window.isMinimized())window.restore();window.focus();}});
+ app.on('second-instance',()=>{log('secondo avvio: mostro la finestra');if(window&&!window.isDestroyed()){if(window.isMinimized())window.restore();window.show();window.focus();}});
  app.whenReady().then(async()=>{
+  log(`avvio ${app.getVersion()} ${process.platform} ${process.arch} exe=${process.execPath}`);
+  // Windows: la cartella del programma non può essere avviata da una condivisione di rete.
+  if(process.platform==='win32'&&/^\\\\/.test(process.execPath)){
+   fatal('Avvio da cartella di rete non supportato','SocialDesk è stato avviato direttamente dal NAS. Windows non permette a SocialDesk di funzionare da una cartella di rete.\n\nInstallalo sul PC aprendo il programma di installazione SocialDesk-Setup, poi avvialo dal menu Start o dall’icona sul desktop.\nI dati possono restare sul NAS.');return;
+  }
   await preferences();
+  log(`cartella Social: ${root||'(non scelta)'}`);
   if(process.platform==='darwin')Menu.setApplicationMenu(Menu.buildFromTemplate([{role:'appMenu'},{role:'editMenu'},{role:'windowMenu'}]));else Menu.setApplicationMenu(null);
   endpoint('social:initial',async()=>{
    const version=app.getVersion();

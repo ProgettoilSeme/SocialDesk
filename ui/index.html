@@ -1,17 +1,57 @@
 <!doctype html>
-<html lang="it">
+<html lang="it" pgs="htmlBase">
 <head>
  <meta charset="UTF-8">
  <meta name="viewport" content="width=device-width,initial-scale=1">
  <meta http-equiv="Content-Security-Policy" content="default-src 'self';script-src 'self' 'wasm-unsafe-eval';style-src 'self';img-src 'self' data: blob:;font-src 'self' data: blob:;worker-src 'self' blob:;connect-src 'self';object-src 'none';base-uri 'none';form-action 'none'">
  <title>SocialDesk</title>
+ <link rel="stylesheet" href="../node_modules/mypgs/dist/css/index.min.css">
+ <link rel="stylesheet" href="../node_modules/@marcix/myicons/dist/icons.min.css">
  <link rel="stylesheet" href="styles.css">
+ <script src="../node_modules/mypgs/dist/javascript/index.min.js"></script>
 </head>
-<body>
- <header class="app-header"><div class="shell"><button class="app-brand" id="brand-home" type="button" aria-label="SocialDesk — Home"><img class="brand-icon" src="assets/socialdesk-logo.svg" alt="" aria-hidden="true">SocialDesk</button><nav class="header-nav" aria-label="Navigazione principale"><a href="#posts" data-nav="posts">Tutti i post</a><a href="#drafts" data-nav="drafts">Post in bozza</a><a href="#create" data-nav="create">Crea nuovo post</a></nav></div></header>
- <nav class="shell progress" aria-label="Passaggi" id="progress"></nav>
- <main class="shell" id="main"></main>
- <footer class="shell footer" id="footer"></footer>
+<body pgs="body['bodyBase' 'bodyImg' 'bodyText' 'bodyHeading']">
+ <header pgs="header">
+  <div pgs="header-element blur">
+   <div pgs="header-element-alwaysOn">
+    <a pgs="logo" class="app-brand" id="brand-home" href="#home" aria-label="SocialDesk — Home"><img pgs="logo-image" src="assets/socialdesk-logo.svg" alt=""><span pgs="logo-text">SocialDesk</span></a>
+   </div>
+   <div pgs="header-element-onlyFull">
+    <nav pgs="menu['menuHorizontal' 'menuShort']" aria-label="Navigazione principale">
+     <ul>
+      <li><a pgs="button['btnTransparent' 'btnForHeader' 'btnPaddingEqual' 'btnCurrent']" href="#posts" data-nav="posts"><img class="nav-icon" src="assets/calendar.png" alt="" width="20" height="20"><span>Tutti i post</span></a></li>
+      <li><a pgs="button['btnTransparent' 'btnForHeader' 'btnPaddingEqual' 'btnCurrent']" href="#drafts" data-nav="drafts"><img class="nav-icon" src="assets/draft.png" alt="" width="20" height="20"><span>Post in bozza</span></a></li>
+      <li><a pgs="button['btnTransparent' 'btnForHeader' 'btnPaddingEqual' 'btnCurrent']" href="#create" data-nav="create"><img class="nav-icon" src="assets/megaphone.png" alt="" width="20" height="20"><span>Crea nuovo post</span></a></li>
+     </ul>
+    </nav>
+   </div>
+   <div pgs="header-element-onlyCompact">
+    <div pgs="modal['dialogRight']" pgs-data="modalContainerPGS[header]" id="compact-menu">
+     <button pgs="button['btnIconOnly' 'btnForHeader'] modal-button modal-close" type="button" aria-label="Apri il menu">
+      <i pgs="icon['icon-hamburgerTwo']" aria-hidden="true"></i>
+     </button>
+     <dialog>
+      <div pgs="modal-dialog-content">
+       <nav pgs="menu['menuVertical']" aria-label="Navigazione principale">
+        <ul>
+      <li><a pgs="button['btnTransparent' 'btnPaddingEqual' 'btnCurrent']" href="#posts" data-nav="posts"><img class="nav-icon" src="assets/calendar.png" alt="" width="20" height="20"><span>Tutti i post</span></a></li>
+      <li><a pgs="button['btnTransparent' 'btnPaddingEqual' 'btnCurrent']" href="#drafts" data-nav="drafts"><img class="nav-icon" src="assets/draft.png" alt="" width="20" height="20"><span>Post in bozza</span></a></li>
+      <li><a pgs="button['btnTransparent' 'btnPaddingEqual' 'btnCurrent']" href="#create" data-nav="create"><img class="nav-icon" src="assets/megaphone.png" alt="" width="20" height="20"><span>Crea nuovo post</span></a></li>
+        </ul>
+       </nav>
+      </div>
+     </dialog>
+    </div>
+   </div>
+  </div>
+ </header>
+ <main pgs="main">
+  <section pgs="section flex['column' 'gapElements']" class="app-section">
+   <nav pgs="flex['row' 'wrap' 'gapParagraphs']" class="progress" aria-label="Passaggi" id="progress"></nav>
+   <div pgs="flex['column' 'gapElements']" id="main"></div>
+   <div pgs="flex['row' 'wrap' 'gapParagraphs' 'itemCenter' 'justifyBetween']" class="footer" id="footer"></div>
+  </section>
+ </main>
  <script src="post-filters.js"></script>
  <script src="illustrator-preview.js"></script>
  <script src="markdown.js"></script>

@@ -35,6 +35,38 @@ const os = require('node:os');
         execFileSync('/usr/bin/ditto', ['-c', '-k', '--norsrc', '--noextattr', '--keepParent', bundle, path.join(out, `${pkg.productName}-Mac-${arch}.zip`)]);
       }
     }
+    if (platform === 'win32') {
+      // Installer NSIS per utente (nessun permesso di amministratore), in
+      // %LOCALAPPDATA%\Programs\SocialDesk. Rieseguire un installer, anche di una
+      // versione più recente, aggiorna l'installazione esistente: NSIS la riconosce
+      // dall'appId, la disinstalla e installa la nuova versione, conservando i dati
+      // in %APPDATA%\SocialDesk. NON cambiare appId: un nuovo appId creerebbe una
+      // seconda installazione separata invece di aggiornare quella esistente.
+      const { build, Platform, Arch } = require('electron-builder');
+      const ico = path.join(root, 'build', 'socialdesk.ico');
+      const setupName = `${pkg.productName}-Setup-${pkg.version}.exe`;
+      for (const folder of result) {
+        await build({
+          targets: Platform.WINDOWS.createTarget('nsis', Arch.x64),
+          prepackaged: folder, publish: 'never',
+          config: {
+            appId: 'it.progettoilseme.social', productName: pkg.productName,
+            copyright: 'Progetto il Seme',
+            directories: { output: path.join(staging, 'installer') },
+            win: { signAndEditExecutable: false, icon: ico },
+            nsis: {
+              oneClick: true, perMachine: false, runAfterFinish: true,
+              createDesktopShortcut: true, createStartMenuShortcut: true, shortcutName: pkg.productName,
+              deleteAppDataOnUninstall: false, installerIcon: ico, uninstallerIcon: ico,
+              uninstallDisplayName: pkg.productName, language: '1040', artifactName: setupName,
+            },
+          },
+        });
+        const setup = path.join(staging, 'installer', setupName);
+        await fs.copyFile(setup, path.join(out, setupName));
+        console.log(path.join(out, setupName));
+      }
+    }
     for (const folder of result) {
       const destination = path.join(out, path.basename(folder));
       await fs.rm(destination, {recursive:true, force:true});
