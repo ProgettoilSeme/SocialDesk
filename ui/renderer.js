@@ -1,6 +1,8 @@
 'use strict';
 // Interfaccia costruita con i componenti della libreria myPgs (attributi pgs, pgs-state, pgs-data).
 const api=window.socialAPI;
+// Su Mac la barra del titolo è nascosta: l'header fa da barra (trascinamento e spazio per i pulsanti della finestra)
+document.documentElement.dataset.platform=/Mac/i.test(navigator.platform)?'mac':'other';
 const localToday=()=>{const d=new Date();return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
 const initialPost=()=>({channels:[],title:'',topic:'',channelFormats:{},channelDates:{},year:String(new Date().getFullYear())});
 const state={route:'home',step:0,visited:0,root:'',rootValid:false,post:initialPost(),plan:null,result:null,error:'',loading:false,drafts:[],revision:'',selected:null,notice:'',filterYear:String(new Date().getFullYear()),filterChannels:['Facebook','LinkedIn','Instagram'],filterStatus:'',filterMonth:'',groupById:true,hidePublished:true,expandedGroups:new Set(),years:[],listMode:'drafts',editValues:null,editOriginal:null,editReturn:null,settings:null};
@@ -161,6 +163,18 @@ async function refreshUpdate(force=false){
  lastUpdateCheck=Date.now();
  try{const result=await call('checkUpdate');const changed=!!result.available!==!!state.update?.available||result.version!==state.update?.version;state.update=result;if(changed&&state.route==='home'&&!state.loading)render();}catch{}
 }
+// Cerca aggiornamenti: controllo esplicito, con risposta anche quando non c'è nulla da installare
+async function checkUpdateNow(){
+ if(state.loading||state.checkingUpdate)return;
+ state.checkingUpdate=true;state.notice='';state.error='';render();
+ try{
+  const result=await call('checkUpdate');lastUpdateCheck=Date.now();state.update=result;
+  if(result.available){state.checkingUpdate=false;render();openUpdateModal();return;}
+  if(result.reason)state.error=`Non riesco a controllare gli aggiornamenti: ${result.reason}`;
+  else state.notice=`Hai già l’ultima versione (${state.version}).`;
+ }catch(e){state.error=e.message;}
+ finally{state.checkingUpdate=false;if(state.route==='home')render();document.getElementById('check-update')?.focus({preventScroll:true});}
+}
 function openUpdateModal(){
  if(anyModalOpen()||!state.update?.available)return;
  const u=state.update,opener=document.getElementById('install-update');
@@ -179,14 +193,26 @@ function openUpdateModal(){
 }
 function renderHome(){
  const card=(id,tone,image,label)=>`<button pgs="box${tone?` background['${tone}']`:''} flex['column' 'itemCenter' 'gapParagraphs']" class="home-action" id="${id}" type="button" ${disabled(state.loading)}><img src="assets/${image}" alt="" width="240" height="240"><span pgs="h4">${label}</span></button>`;
- main.innerHTML=`<h1 class="home-title">Cosa vuoi fare oggi?</h1><div pgs="grid['column-3' 'gapElements']" class="home-actions">${card('all-posts','','calendar.png','Tutti i post')}${card('drafts','','draft.png','Post in bozza')}${card('create-new','bgSuccessSoft','megaphone.png','Crea nuovo post')}</div><hr><div pgs="flex['row' 'wrap' 'itemCenter' 'gapParagraphs']" class="home-settings"><button pgs="button" id="open-settings" type="button" ${disabled(state.loading)}>${icon('gear')}<span>Impostazioni</span></button><button pgs="button" id="sync-assets" type="button" ${disabled(state.loading||!state.rootValid)} title="Copia le immagini di tutti i post in 00_template/Archivio asset, divise per social e anno">${icon('images')}<span>${state.assetSyncing?'Aggiornamento…':'Aggiorna archivio asset'}</span></button>${state.version?`<span pgs="flex['row' 'itemCenter' 'gapParagraphs']" class="app-version">${state.update?.available?`<button pgs="button['btnStrong' 'btnMini']" id="install-update" type="button" ${disabled(state.loading)} title="Installa la versione ${escape(state.update.version)} da App Social">${icon('refresh')}<span>Aggiorna alla ${escape(state.update.version)}</span></button>`:''}<span pgs="badge['badgeNeutral']">Versione ${escape(state.version)}</span></span>`:''}</div>${noticeBox()}${errorBox()}`;
+ main.innerHTML=`<h1 pgs="h2" class="home-title">Cosa vuoi fare oggi?</h1><div pgs="grid['column-3' 'gapElements']" class="home-actions">${card('all-posts','','calendar.png','Tutti i post')}${card('drafts','','draft.png','Post in bozza')}${card('create-new','bgSuccessSoft','megaphone.png','Crea nuovo post')}</div><hr><div pgs="flex['row' 'wrap' 'itemCenter' 'gapParagraphs']" class="home-settings"><button pgs="button" id="open-settings" type="button" ${disabled(state.loading)}>${icon('gear')}<span>Impostazioni</span></button><button pgs="button" id="sync-assets" type="button" ${disabled(state.loading||!state.rootValid)} title="Copia le immagini di tutti i post in 00_template/Archivio asset, divise per social e anno">${icon('images')}<span>${state.assetSyncing?'Aggiornamento…':'Aggiorna archivio asset'}</span></button>${state.version?`<span pgs="flex['row' 'itemCenter' 'gapParagraphs']" class="app-version">${state.update?.available?`<button pgs="button['btnStrong' 'btnMini']" id="install-update" type="button" ${disabled(state.loading)} title="Installa la versione ${escape(state.update.version)} da App Social">${icon('refresh')}<span>Aggiorna alla ${escape(state.update.version)}</span></button>`:`<button pgs="button['btnMini']" id="check-update" type="button" ${disabled(state.loading||state.checkingUpdate)} title="Controlla se in App Social c'è una versione più recente">${icon('refresh')}<span>${state.checkingUpdate?'Controllo…':'Cerca aggiornamenti'}</span></button>`}<span pgs="badge['badgeNeutral']">Versione ${escape(state.version)}</span></span>`:''}</div>${noticeBox()}${homeErrorBox()}`;
  footer.innerHTML='';
  document.getElementById('open-settings').addEventListener('click',openSettings);
  document.getElementById('install-update')?.addEventListener('click',openUpdateModal);
+ document.getElementById('check-update')?.addEventListener('click',checkUpdateNow);
+ document.getElementById('choose-root')?.addEventListener('click',chooseRootFromHome);
  document.getElementById('sync-assets').addEventListener('click',syncAssets);
  document.getElementById('drafts').addEventListener('click',loadDrafts);
  document.getElementById('all-posts').addEventListener('click',loadPosts);
  document.getElementById('create-new').addEventListener('click',startCreate);
+}
+// Home: se la cartella Social non è valida, l'avviso offre subito la scelta della cartella
+function homeErrorBox(){
+ if(state.rootValid||!state.error)return errorBox();
+ return `<div id="error" role="alert"><div pgs="alert['alertError']"><i pgs="icon['icon-circleXmark'] alert-icon" aria-hidden="true"></i><div pgs="alert-content flex['column' 'gapParagraphs']"><p>${escape(state.error)}</p><div><button pgs="button" id="choose-root" type="button" ${disabled(state.loading)}>${icon('folderOpen')}<span>Scegli la cartella</span></button></div></div></div></div>`;
+}
+async function chooseRootFromHome(){
+ if(state.loading)return;
+ try{const result=await call('chooseRoot');if(!result)return;state.root=result.root;state.rootValid=result.valid;state.error='';state.notice='';render();refreshUpdate(true);}
+ catch(e){state.error=e.message;render();}
 }
 async function openSettings(){
  state.route='settings';state.error='';state.notice='';render();

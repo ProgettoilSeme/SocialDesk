@@ -168,3 +168,17 @@ header,main{--page-width:960px}
 /* testo del post (Dettagli ed editor) in peso regular; grassetto e titoli restano marcati */
 .md-content{font-weight:400}
 .md-content :is(b,strong){font-weight:700}
+
+/* Mac: header al posto della barra del titolo nativa. Si trascina la finestra dall'header
+   (i controlli restano cliccabili) e il logo lascia spazio ai tre pulsanti della finestra. */
+[data-platform="mac"] header{-webkit-app-region:drag}
+[data-platform="mac"] header :is(a,button,input,select,dialog){-webkit-app-region:no-drag}
+[data-platform="mac"] .app-brand{margin-left:58px}
+[data-platform="mac"] header[pgs-state~="compact"] .app-brand{margin-left:78px}
+
+/* niente scorrimento inutile: il piè di pagina vuoto (home) non aggiunge la distanza della sezione
+   e sotto il contenuto resta solo lo spazio tra elementi, non il 7% dell'altezza della finestra */
+#footer:empty{display:none}
+main{--page-bottom:var(--gap-elements)}
+/* Impostazioni: i pulsanti Sfoglia / Cambia cartella non si restringono né vanno a capo */
+.settings-control>button{flex:none;white-space:nowrap}
