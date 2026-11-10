@@ -335,7 +335,7 @@ function renderPostRow(d){
  const topic=d.topic?.trim()?`<span pgs="flex['row' 'itemCenter' 'gapDetails' 'nowrap']" class="post-topic" title="Argomento: ${escape(d.topic)}">${icon('tag')}<span pgs="visuallyHidden">Argomento: </span><span pgs="truncate" class="post-topic-text">${escape(d.topic)}</span></span>`:'';
  const id=d.id!==null&&d.id!==''?`<span>ID ${escape(d.id)}</span>`:'';
  const folderGone=state.missingKeys?.has(d.key);
- return `<article pgs="flex['row' 'itemCenter' 'justifyBetween' 'gapParagraphs']" class="draft-item" data-channel="${escape(d.channel)}"><div pgs="flex['row' 'itemStart' 'gapParagraphs' 'nowrap']" class="post-body post-summary" data-details="${escape(d.key)}" title="Visualizza dettagli del post"><span class="post-social-icon" role="img" aria-label="${escape(d.channel)}" title="${escape(d.channel)}">${socialIcon(d.channel)}</span><div pgs="flex['column' 'gapDetails']" class="post-heading"><h2 pgs="h6"><button class="post-title-button" type="button">${escape(d.title)}</button></h2>${topic||id||folderGone?`<p pgs="flex['row' 'wrap' 'itemCenter' 'gapParagraphs']" class="draft-meta post-details">${topic}${id}${folderGone?`<span pgs="flex['row' 'itemCenter' 'gapDetails' 'nowrap']" class="folder-missing" title="La cartella del post non si trova più: apri il post per ricollegarla">${icon('triangleExclamation')}<span>Cartella non trovata</span></span>`:''}</p>`:''}</div></div><div pgs="flex['row' 'wrap' 'itemCenter' 'gapDetails']" class="post-actions"><button pgs="button['btnMini']" class="status-action" data-status="${SocialPostFilters.statusTone(d.status)}" data-change-status="${escape(d.key)}" type="button" aria-label="Cambia stato: ${escape(status)}" title="Cambia stato" ${disabled(state.loading)}>${escape(status)}</button><button pgs="button['btnMini']" class="date-action" data-change-date="${escape(d.key)}" type="button" aria-label="Aggiorna data: ${escape(date)}" title="Aggiorna data" ${disabled(state.loading)}>${icon('calendar')}<span>${escape(date)}</span></button><button pgs="button['btnIconOnly' 'btnMini']" data-draft="${escape(d.key)}" type="button" aria-label="Modifica" title="Modifica" ${disabled(state.loading)}>${icon('pencil')}</button></div></article>`;
+ return `<article pgs="flex['row' 'itemCenter' 'justifyBetween' 'gapParagraphs']" class="draft-item" data-channel="${escape(d.channel)}"><div pgs="flex['row' 'itemStart' 'gapParagraphs' 'nowrap']" class="post-body post-summary" data-details="${escape(d.key)}" title="Visualizza dettagli del post"><span class="post-social-icon" role="img" aria-label="${escape(d.channel)}" title="${escape(d.channel)}">${socialIcon(d.channel)}</span><div pgs="flex['column' 'gapDetails']" class="post-heading"><h2 pgs="h6"><button class="post-title-button" type="button">${escape(d.title)}</button></h2>${topic||id||folderGone?`<p pgs="flex['row' 'wrap' 'itemCenter' 'gapParagraphs']" class="draft-meta post-details">${topic}${id}<span pgs="flex['row' 'itemCenter' 'gapDetails' 'nowrap']" class="post-date" title="Data di pubblicazione">${icon('calendar')}<span>${escape(date)}</span></span>${folderGone?`<span pgs="flex['row' 'itemCenter' 'gapDetails' 'nowrap']" class="folder-missing" title="La cartella del post non si trova più: apri il post per ricollegarla">${icon('triangleExclamation')}<span>Cartella non trovata</span></span>`:''}</p>`:''}</div></div><div pgs="flex['row' 'wrap' 'itemCenter' 'gapDetails']" class="post-actions"><button pgs="button['btnMini']" class="status-action" data-status="${SocialPostFilters.statusTone(d.status)}" data-change-status="${escape(d.key)}" type="button" aria-label="Cambia stato: ${escape(status)}" title="Cambia stato" ${disabled(state.loading)}>${escape(status)}</button><button pgs="button['btnIconOnly' 'btnMini']" data-draft="${escape(d.key)}" type="button" aria-label="Modifica" title="Modifica" ${disabled(state.loading)}>${icon('pencil')}</button></div></article>`;
 }
 function renderPostGroup(group){
  const first=group.posts[0],channels=group.posts.map(post=>post.channel);
@@ -382,9 +382,6 @@ function renderDrafts(){
  main.querySelectorAll('[data-change-status]').forEach(button=>button.addEventListener('click',()=>{
   const post=state.drafts.find(d=>d.key===button.dataset.changeStatus);if(post)openStatusModal(post,button);
  }));
- main.querySelectorAll('[data-change-date]').forEach(button=>button.addEventListener('click',()=>{
-  const post=state.drafts.find(d=>d.key===button.dataset.changeDate);if(post)openDateModal(post,button);
- }));
  main.querySelectorAll('[data-draft]').forEach(button=>button.addEventListener('click',async()=>{
   if(state.loading)return;
   state.editReturn={route:state.listMode,scrollY:window.scrollY};
@@ -412,26 +409,43 @@ function openStatusModal(post,opener){
  if(anyModalOpen())return;
  const mode=state.listMode,scrollY=window.scrollY,current=post.status.trim().toLowerCase();
  const initial=STATUSES.includes(current)?current:'';
- const body=`${postHeading(post,'status-modal-post')}<div pgs="flex['column']"><label pgs="label" for="quick-status">Nuovo stato</label><div pgs="selectBox" class="status-select"><select pgs="select" id="quick-status" required>${initial?'':`<option value="" selected disabled hidden>${escape(post.status?'Attuale: '+post.status:'Scegli uno stato')}</option>`}${STATUSES.map(status=>`<option value="${status}" ${initial===status?'selected':''}>${statusDot(status)}${status}</option>`).join('')}</select></div></div><p class="hint">La modifica riguarda solo ${escape(post.channel)}.</p><div id="status-error" role="alert" hidden></div><div pgs="flex['row' 'justifyEnd' 'gapParagraphs']"><button pgs="button" id="status-cancel" type="button">Annulla</button><button pgs="button['btnStrong']" id="status-save" type="submit" disabled>Salva stato</button></div>`;
+ // Passando a da pubblicare o pubblicato si può indicare anche la data (precompilata con quella del post o con oggi se è dello stesso anno).
+ const withDate=status=>status==='da pubblicare'||status==='pubblicato';
+ const today=localToday(),initialDate=post.date||(today.startsWith(post.year+'-')?today:'');
+ const body=`${postHeading(post,'status-modal-post')}<div pgs="flex['column']"><label pgs="label" for="quick-status">Nuovo stato</label><div pgs="selectBox" class="status-select"><select pgs="select" id="quick-status" required>${initial?'':`<option value="" selected disabled hidden>${escape(post.status?'Attuale: '+post.status:'Scegli uno stato')}</option>`}${STATUSES.map(status=>`<option value="${status}" ${initial===status?'selected':''}>${statusDot(status)}${status}</option>`).join('')}</select></div></div><div id="status-date-block" pgs="flex['column' 'gapParagraphs']" ${withDate(initial)?'':'hidden'}>${field('Data di pubblicazione',`<input pgs="input" id="status-date" type="date" min="${post.year}-01-01" max="${post.year}-12-31" value="${escape(initialDate)}" ${post.date||initial==='pubblicato'?'required':'disabled'}>`,`Deve essere nel ${post.year}.`)}<label pgs="checkbox" id="status-undefined-label" ${initial==='pubblicato'?'hidden':''}><input type="checkbox" id="status-undefined" ${post.date?'':'checked'}><span>Data da definire</span></label></div><p class="hint">La modifica riguarda solo ${escape(post.channel)}.</p><div id="status-error" role="alert" hidden></div><div pgs="flex['row' 'justifyEnd' 'gapParagraphs']"><button pgs="button" id="status-cancel" type="button">Annulla</button><button pgs="button['btnStrong']" id="status-save" type="submit" disabled>Salva</button></div>`;
   const modal=createModal({title:'Cambia stato',titleId:'status-modal-title',describedBy:'status-modal-post',body,form:true,onClose:()=>{document.body.classList.remove('status-modal-open');if(opener.isConnected)opener.focus({preventScroll:true});}});
  modal.dialog.id='status-modal';
  document.body.classList.add('status-modal-open');
- const select=modal.dialog.querySelector('#quick-status'),save=modal.dialog.querySelector('#status-save'),message=modal.dialog.querySelector('#status-error');
- function changed(){return!!select.value&&select.value!==current;}
- function busy(value){modal.busy=value;state.loading=value;modal.dialog.querySelectorAll('button,select').forEach(el=>{el.disabled=value;});save.disabled=value||!changed();save.textContent=value?'Salvataggio…':'Salva stato';modal.dialog.setAttribute('aria-busy',String(value));}
+ const dateBlock=modal.dialog.querySelector('#status-date-block'),dateInput=modal.dialog.querySelector('#status-date'),undefinedBox=modal.dialog.querySelector('#status-undefined'),undefinedLabel=modal.dialog.querySelector('#status-undefined-label'),select=modal.dialog.querySelector('#quick-status'),save=modal.dialog.querySelector('#status-save'),message=modal.dialog.querySelector('#status-error');
+ // Con pubblicato la data è obbligatoria: Data da definire non c'è.
+ function undefinedActive(){return select.value!=='pubblicato'&&undefinedBox.checked;}
+ function syncDate(){undefinedLabel.hidden=select.value==='pubblicato';const off=undefinedActive();dateInput.disabled=modal.busy||off;dateInput.required=!off;if(!off&&!dateInput.value)dateInput.value=initialDate;}
+ function statusChanged(){return!!select.value&&select.value!==current;}
+ function dateChanged(){if(!withDate(select.value))return false;return undefinedActive()?!!post.date:!!dateInput.value&&dateInput.value!==(post.date||'');}
+ function changed(){return statusChanged()||dateChanged();}
+ function busy(value){modal.busy=value;state.loading=value;modal.dialog.querySelectorAll('button,select,input').forEach(el=>{el.disabled=value;});dateInput.disabled=value||undefinedActive();save.disabled=value||!changed();save.textContent=value?'Salvataggio…':'Salva';modal.dialog.setAttribute('aria-busy',String(value));}
  modal.dialog.querySelector('#status-cancel').addEventListener('click',()=>modal.close());
- select.addEventListener('change',()=>{select.dataset.status=SocialPostFilters.statusTone(select.value);save.disabled=!changed();setAlert(message,'');});
+ select.addEventListener('change',()=>{select.dataset.status=SocialPostFilters.statusTone(select.value);dateBlock.hidden=!withDate(select.value);syncDate();save.disabled=!changed();setAlert(message,'');});
+ dateInput.addEventListener('input',()=>{save.disabled=!changed();setAlert(message,'');});
+ undefinedBox.addEventListener('change',()=>{syncDate();save.disabled=!changed();setAlert(message,'');});
  modal.dialog.querySelector('form').addEventListener('submit',async event=>{
-  event.preventDefault();if(modal.busy||!changed()||!select.reportValidity())return;
-  const request={key:post.key,revision:state.revision,status:select.value};setAlert(message,'');busy(true);
+  event.preventDefault();if(modal.busy||!changed()||!select.reportValidity()||(withDate(select.value)&&!undefinedActive()&&!dateInput.reportValidity()))return;
+  setAlert(message,'');busy(true);
   try{
-   const result=await call('updateStatus',request);if(result.canceled)return;
-   state.notice=`Stato aggiornato per ${result.channel}: ${result.status}.${mode==='drafts'&&result.status==='pubblicato'?' Lo trovi in Tutti i post.':''}`;
+   const notes=[];let revision=state.revision;
+   if(dateChanged()){
+    const request=undefinedActive()?{key:post.key,revision,undefinedDate:true}:{key:post.key,revision,date:dateInput.value};
+    const plan=await call('planDate',request);const r=await call('updateDate',request,plan.fingerprint);if(r.canceled)return;
+    notes.push(undefinedActive()?'data da definire':`data ${formatDate(dateInput.value)}`);
+    revision=(await call('posts')).revision;
+   }
+   if(statusChanged()){const r=await call('updateStatus',{key:post.key,revision,status:select.value});if(r.canceled)return;notes.push(`stato ${r.status}`);}
+   state.notice=`Aggiornato per ${post.channel}: ${notes.join(' e ')}.${mode==='drafts'&&select.value==='pubblicato'?' Lo trovi in Tutti i post.':''}`;
    busy(false);modal.close();await loadList(mode);window.scrollTo({top:scrollY});main.querySelector(`[data-change-status="${post.key}"]`)?.focus({preventScroll:true});
   }catch(e){setAlert(message,e.message);}
   finally{if(modal.dialog.isConnected)busy(false);else state.loading=false;}
  });
- modal.open();(modal.dialog.querySelector('[pgs~="_selectBox-button"]')||select).focus();
+ save.disabled=!changed();modal.open();(modal.dialog.querySelector('[pgs~="_selectBox-button"]')||select).focus();
 }
 function detailsMetadata(post){
  const postFolder=post.sourcesRelative?.replace(/\\/g,'/').replace(/\/01_Sorgenti\/?$/,'');
@@ -506,40 +520,6 @@ function openPostDetails(post,opener){
    box.appendChild(content);block.append(box,head,openingError);container.appendChild(block);
   }
  }).catch(e=>{if(!dialog.isConnected)return;const container=dialog.querySelector('#details-text');container.replaceChildren();const box=document.createElement('div');box.setAttribute('role','alert');container.appendChild(box);setAlert(box,e.message);});
-}
-function openDateModal(post,opener){
- if(document.getElementById('date-modal')||anyModalOpen())return;
- const mode=state.listMode,scrollY=window.scrollY;
- const initial=post.date||(post.year===new Date().getFullYear()?localToday():post.year+'-01-01');
- const body=`${postHeading(post,'date-modal-post')}<div pgs="flex['column' 'gapParagraphs']">${field('Data pubblicazione',`<input pgs="input" type="date" id="draft-date" required min="${post.year}-01-01" max="${post.year}-12-31" value="${escape(initial)}">`,`La modifica riguarda solo ${escape(post.channel)}.`)}<label pgs="checkbox"><input type="checkbox" id="draft-undefined"><span>Data da definire</span></label></div><div id="date-modal-error" role="alert" hidden></div><div pgs="flex['row' 'justifyEnd' 'gapParagraphs']"><button pgs="button" id="date-modal-cancel" type="button">Annulla</button><button pgs="button['btnStrong']" id="date-modal-save" type="submit">Salva data</button></div>`;
- const modal=createModal({title:'Aggiorna data',titleId:'date-modal-title',describedBy:'date-modal-post',body,form:true,onClose:()=>{document.body.classList.remove('date-modal-open');state.selected=null;if(opener.isConnected)opener.focus({preventScroll:true});}});
- modal.dialog.id='date-modal';
- document.body.classList.add('date-modal-open');
- const input=modal.dialog.querySelector('#draft-date'),save=modal.dialog.querySelector('#date-modal-save'),message=modal.dialog.querySelector('#date-modal-error');
- function busy(value){modal.busy=value;state.loading=value;modal.dialog.querySelectorAll('button,input').forEach(el=>{el.disabled=value||(el.id==='draft-date'&&undefinedBox.checked);});save.textContent=value?'Salvataggio…':'Salva data';modal.dialog.setAttribute('aria-busy',String(value));}
- modal.dialog.querySelector('#date-modal-cancel').addEventListener('click',()=>modal.close());
- const undefinedBox=modal.dialog.querySelector('#draft-undefined');
- input.addEventListener('input',()=>setAlert(message,''));
- // Data da definire: la cella della data nel piano torna vuota (anche per un post già programmato).
- undefinedBox.addEventListener('change',()=>{input.disabled=undefinedBox.checked;input.required=!undefinedBox.checked;setAlert(message,'');});
- modal.dialog.querySelector('form').addEventListener('submit',async event=>{
-  event.preventDefault();if(modal.busy)return;
-  const undefinedDate=undefinedBox.checked;
-  if(!undefinedDate&&!input.reportValidity())return;
-  if(undefinedDate&&!post.date){setAlert(message,'La data di questo post è già da definire.');return;}
-  const request=undefinedDate?{key:post.key,revision:state.revision,undefinedDate:true}:{key:post.key,revision:state.revision,date:input.value};setAlert(message,'');busy(true);
-  try{
-   const plan=await call('planDate',request);
-   const result=await call('updateDate',request,plan.fingerprint);
-   if(result.canceled)return;
-   state.notice=result.date?`Data aggiornata per ${result.channel}: ${formatDate(result.date)}.`:`Data di ${result.channel} impostata come da definire.`;
-   busy(false);modal.close();await loadList(mode);
-   window.scrollTo({top:scrollY});
-   main.querySelector(`[data-change-date="${post.key}"]`)?.focus({preventScroll:true});
-  }catch(e){setAlert(message,e.message);}
-  finally{if(modal.dialog.isConnected)busy(false);else state.loading=false;}
- });
- modal.open();input.focus();
 }
 function addChannelSection(post,busy){
  if(post.id===null||post.id===undefined||post.id===''||!post.sourcesRelative||!post.sourcesRelative.startsWith('01_Posts/'))return'';
