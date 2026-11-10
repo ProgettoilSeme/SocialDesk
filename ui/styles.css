@@ -76,7 +76,6 @@ header,main{--page-width:960px}
 .post-details{font-size:.9em}
 .post-topic{min-width:0;max-width:24rem}
 .post-actions{flex:none}
-.post-actions [pgs*="button"]{min-height:42px}
 /* Colonna delle icone a larghezza fissa: i titoli partono tutti dallo stesso punto, singoli o in gruppo. */
 .draft-list{--post-icon-box:2.5em}
 .post-summary>.post-social-icon{display:flex;justify-content:center;align-items:center;align-self:stretch;width:var(--post-icon-box);flex:none;margin-top:0}
