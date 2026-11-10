@@ -132,7 +132,11 @@ header,main{--page-width:960px}
 
 /* gruppi per ID: anche chiusi hanno la superficie delle righe singole */
 /* elenco compatto come prima di myPgs: righe senza riquadro, separatori sottili, 12px per lato */
-.draft-list>:is(.draft-item,.post-group){border-bottom:var(--border-width,1px) solid #dce2e9}
+/* separatore tra i post: una linea ::after al centro del gap della lista (non più border-bottom) */
+.draft-list{--draft-list-line:#dce2e9}
+.draft-list>:is(.draft-item,.post-group){--draft-list-gap:var(--gap,0px)}
+.draft-list>:is(.draft-item,.post-group){position:relative}
+.draft-list>:is(.draft-item,.post-group):not(:last-child)::after{content:"";position:absolute;inset:auto 0 calc((var(--draft-list-gap) + var(--border-width,1px))/-2) 0;height:var(--border-width,1px);border:0;background:var(--draft-list-line);pointer-events:none}
 .draft-item{padding:12px}
 .post-group{--accordion-padding:12px}
 .post-group::after{content:none}
@@ -215,7 +219,8 @@ main{--page-bottom:var(--gap-elements)}
 /* Tema scuro (myPgs: :root[pgs-state~=darkmode]): i pochi colori fissi del progetto */
 .theme-toggle{--darkmode-label-toDark:"Tema scuro";--darkmode-label-toLight:"Tema chiaro"}
 :root[pgs-state~=darkmode] .review dt,:root[pgs-state~=darkmode] .post-details{color:#9aa5b1}
-:root[pgs-state~=darkmode] :is(.draft-list>:is(.draft-item,.post-group),.folder-report .draft-item){border-bottom-color:rgba(255,255,255,.12)}
+:root[pgs-state~=darkmode] .draft-list{--draft-list-line:rgba(255,255,255,.12)}
+:root[pgs-state~=darkmode] .folder-report .draft-item{border-bottom-color:rgba(255,255,255,.12)}
 :root[pgs-state~=darkmode] .group-children .draft-item+.draft-item{border-top-color:rgba(255,255,255,.12)}
 :root[pgs-state~=darkmode] [data-status="text-needed"]{--tone-bg:#3d2e0c;--tone-fg:#f3c35c}
 :root[pgs-state~=darkmode] [data-status="text-draft"]{--tone-bg:#3d2614;--tone-fg:#f2a466}
