@@ -31,5 +31,7 @@ contextBridge.exposeInMainWorld('socialAPI',{
  relinkCandidates:input=>ipcRenderer.invoke('social:relink-candidates',input),
  relink:input=>ipcRenderer.invoke('social:relink',input),
  regenerateSource:input=>ipcRenderer.invoke('social:regenerate-source',input),
+ addChannel:input=>ipcRenderer.invoke('social:add-channel',input),
+ setTheme:dark=>ipcRenderer.invoke('social:set-theme',dark===true),
  installUpdate:()=>ipcRenderer.invoke('social:install-update'),
 });

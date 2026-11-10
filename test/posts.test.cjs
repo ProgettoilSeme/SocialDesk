@@ -61,7 +61,8 @@ test('formati distinti per canale: il riepilogo e ogni riga Excel usano il forma
  await createPost(r,input,plan.fingerprint);
  const rows=new Book(await book(r)).posts().filter(post=>post.title==='Formati per social');
  assert.deepEqual(rows.map(post=>[post.channel,post.format]),[['Facebook','Immagine singola'],['Instagram','Reel'],['LinkedIn','Carosello']]);
- assert.throws(()=>validate({...input,channelFormats:{Facebook:'Immagine singola',Instagram:'Reel'}}),e=>e.code==='INPUT');
+ // formato facoltativo: se manca resta vuoto (da definire)
+ assert.equal(validate({...input,channelFormats:{Facebook:'Immagine singola',Instagram:'Reel'}}).channelFormats.LinkedIn,'');
  assert.throws(()=>validate({...input,channelFormats:{...input.channelFormats,LinkedIn:'Non valido'}}),e=>e.code==='INPUT');
 });
 test('date di anni diversi: rifiuta il post senza scrivere file',async t=>{

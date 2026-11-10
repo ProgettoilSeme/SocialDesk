@@ -17,6 +17,7 @@ const settings=require('./lib/settings.cjs');
 const update=require('./lib/update.cjs');
 const relink=require('./lib/relink.cjs');
 const {regenerateSource}=require('./lib/regenerate.cjs');
+const {planAddChannel,addChannel}=require('./lib/addchannel.cjs');
 if(process.env.SOCIAL_TEST_USER_DATA)app.setPath('userData',process.env.SOCIAL_TEST_USER_DATA);
 let window,root='',busy=false,lastResult=null,startupFailed=false;
 // Registro di avvio: aiuta a capire perché l'app non si apre (es. su Windows/NAS).
@@ -53,10 +54,6 @@ function endpoint(name,handler){ipcMain.handle(name,async(event,...args)=>{
  if(event.sender!==window.webContents||event.senderFrame?.url!==page)return{ok:false,error:{code:'ACCESS',message:'Richiesta non valida.'}};
  try{return{ok:true,value:await handler(...args)};}catch(e){return{ok:false,error:errorMessage(e)};}
 });}
-async function confirmSave(){
- const result=await dialog.showMessageBox(window,{type:'question',title:'Conferma salvataggio',message:'Sei sicuro di salvare le modifiche?',detail:'Hai chiuso tutti i file del post e il piano Excel?\n\nPrima di continuare chiudi Illustrator, Excel e gli altri file del post. Confermando dichiari che sono chiusi.',buttons:['Annulla','Sì, i file sono chiusi: salva'],defaultId:0,cancelId:0,noLink:true});
- return result.response===1;
-}
 function createWindow(){
  log('creazione finestra');
  window=new BrowserWindow({width:1000,height:820,minWidth:580,minHeight:620,title:'SocialDesk',backgroundColor:'#ffffff',show:false,
@@ -64,6 +61,27 @@ function createWindow(){
   ...(process.platform==='darwin'?{titleBarStyle:'hiddenInset',trafficLightPosition:{x:18,y:26}}:{}),webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
  window.webContents.setWindowOpenHandler(()=>({action:'deny'}));
  window.webContents.on('will-navigate',(event,url)=>{if(url!==page)event.preventDefault();});
+ // DevTools come in Chrome: ⌥⌘I su Mac, Ctrl+Maiusc+I e F12 su Windows (anche nell'app compilata).
+ window.webContents.on('before-input-event',(event,input)=>{
+  if(input.type!=='keyDown')return;
+  const key=String(input.key||'').toLowerCase();
+  const mac=process.platform==='darwin'&&input.meta&&input.alt&&!input.control&&(key==='i'||input.code==='KeyI');
+  const other=process.platform!=='darwin'&&((input.control&&input.shift&&!input.alt&&(key==='i'||input.code==='KeyI'))||input.key==='F12');
+  if(mac||other){event.preventDefault();window.webContents.toggleDevTools();}
+ });
+ // Menu del tasto destro (Electron non ne mostra uno da solo): taglia/copia/incolla sul testo selezionato e nei campi.
+ window.webContents.on('context-menu',(event,params)=>{
+  const flags=params.editFlags||{},selected=!!(params.selectionText&&params.selectionText.trim()),template=[];
+  if(params.isEditable&&params.misspelledWord){
+   for(const word of (params.dictionarySuggestions||[]).slice(0,5))template.push({label:word,click:()=>window.webContents.replaceMisspelling(word)});
+   if(template.length)template.push({type:'separator'});
+  }
+  if(params.isEditable)template.push({label:'Taglia',role:'cut',enabled:!!flags.canCut});
+  if(params.isEditable||selected)template.push({label:'Copia',role:'copy',enabled:!!flags.canCopy});
+  if(params.isEditable)template.push({label:'Incolla',role:'paste',enabled:!!flags.canPaste});
+  if(params.isEditable||selected)template.push({type:'separator'},{label:'Seleziona tutto',role:'selectAll'});
+  if(template.length)Menu.buildFromTemplate(template).popup({window});
+ });
  window.on('close',event=>{if(busy){event.preventDefault();dialog.showMessageBox(window,{type:'info',message:'Un’operazione è in corso. Attendi il completamento prima di chiudere.'});}});
  const reveal=()=>{if(window&&!window.isDestroyed()&&!window.isVisible()){window.show();log('finestra mostrata');}};
  window.once('ready-to-show',reveal);
@@ -127,14 +145,14 @@ else{
   endpoint('social:update-status',async input=>{
    if(busy)throw new PostError('BUSY','Un’operazione è già in corso.');
    busy=true;
-   try{const plan=await planPostStatus(root,input);if(!plan.changed)return plan;if(!await confirmSave())return{canceled:true};return await savePostStatus(root,input);}finally{busy=false;}
+   try{const plan=await planPostStatus(root,input);if(!plan.changed)return plan;return await savePostStatus(root,input);}finally{busy=false;}
   });
   endpoint('social:delete-post',async input=>{
    if(busy)throw new PostError('BUSY','Un’operazione è già in corso.');
    busy=true;
    try{
     const plan=await planDeletePost(root,input);
-    const confirmation=await dialog.showMessageBox(window,{type:'warning',title:'Elimina post',message:`Eliminare “${plan.title}” per ${plan.channel}?`,detail:`Verrà rimossa solo questa riga dal piano editoriale. La cartella del post sarà spostata in:\n${plan.trashRelative}\n\nGli altri social dello stesso post resteranno invariati.\nHai chiuso tutti i file del post e il piano Excel? Le modifiche non salvate in questa schermata verranno scartate.`,buttons:['Annulla','Sì, i file sono chiusi: elimina'],defaultId:0,cancelId:0,noLink:true});
+    const confirmation=await dialog.showMessageBox(window,{type:'warning',title:'Elimina post',message:`Eliminare “${plan.title}” per ${plan.channel}?`,detail:`Verrà rimossa solo questa riga dal piano editoriale. ${plan.partial?(plan.trashRelative?`La cartella è condivisa con gli altri social: solo i file di ${plan.channel} (${plan.movedFiles.length}) saranno spostati in:\n${plan.trashRelative}`:`La cartella è condivisa con gli altri social e non contiene file di ${plan.channel}: nessun file verrà spostato.`):`La cartella del post sarà spostata in:\n${plan.trashRelative}`}\n\nGli altri social dello stesso post resteranno invariati.\nLe modifiche non salvate in questa schermata verranno scartate.`,buttons:['Annulla','Elimina'],defaultId:0,cancelId:0,noLink:true});
     if(confirmation.response!==1)return{canceled:true};
     return await deletePost(root,input,plan.fingerprint);
    }finally{busy=false;}
@@ -147,7 +165,7 @@ else{
    try{
     const plan=await planPostEdit(root,input);
     if(plan.fingerprint!==fingerprint)throw new PostError('CHANGED','I dati o i file sono cambiati. Controlla di nuovo il riepilogo.');
-    if(!await confirmSave())return{canceled:true};
+    
     return await savePostEdit(root,input,fingerprint);
    }finally{busy=false;}
   });
@@ -155,7 +173,7 @@ else{
   endpoint('social:update-date',async(input,fingerprint)=>{
    if(busy)throw new PostError('BUSY','Un’operazione è già in corso.');
    if(typeof fingerprint!=='string'||fingerprint.length!==64)throw new PostError('INPUT','Controlla di nuovo il riepilogo.');
-   busy=true;try{if(!await confirmSave())return{canceled:true};return await updateDraftDate(root,input,fingerprint);}finally{busy=false;}
+   busy=true;try{return await updateDraftDate(root,input,fingerprint);}finally{busy=false;}
   });
   endpoint('social:create',async(input,fingerprint)=>{
    if(busy)throw new PostError('BUSY','La creazione è già in corso.');
@@ -163,6 +181,17 @@ else{
    busy=true;try{lastResult=await createPost(root,input,fingerprint);return lastResult;}finally{busy=false;}
   });
   // Rigenera sorgente: ricrea il file Illustrator o di testo mancante (mai sovrascrivendo)
+  endpoint('social:set-theme',async dark=>{nativeTheme.themeSource=dark===true?'dark':'light';return true;});
+  endpoint('social:add-channel',async input=>{
+   if(busy)throw new PostError('BUSY','Un’operazione è già in corso.');
+   busy=true;
+   try{
+    const plan=await planAddChannel(root,{key:input?.key,revision:input?.revision,channel:input?.channel,format:input?.format});
+    const confirmation=await dialog.showMessageBox(window,{type:'question',title:'Aggiungi social',message:`Creare “${plan.title}” anche per ${plan.channel}?`,detail:`Verrà aggiunta una riga ${plan.channel} con lo stesso ID (${plan.id}) e lo stato “testi da creare”. Nella cartella del post verranno creati ${plan.files.join(' e ')}${plan.aiExists||plan.mdExists?' (i file già presenti restano come sono)':''}.`,buttons:['Annulla','Sì, crea'],defaultId:0,cancelId:0,noLink:true});
+    if(confirmation.response!==1)return{canceled:true};
+    return await addChannel(root,{key:input.key,revision:input.revision,channel:input.channel,format:input.format});
+   }finally{busy=false;}
+  });
   endpoint('social:regenerate-source',async input=>{if(busy)throw new PostError('BUSY','Un’operazione è già in corso.');busy=true;try{return await regenerateSource(root,input);}finally{busy=false;}});
   // Ricollega cartella: post con la cartella rinominata a mano
   endpoint('social:missing-folders',async()=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return relink.missingFolders(root);});

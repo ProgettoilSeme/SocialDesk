@@ -77,9 +77,20 @@ header,main{--page-width:960px}
 .post-topic{min-width:0;max-width:24rem}
 .post-actions{flex:none}
 .post-actions [pgs*="button"]{min-height:42px}
-.post-icon-stack{display:inline-flex;align-items:center;flex:none}
-.post-icon-stack .post-social-icon{display:grid;place-items:center;width:1.9em;height:1.9em;border-radius:50%;background:var(--color-background)}
-.post-icon-stack .post-social-icon+.post-social-icon{margin-left:-.5em}
+/* Colonna delle icone a larghezza fissa: i titoli partono tutti dallo stesso punto, singoli o in gruppo. */
+.draft-list{--post-icon-box:2.5em}
+.post-summary>.post-social-icon{display:flex;justify-content:center;align-items:center;align-self:stretch;width:var(--post-icon-box);flex:none;margin-top:0}
+.post-icon-stack{position:relative;display:block;align-self:center;width:var(--post-icon-box);height:var(--post-icon-box);flex:none}
+.post-icon-stack .post-social-icon{position:absolute;display:grid;place-items:center;width:1.2em;height:1.2em}
+.post-icon-stack .post-social-icon .social-icon{--icon-size:1.05em}
+.post-icon-stack .post-social-icon:first-child:nth-last-child(2),.post-icon-stack .post-social-icon:nth-child(2):last-child{width:1.25em;height:1.25em}
+.post-icon-stack .post-social-icon:first-child:nth-last-child(2) .social-icon,.post-icon-stack .post-social-icon:nth-child(2):last-child .social-icon{--icon-size:1.15em}
+.post-icon-stack .post-social-icon:only-child{inset:0;margin:auto}
+.post-icon-stack .post-social-icon:first-child:nth-last-child(2){top:0;left:0}
+.post-icon-stack .post-social-icon:nth-child(2):last-child{right:0;bottom:0}
+.post-icon-stack .post-social-icon:first-child:nth-last-child(3){top:0;left:0;right:0;margin-inline:auto}
+.post-icon-stack .post-social-icon:nth-child(2):nth-last-child(2){bottom:0;left:.05em}
+.post-icon-stack .post-social-icon:nth-child(3):last-child{bottom:0;right:.05em}
 .group-summary{width:100%;text-align:left}
 @media(max-width:660px){.draft-item{flex-wrap:wrap}.post-actions{flex-wrap:wrap}}
 
@@ -91,7 +102,7 @@ header,main{--page-width:960px}
 [data-status="published"]{--tone-bg:#e8f5ed;--tone-fg:#216b48}
 [data-status="unassigned"]{--tone-bg:var(--color-box);--tone-fg:var(--color-text)}
 .status-badge[data-status]{--badge-background:var(--tone-bg);--badge-color:var(--tone-fg)}
-.status-action[data-status]{--button-background:var(--tone-bg);--button-color:var(--tone-fg);--button-borderColor:color-mix(in srgb,var(--tone-fg) 35%,transparent);--button-background-hover:color-mix(in srgb,var(--tone-bg) 70%,var(--tone-fg) 12%);--button-color-hover:var(--tone-fg)}
+.status-action[data-status]{--button-background:var(--tone-bg);--button-color:var(--tone-fg);--button-background-hover:color-mix(in srgb,var(--tone-bg) 70%,var(--tone-fg) 12%);--button-color-hover:var(--tone-fg)}
 .status-filter[data-status]:not([data-status="all"]):not([data-status=""]){background-color:var(--tone-bg);color:var(--tone-fg)}
 
 /* pulsanti distruttivi */
@@ -132,12 +143,16 @@ header,main{--page-width:960px}
 
 /* gruppi per ID: anche chiusi hanno la superficie delle righe singole */
 /* elenco compatto come prima di myPgs: righe senza riquadro, separatori sottili, 12px per lato */
-.draft-list>:is(.draft-item,.post-group){border-bottom:var(--border-width,1px) solid #dce2e9}
+/* separatore tra i post: una linea ::after al centro del gap della lista (non più border-bottom) */
+.draft-list{--draft-list-line:#dce2e9}
+.draft-list>:is(.draft-item,.post-group){--draft-list-gap:var(--gap,0px)}
+.draft-list>:is(.draft-item,.post-group){position:relative}
+.draft-list>:is(.draft-item,.post-group):not(:last-child)::after{content:"";position:absolute;inset:auto 0 calc((var(--draft-list-gap) + var(--border-width,1px))/-2) 0;height:var(--border-width,1px);border:0;background:var(--draft-list-line);pointer-events:none}
 .draft-item{padding:12px}
 .post-group{--accordion-padding:12px}
 .post-group::after{content:none}
 .group-children .draft-item+.draft-item{border-top:var(--border-width,1px) solid #dce2e9}
-.post-social-icon,.post-icon-stack{margin-top:.1em}
+.post-social-icon{margin-top:.1em}
 .post-details{color:#626d7b;opacity:1;font-weight:400;line-height:1.1}
 .group-toggle{flex:0 0 auto;width:auto;gap:var(--gap-paragraphs)}
 
@@ -189,3 +204,50 @@ main{--page-bottom:var(--gap-elements)}
 .relink-options{border:0;margin:0;padding:0;min-width:0}
 .folder-report{list-style:none;margin:0;padding:0}
 .folder-report .draft-item{border-bottom:var(--border-width,1px) solid #dce2e9}
+
+/* Dettagli post: più respiro tra le sezioni e nel testo, due colonne (informazioni | grafica) */
+.post-details-modal .details-grid{row-gap:var(--gap-paragraphs)}
+.post-details-modal .details-text.md-content{line-height:1.75}
+.post-details-modal .details-text.md-content :is(p,li){margin-block:.15em}
+/* Switch dei social: si restringe con la finestra; il nome del social si accorcia con i puntini, niente scorrimento orizzontale */
+.details-switch-wrap{min-width:0;max-width:100%}
+.details-switch{min-width:0;max-width:100%}
+.details-switch>ul{flex-wrap:nowrap;max-width:100%;min-width:0}
+.details-switch>ul>li{flex:0 1 auto;min-width:0}
+.details-switch [data-switch-post]{white-space:nowrap;max-width:100%;min-width:0;overflow:hidden}
+.details-switch [data-switch-post]>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.details-switch [data-switch-post]>svg,.details-switch [data-switch-post]>i,.details-switch [data-switch-post]>.social-icon{flex:none}
+.details-layout{align-items:start}
+
+/* Dettagli: "Dettagli post" in grigio prima del titolo del post nell'header della modale */
+.modal-title-muted{color:var(--color-gray);font-weight:inherit}
+
+/* Gruppi per ID: badge con icona del social e stato, vicino alla freccia */
+.group-status-badges{margin-left:auto;padding-inline:var(--gap-paragraphs);flex:0 1 auto;min-width:0}
+.group-status-badge{display:inline-flex;align-items:center;gap:.35em;white-space:nowrap}
+.group-status-badge .social-icon{--icon-size:1em;width:1em;height:1em}
+
+/* Tema scuro (myPgs: :root[pgs-state~=darkmode]): i pochi colori fissi del progetto */
+.theme-toggle{--darkmode-label-toDark:"Tema scuro";--darkmode-label-toLight:"Tema chiaro"}
+:root{--color-background:light-dark(#fcfcfc,#191919)}
+:root[pgs-state~=darkmode] .review dt,:root[pgs-state~=darkmode] .post-details{color:#9aa5b1}
+:root[pgs-state~=darkmode] .draft-list{--draft-list-line:rgba(255,255,255,.12)}
+:root[pgs-state~=darkmode] .folder-report .draft-item{border-bottom-color:rgba(255,255,255,.12)}
+:root[pgs-state~=darkmode] .group-children .draft-item+.draft-item{border-top-color:rgba(255,255,255,.12)}
+:root[pgs-state~=darkmode] [data-status="text-needed"]{--tone-bg:#3d2e0c;--tone-fg:#f3c35c}
+:root[pgs-state~=darkmode] [data-status="text-draft"]{--tone-bg:#3d2614;--tone-fg:#f2a466}
+:root[pgs-state~=darkmode] [data-status="image-needed"]{--tone-bg:#2e2240;--tone-fg:#c4a2f0}
+:root[pgs-state~=darkmode] [data-status="ready"]{--tone-bg:#16293e;--tone-fg:#8cc0f5}
+:root[pgs-state~=darkmode] [data-status="published"]{--tone-bg:#163223;--tone-fg:#7fd1a4}
+:root[pgs-state~=darkmode] .status-select :is([pgs~="listbox-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="text-needed"]){--tone-bg:#3d2e0c;--tone-fg:#f3c35c}
+:root[pgs-state~=darkmode] .status-select :is([pgs~="listbox-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="text-draft"]){--tone-bg:#3d2614;--tone-fg:#f2a466}
+:root[pgs-state~=darkmode] .status-select :is([pgs~="listbox-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="image-needed"]){--tone-bg:#2e2240;--tone-fg:#c4a2f0}
+:root[pgs-state~=darkmode] .status-select :is([pgs~="listbox-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="ready"]){--tone-bg:#16293e;--tone-fg:#8cc0f5}
+:root[pgs-state~=darkmode] .status-select :is([pgs~="listbox-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="published"]){--tone-bg:#163223;--tone-fg:#7fd1a4}
+/* finestre strette: i badge del gruppo vanno su una riga sotto il titolo */
+@media(max-width:760px){
+ .group-summary{flex-wrap:wrap}
+ .group-summary .post-body{flex:1 1 0;min-width:0}
+ .group-summary .group-status-badges{order:3;flex:1 1 100%;margin-left:0;justify-content:flex-start;padding-inline:0;padding-top:var(--gap-details)}
+}
+.field-error{color:var(--color-error)}

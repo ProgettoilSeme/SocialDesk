@@ -23,7 +23,7 @@ const os = require('node:os');
       icon: path.join(root, 'build', platform === 'darwin' ? 'socialdesk.icns' : 'socialdesk.ico'),
       appCopyright: 'Progetto il Seme',
       overwrite: true, prune: true, asar: false,
-      ignore: [/^\/(?:test|scripts)(?:\/|$)/, /^\/package-lock\.json$/, /^\/node_modules\/@napi-rs(?:\/|$)/],
+      ignore: [/^\/(?:test|scripts|Mac|Windows|Logo|dist|out|distribuzioni)(?:\/|$)/, /^\/(?:AGENTS\.md|versione\.json)$/, /\.(?:xlsx|ai)$/, /^\/package-lock\.json$/, /^\/node_modules\/@napi-rs(?:\/|$)/],
       ...(cacheRoot ? { download: { cacheRoot } } : {}),
     });
     if (platform === 'darwin' && process.platform === 'darwin') {
