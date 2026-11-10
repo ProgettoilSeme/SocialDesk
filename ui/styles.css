@@ -1,3 +1,7 @@
+/* Urbanist, il carattere di myPgs, incluso nell'app (SIL Open Font License, vedi assets/fonts/Urbanist-OFL.txt):
+   senza, Windows e i Mac senza il carattere installato userebbero un carattere di sistema. */
+@font-face{font-family:'Urbanist';src:url('assets/fonts/Urbanist-VariableFont_wght.ttf') format('truetype');font-weight:100 900;font-style:normal;font-display:swap}
+
 /* SocialDesk: solo i dettagli specifici del progetto. Layout, componenti, colori e
    spaziature arrivano da myPgs (node_modules/mypgs) e dalle icone @marcix/myicons. */
 
@@ -157,3 +161,10 @@ header,main{--page-width:960px}
 /* icone della home nei link dell'header, alte come il testo */
 .nav-icon{width:auto;height:1.4em;flex:none;object-fit:contain}
 [data-nav]{gap:var(--gap-details)}
+/* Dettagli: icona Copia per i social in alto a destra nel riquadro del testo */
+.details-text-box{position:relative}
+.details-text-box .details-copy{position:absolute;top:var(--padding-details);right:var(--padding-details)}
+.details-text-box.has-copy .details-text{padding-right:2.8rem}
+/* testo del post (Dettagli ed editor) in peso regular; grassetto e titoli restano marcati */
+.md-content{font-weight:400}
+.md-content :is(b,strong){font-weight:700}

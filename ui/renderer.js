@@ -332,24 +332,26 @@ function openPostDetails(post,opener){
   const container=dialog.querySelector('#details-text');container.replaceChildren();
   if(result.textMessage){const note=document.createElement('p');note.className='hint details-note';note.textContent=result.textMessage;container.appendChild(note);}
   for(const file of result.textFiles){
-   const block=document.createElement('section');block.className='details-text-file';block.setAttribute('pgs',"box['boxMini'] flex['column' 'gapParagraphs']");
-   const head=document.createElement('div');head.setAttribute('pgs',"flex['row' 'wrap' 'itemCenter' 'justifyBetween' 'gapParagraphs']");
+   // nome del file fuori dal riquadro; nel riquadro il testo e, in alto a destra, l'icona Copia per i social
+   const block=document.createElement('section');block.className='details-text-file';block.setAttribute('pgs',"flex['column' 'gapDetails']");
+   const head=document.createElement('div');head.setAttribute('pgs',"flex['row' 'wrap' 'itemCenter' 'gapParagraphs']");
    const name=document.createElement('a');name.className='details-filename details-file-link';name.href='#';name.title='Apri il file di testo';name.setAttribute('aria-label','Apri '+file.name);
    const label=document.createElement('span');label.textContent=file.name;name.appendChild(label);
    name.insertAdjacentHTML('beforeend',icon('externalLink'));
    const openingError=document.createElement('div');openingError.setAttribute('role','alert');openingError.hidden=true;
    let opening=false;name.addEventListener('click',async event=>{event.preventDefault();if(opening)return;opening=true;name.setAttribute('aria-disabled','true');setAlert(openingError,'');try{await call('openText',{key:post.key,revision:state.revision,name:file.name});}catch(e){setAlert(openingError,e.message);}finally{opening=false;name.removeAttribute('aria-disabled');}});
    head.appendChild(name);block.append(head,openingError);
+   const box=document.createElement('div');box.className='details-text-box';box.setAttribute('pgs',"box['boxMini']");
    const content=document.createElement('div');content.className='details-text md-content';content.setAttribute('pgs','list');
    if(file.message||file.content===''){content.classList.add('details-text-empty');content.textContent=file.message||'Il file di testo è vuoto.';}
    else{
     SocialMarkdown.renderInto(content,file.content);
-    const copy=document.createElement('button');copy.type='button';copy.setAttribute('pgs',"button['btnMini']");copy.className='details-copy';copy.innerHTML=`${icon('copy')}<span>Copia per i social</span>`;
-    copy.title='Copia il testo con grassetto e barrato visibili su Facebook, Instagram e LinkedIn';
+    const copy=document.createElement('button');copy.type='button';copy.setAttribute('pgs',"button['btnIconOnly' 'btnMini']");copy.className='details-copy';copy.innerHTML=icon('copy');
+    copy.setAttribute('aria-label','Copia per i social');copy.title='Copia per i social: testo con grassetto e barrato visibili su Facebook, Instagram e LinkedIn';
     copy.addEventListener('click',()=>copySocialText(file.content,copy));
-    head.appendChild(copy);
+    box.appendChild(copy);box.classList.add('has-copy');
    }
-   block.appendChild(content);container.appendChild(block);
+   box.appendChild(content);block.appendChild(box);container.appendChild(block);
   }
  }).catch(e=>{if(!dialog.isConnected)return;const container=dialog.querySelector('#details-text');container.replaceChildren();const box=document.createElement('div');box.setAttribute('role','alert');container.appendChild(box);setAlert(box,e.message);});
 }
@@ -456,10 +458,11 @@ function markdownToolbar(){
  return `<div pgs="flex['row' 'wrap' 'itemCenter' 'gapParagraphs']" class="md-toolbar" role="toolbar" aria-label="Formattazione del testo">${groups.map(([a,b])=>`<div pgs="flex['row' 'gapDetails']" class="md-toolbar-group">${markdownButtons.slice(a,b).map(button=>`<button pgs="button['btnMini' 'btnPaddingEqual' 'btnCurrent']" class="md-tool" type="button" data-md="${button.command}" title="${button.title}" aria-label="${button.title}" aria-pressed="false" ${disabled(state.loading)}>${button.label}</button>`).join('')}</div>`).join('')}<button pgs="button['btnMini']" class="md-copy" type="button" id="copy-social" title="Copia il testo con grassetto e barrato visibili su Facebook, Instagram e LinkedIn" ${disabled(state.loading)}>${icon('copy')}<span>Copia per i social</span></button></div>`;
 }
 async function copySocialText(markdown,button){
- const label=button.innerHTML;button.disabled=true;
- try{await call('copyText',SocialMarkdown.toSocialText(markdown));button.textContent='Copiato ✓';}
- catch(e){button.textContent='Copia non riuscita';}
- setTimeout(()=>{if(button.isConnected){button.innerHTML=label;button.disabled=false;}},1600);
+ const label=button.innerHTML,iconOnly=button.classList.contains('details-copy'),title=button.title;button.disabled=true;
+ const show=(ok)=>{if(iconOnly){button.innerHTML=icon(ok?'check':'close');button.title=ok?'Copiato':'Copia non riuscita';}else button.textContent=ok?'Copiato ✓':'Copia non riuscita';};
+ try{await call('copyText',SocialMarkdown.toSocialText(markdown));show(true);}
+ catch(e){show(false);}
+ setTimeout(()=>{if(button.isConnected){button.innerHTML=label;button.title=title;button.disabled=false;}},1600);
 }
 function currentBlock(area){
  const selection=document.getSelection();let node=selection&&selection.anchorNode;
