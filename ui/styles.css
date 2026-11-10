@@ -187,8 +187,7 @@ header,main{--page-width:960px}
    (i controlli restano cliccabili) e il logo lascia spazio ai tre pulsanti della finestra. */
 [data-platform="mac"] header{-webkit-app-region:drag}
 [data-platform="mac"] header :is(a,button,input,select,dialog){-webkit-app-region:no-drag}
-[data-platform="mac"] .app-brand{margin-left:58px}
-[data-platform="mac"] header[pgs-state~="compact"] .app-brand{margin-left:78px}
+[data-platform="mac"] .app-brand{margin-left:78px}
 
 /* niente scorrimento inutile: il piè di pagina vuoto (home) non aggiunge la distanza della sezione
    e sotto il contenuto resta solo lo spazio tra elementi, non il 7% dell'altezza della finestra */
