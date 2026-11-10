@@ -32,11 +32,11 @@ const formatDate=date=>date?date.split('-').reverse().join('/'):'';
 
 // Modale nativa gestita da pgs.modal: resta nel proprio wrapper (dialogTopLevel → showModal) e si chiude
 // con X (modal-close), Esc o clic sullo sfondo; onClose riceve sempre la chiusura effettiva.
-function createModal({title,titleId,describedBy='',body,size='dialogSmall',form=false,closable=true,onClose}){
+function createModal({title,titleHtml,titleId,describedBy='',body,size='dialogSmall',form=false,closable=true,onClose}){
  const wrapper=document.createElement('div');
  wrapper.setAttribute('pgs',`modal['dialogTopLevel' 'dialogCenter' '${size}' 'dialogDisableBackdropClose']`);
  const close=closable?`<button pgs="button['btnIconOnly' 'btnMini'] modal-close" type="button" aria-label="Chiudi" data-modal-x>${icon('close')}</button>`:'';
- const inner=`<div pgs="modal-dialog-content-header flex['row' 'itemCenter' 'justifyBetween' 'gapParagraphs']"><h2 pgs="h4" id="${titleId}">${escape(title)}</h2>${close}</div><div pgs="modal-dialog-content-scroll flex['column' 'gapParagraphs']">${body}</div>`;
+ const inner=`<div pgs="modal-dialog-content-header flex['row' 'itemCenter' 'justifyBetween' 'gapParagraphs']"><h2 pgs="h4" id="${titleId}">${titleHtml||escape(title)}</h2>${close}</div><div pgs="modal-dialog-content-scroll flex['column' 'gapParagraphs']">${body}</div>`;
  wrapper.innerHTML=`<dialog aria-labelledby="${titleId}" ${describedBy?`aria-describedby="${describedBy}"`:''}><div pgs="modal-dialog-content">${form?`<form pgs="form flex['column' 'gapParagraphs']" novalidate>${inner}</form>`:inner}</div></dialog>`;
  document.body.appendChild(wrapper);
  enhance(wrapper);
@@ -56,7 +56,7 @@ function createModal({title,titleId,describedBy='',body,size='dialogSmall',form=
 async function call(method,...args){if(!api)throw new Error('Apri SocialDesk dall’applicazione per accedere ai file.');const response=await api[method](...args);if(!response.ok){const e=new Error(response.error.message);e.code=response.error.code;throw e;}return response.value;}
 function valid(){
  if(state.step===0)return state.rootValid&&state.post.channels.length>0;
- if(state.step===1)return state.post.title.trim().length>0&&state.post.title.trim().length<=140&&state.post.channels.length>0&&state.post.channels.every(channel=>!!state.post.channelFormats[channel]);
+ if(state.step===1)return state.post.title.trim().length>0&&state.post.title.trim().length<=140&&state.post.channels.length>0&&state.post.channels.length>0;
  if(state.step===2){
   const selections=state.post.channels.map(channel=>state.post.channelDates[channel]);
   if(!selections.length||selections.some(value=>!value||(!value.undefinedDate&&!/^\d{4}-\d{2}-\d{2}$/.test(value.date))))return false;
@@ -106,14 +106,14 @@ function renderWizard(){
  if(state.result){renderSuccess();return;}
  let content='';
  if(state.step===0)content=`<h1 pgs="h2">Dove vuoi pubblicare?</h1><p class="lead">Seleziona uno o più social per questo post.</p><fieldset pgs="grid['column-3' 'gapParagraphs']" class="social-list"><legend pgs="visuallyHidden">Social del post</legend>${CHANNELS.map(c=>`<label pgs="button['btnTwoState' 'btnVertical']" class="channel-chip social-option" data-channel="${c}"><input type="checkbox" name="social" value="${c}" ${state.post.channels.includes(c)?'checked':''}>${socialIcon(c)}<span>${c}</span></label>`).join('')}</fieldset>${state.rootValid?'':`<div pgs="alert['alertWarning']" role="alert"><i pgs="icon['icon-triangleExclamation'] alert-icon" aria-hidden="true"></i><div pgs="alert-content flex['column' 'gapParagraphs']"><p>La cartella Social non è configurata.</p><button pgs="button" id="create-open-settings" type="button">${icon('gear')}<span>Apri Impostazioni</span></button></div></div>`}`;
- if(state.step===1)content=`<h1 pgs="h2">Di cosa parla il post?</h1><p class="lead">Titolo e argomento saranno uguali per i social selezionati. Scegli il formato per ciascuno.</p><div pgs="form flex['column' 'gapElements']">${field('Titolo',`<input pgs="input" id="title" maxlength="140" autocomplete="off" required placeholder=" " value="${escape(state.post.title)}">`)}${field('Argomento <span class="optional">(facoltativo)</span>',`<input pgs="input" id="topic" maxlength="200" autocomplete="off" placeholder=" " value="${escape(state.post.topic)}">`)}<div pgs="grid['column-3' 'gapParagraphs']">${state.post.channels.map(channel=>channelCard(channel,field('Formato',`<select pgs="select" id="format-${channel.toLowerCase()}" data-channel-format="${channel}" required><option value="" ${state.post.channelFormats[channel]?'':'selected'} disabled>Scegli un formato</option>${FORMATS.map(format=>`<option value="${format}" ${state.post.channelFormats[channel]===format?'selected':''}>${format}</option>`).join('')}</select>`))).join('')}</div></div>`;
+ if(state.step===1)content=`<h1 pgs="h2">Di cosa parla il post?</h1><p class="lead">Titolo e argomento saranno uguali per i social selezionati. Il formato si può scegliere anche più avanti.</p><div pgs="form flex['column' 'gapElements']">${field('Titolo',`<input pgs="input" id="title" maxlength="140" autocomplete="off" required placeholder=" " value="${escape(state.post.title)}">`)}${field('Argomento <span class="optional">(facoltativo)</span>',`<input pgs="input" id="topic" maxlength="200" autocomplete="off" placeholder=" " value="${escape(state.post.topic)}">`)}<div pgs="grid['column-3' 'gapParagraphs']">${state.post.channels.map(channel=>channelCard(channel,field('Formato <span class="optional">(facoltativo)</span>',`<select pgs="select" id="format-${channel.toLowerCase()}" data-channel-format="${channel}"><option value="" ${state.post.channelFormats[channel]?'':'selected'}>Da definire</option>${FORMATS.map(format=>`<option value="${format}" ${state.post.channelFormats[channel]===format?'selected':''}>${format}</option>`).join('')}</select>`))).join('')}</div></div>`;
  if(state.step===2){
   const allUndefined=state.post.channels.every(channel=>state.post.channelDates[channel]?.undefinedDate);
-  content=`<h1 pgs="h2">Quando vuoi pubblicare?</h1><p class="lead">Scegli la data per ogni social, oppure lasciala da definire.</p><div pgs="form flex['column' 'gapElements']"><div pgs="grid['column-3' 'gapParagraphs']">${state.post.channels.map(channel=>{const item=state.post.channelDates[channel],id=channel.toLowerCase();return channelCard(channel,`${field('Data pubblicazione',`<input pgs="input" type="date" id="date-${id}" data-channel-date="${channel}" value="${escape(item.date)}" ${disabled(item.undefinedDate)}>`)}<label pgs="checkbox"><input type="checkbox" data-undefined-date="${channel}" ${item.undefinedDate?'checked':''}><span>Data da definire</span></label>`);}).join('')}</div>${allUndefined?`<div class="year-field">${field('Anno',`<input pgs="input" id="year" type="number" inputmode="numeric" min="1900" max="9999" step="1" value="${escape(state.post.year)}">`,'Le cartelle inizieranno con xx-xx.')}</div>`:''}<p class="hint">I social dello stesso post devono restare nello stesso anno per condividere l’ID.</p></div>`;
+  content=`<h1 pgs="h2">Quando vuoi pubblicare?</h1><p class="lead">Scegli la data per ogni social, oppure lasciala da definire.</p><div pgs="form flex['column' 'gapElements']"><div pgs="grid['column-3' 'gapParagraphs']">${state.post.channels.map(channel=>{const item=state.post.channelDates[channel],id=channel.toLowerCase();return channelCard(channel,`${field('Data pubblicazione',`<input pgs="input" type="date" id="date-${id}" data-channel-date="${channel}" value="${escape(item.date)}" ${disabled(item.undefinedDate)}>`)}<label pgs="checkbox"><input type="checkbox" data-undefined-date="${channel}" ${item.undefinedDate?'checked':''}><span>Data da definire</span></label>`);}).join('')}</div>${allUndefined?`<div class="year-field">${field('Anno',`<input pgs="input" id="year" type="number" inputmode="numeric" min="1900" max="9999" step="1" value="${escape(state.post.year)}">`,'Anno della scheda del piano editoriale.')}</div>`:''}<p class="hint">I social dello stesso post devono restare nello stesso anno per condividere l’ID.</p></div>`;
  }
  if(state.step===3){
   const p=state.plan;
-  content=p?`<h1 pgs="h2">È tutto pronto?</h1><p class="lead">Controlla i dati prima di creare il post.</p><dl pgs="box" class="review"><dt>Titolo</dt><dd>${escape(p.title)}</dd><dt>Social</dt><dd>${escape(p.channels.join(', '))}</dd><dt>Anno</dt><dd>${p.year}</dd><dt>Argomento</dt><dd>${escape(p.topic||'—')}</dd><dt>ID post</dt><dd>${p.id}</dd></dl><div pgs="grid['column-3' 'gapParagraphs']">${p.folders.map(f=>channelCard(f.channel,`<p pgs="flex['row' 'wrap' 'gapDetails']"><span pgs="badge['badgeNeutral']">${escape(f.format)}</span><span pgs="badge['badgeInfo']">${f.date?escape(formatDate(f.date)):'Data da definire'}</span></p><p class="path">${escape(f.relative)}</p><p class="hint">${escape(f.aiName)} · ${escape(f.textName)}</p>`)).join('')}</div><p>${p.channels.length===1?'Verranno create una cartella e una riga':'Verranno create '+p.channels.length+' cartelle e '+p.channels.length+' righe'} nel piano editoriale, nella scheda <strong>${p.year}</strong>.</p>`:`<h1 pgs="h2">Controllo dei dati</h1><p class="lead loading">Verifico cartelle, template e piano editoriale…</p>`;
+  content=p?`<h1 pgs="h2">È tutto pronto?</h1><p class="lead">Controlla i dati prima di creare il post.</p><dl pgs="box" class="review"><dt>Titolo</dt><dd>${escape(p.title)}</dd><dt>Social</dt><dd>${escape(p.channels.join(', '))}</dd><dt>Anno</dt><dd>${p.year}</dd><dt>Argomento</dt><dd>${escape(p.topic||'—')}</dd><dt>ID post</dt><dd>${p.id}</dd>${p.unified?`<dt>Cartella</dt><dd class="path">${escape(p.folders[0].relative)}</dd>`:''}</dl><div pgs="grid['column-3' 'gapParagraphs']">${p.folders.map(f=>channelCard(f.channel,`<p pgs="flex['row' 'wrap' 'gapDetails']"><span pgs="badge['badgeNeutral']">${escape(f.format||'Formato da definire')}</span><span pgs="badge['badgeInfo']">${f.date?escape(formatDate(f.date)):'Data da definire'}</span></p>${p.unified?'':`<p class="path">${escape(f.relative)}</p>`}<p class="hint">${escape(f.aiName)} · ${escape(f.textName)}</p>`)).join('')}</div><p>${p.channels.length===1?'Verranno create una cartella e una riga':p.unified?'Verranno create una cartella comune e '+p.channels.length+' righe':'Verranno create '+p.channels.length+' cartelle e '+p.channels.length+' righe'} nel piano editoriale, nella scheda <strong>${p.year}</strong>.</p>`:`<h1 pgs="h2">Controllo dei dati</h1><p class="lead loading">Verifico cartelle, template e piano editoriale…</p>`;
  }
  main.innerHTML=`${content}${errorBox()}`;
  footer.innerHTML=`<span pgs="badge['badgeNeutral']">Passo ${state.step+1} di 4</span><div pgs="flex['row' 'gapParagraphs']"><button pgs="button" id="back" type="button" ${state.step===0||state.loading?'disabled':''}>${icon('arrowLeft')}<span>Indietro</span></button><button pgs="button['btnStrong' 'btnReverse']" id="next" type="button" ${!valid()||state.loading?'disabled':''}><span>${state.loading?'Attendi…':state.step===3?'Crea post':'Continua'}</span>${state.step===3?icon('check'):icon('arrowRight')}</button></div>`;
@@ -121,7 +121,7 @@ function renderWizard(){
 }
 function error(message){state.error=message;setAlert(document.getElementById('error'),message);}
 function wire(){
- document.querySelectorAll('[name=social]').forEach(input=>input.addEventListener('change',()=>{state.post.channels=Array.from(document.querySelectorAll('[name=social]:checked')).map(x=>x.value);for(const channel of state.post.channels){state.post.channelDates[channel]??={date:localToday(),undefinedDate:false};state.post.channelFormats[channel]??='';}state.plan=null;error('');updateContinue();}));
+ document.querySelectorAll('[name=social]').forEach(input=>input.addEventListener('change',()=>{state.post.channels=Array.from(document.querySelectorAll('[name=social]:checked')).map(x=>x.value);for(const channel of state.post.channels){state.post.channelDates[channel]??={date:localToday(),undefinedDate:true};state.post.channelFormats[channel]??='';}state.plan=null;error('');updateContinue();}));
  document.getElementById('create-open-settings')?.addEventListener('click',async()=>{if(await confirmLeave())openSettings();});
  for(const id of ['title','topic','year'])document.getElementById(id)?.addEventListener('input',event=>{state.post[id]=event.target.value;state.plan=null;error('');updateContinue();});
  document.querySelectorAll('[data-channel-format]').forEach(input=>input.addEventListener('change',event=>{state.post.channelFormats[event.target.dataset.channelFormat]=event.target.value;state.plan=null;error('');updateContinue();}));
@@ -149,8 +149,8 @@ async function submit(){
  finally{state.loading=false;render();}
 }
 function renderSuccess(){
- const r=state.result;
- main.innerHTML=`<div pgs="alert['alertSuccess']" role="status"><i pgs="icon['icon-circleCheck'] alert-icon" aria-hidden="true"></i><div pgs="alert-content"><h1 pgs="alert-content-title h3">Post creato</h1><p>${r.channels.length===1?'La cartella e la riga Excel sono pronte.':'Le '+r.channels.length+' cartelle e le righe Excel sono pronte.'}</p></div></div><dl pgs="box" class="review"><dt>Titolo</dt><dd>${escape(r.title)}</dd><dt>ID post</dt><dd>${r.id}</dd><dt>Anno</dt><dd>${r.year}</dd></dl><div pgs="grid['column-3' 'gapParagraphs']">${r.created.map(f=>channelCard(f.channel,`<p class="path">${escape(f.path)}</p>`)).join('')}</div><div pgs="flex['row' 'wrap' 'gapParagraphs']">${r.created.map(f=>`<button pgs="button" data-open-post="${escape(f.channel)}" type="button">${icon('folderOpen')}<span>${r.created.length===1?'Apri cartella del post':'Apri cartella '+escape(f.channel)}</span></button>`).join('')}<button pgs="button['btnStrong']" id="new-post" type="button">${icon('plus')}<span>Crea un altro post</span></button></div><div id="error" role="alert"></div>`;
+ const r=state.result,single=new Set(r.created.map(f=>f.path)).size===1,folders=single?r.created.slice(0,1):r.created;
+ main.innerHTML=`<div pgs="alert['alertSuccess']" role="status"><i pgs="icon['icon-circleCheck'] alert-icon" aria-hidden="true"></i><div pgs="alert-content"><h1 pgs="alert-content-title h3">Post creato</h1><p>${single?(r.channels.length===1?'La cartella e la riga Excel sono pronte.':'La cartella e le righe Excel sono pronte.'):'Le '+r.channels.length+' cartelle e le righe Excel sono pronte.'}</p></div></div><dl pgs="box" class="review"><dt>Titolo</dt><dd>${escape(r.title)}</dd><dt>ID post</dt><dd>${r.id}</dd><dt>Anno</dt><dd>${r.year}</dd>${single?`<dt>Social</dt><dd>${escape(r.channels.join(', '))}</dd><dt>Cartella</dt><dd class="path">${escape(r.created[0].path)}</dd>`:''}</dl>${single?'':`<div pgs="grid['column-3' 'gapParagraphs']">${r.created.map(f=>channelCard(f.channel,`<p class="path">${escape(f.path)}</p>`)).join('')}</div>`}<div pgs="flex['row' 'wrap' 'gapParagraphs']">${folders.map(f=>`<button pgs="button" data-open-post="${escape(f.channel)}" type="button">${icon('folderOpen')}<span>${folders.length===1?'Apri cartella del post':'Apri cartella '+escape(f.channel)}</span></button>`).join('')}<button pgs="button['btnStrong']" id="new-post" type="button">${icon('plus')}<span>Crea un altro post</span></button></div><div id="error" role="alert"></div>`;
  footer.innerHTML=`<span pgs="badge['badgeSuccess']">${icon('check')}Creazione completata</span>`;
  document.querySelectorAll('[data-open-post]').forEach(button=>button.addEventListener('click',async()=>{button.disabled=true;try{await call('openResult',button.dataset.openPost);}catch(e){error(e.message);}finally{button.disabled=false;}}));
  document.getElementById('new-post').addEventListener('click',()=>{state.step=0;state.visited=0;state.post=initialPost();state.plan=null;state.result=null;state.error='';render();});
@@ -426,16 +426,33 @@ function openStatusModal(post,opener){
 function detailsMetadata(post){
  const postFolder=post.sourcesRelative?.replace(/\\/g,'/').replace(/\/01_Sorgenti\/?$/,'');
  const folderLink=postFolder&&postFolder!==post.sourcesRelative?`<a href="#" class="details-file-link details-folder-link" data-open-post-folder title="Apri la cartella del post" aria-label="Apri la cartella del post: ${escape(postFolder)}"><span>${escape(postFolder)}</span>${icon('externalLink')}</a>`:'Collegamento non indicato';
- return `<h3 pgs="h5" class="details-post-title" id="details-post-title">${escape(post.title)}</h3><dl pgs="box['boxMini']" class="review details-grid"><dt>ID post</dt><dd>${post.id!==null&&post.id!==''?escape(post.id):'Non assegnato'}</dd><dt>Canale</dt><dd pgs="flex['row' 'itemCenter' 'gapDetails']" class="details-channel" data-channel="${escape(post.channel)}">${socialIcon(post.channel)}<span>${escape(post.channel)}</span></dd><dt>Anno</dt><dd>${post.year}</dd><dt>Pubblicazione</dt><dd>${post.date?escape(formatDate(post.date)):'Da definire'}</dd><dt>Argomento</dt><dd>${escape(post.topic||'Non indicato')}</dd><dt>Formato</dt><dd>${escape(post.format||'Non indicato')}</dd><dt>Stato</dt><dd>${statusBadge(post.status)}</dd><dt>Cartella post</dt><dd class="details-source">${folderLink}<div id="details-folder-error" role="alert" hidden></div></dd></dl>`;
+ return `<dl pgs="box['boxMini']" class="review details-grid"><dt>ID post</dt><dd>${post.id!==null&&post.id!==''?escape(post.id):'Non assegnato'}</dd><dt>Anno</dt><dd>${post.year}</dd><dt>Pubblicazione</dt><dd>${post.date?escape(formatDate(post.date)):'Da definire'}</dd><dt>Argomento</dt><dd>${escape(post.topic||'Non indicato')}</dd><dt>Formato</dt><dd>${escape(post.format||'Non indicato')}</dd><dt>Stato</dt><dd>${statusBadge(post.status)}</dd><dt>Cartella post</dt><dd class="details-source">${folderLink}<div id="details-folder-error" role="alert" hidden></div></dd></dl>`;
+}
+// Righe dello stesso post (stesso anno e ID) sugli altri social, per lo switch in alto nei Dettagli.
+function siblingPosts(post){
+ if(post.id===null||post.id===undefined||post.id==='')return[post];
+ const rows=(state.drafts||[]).filter(p=>p.year===post.year&&p.id===post.id);
+ const list=rows.length?rows:[post];
+ return CHANNELS.map(c=>list.find(p=>p.channel===c)).filter(Boolean);
+}
+function detailsSwitch(post){
+ const items=siblingPosts(post).map(p=>{const current=p.key===post.key;return `<li><button pgs="button['btnTransparent'${current?" 'btnCurrent'":''}]" type="button" data-switch-post="${escape(p.key)}" ${current?'aria-selected="true" aria-current="page"':''} data-channel="${escape(p.channel)}">${socialIcon(p.channel)}<span>${escape(p.channel)}</span></button></li>`;}).join('');
+ return `<div pgs="flex['row' 'justifyCenter']" class="details-switch-wrap"><nav pgs="menu['menuHorizontal' 'menuGrouped']" class="details-switch" aria-label="Social del post"><ul>${items}</ul></nav></div>`;
 }
 function openPostDetails(post,opener){
  if(anyModalOpen())return;
  let disposeArtwork=()=>{};
- const body=`<section id="details-metadata" pgs="flex['column' 'gapParagraphs']">${detailsMetadata(post)}</section><section pgs="flex['column' 'gapParagraphs']" class="details-text-section" aria-label="Testo del post"><h3 pgs="h5">Testo del post</h3><div id="details-text" pgs="flex['column' 'gapParagraphs']" aria-live="polite"><p class="hint">Caricamento del testo…</p></div></section><section pgs="flex['column' 'gapParagraphs']" class="details-text-section details-artwork-section" aria-label="Grafica del post"><h3 pgs="h5">Grafica del post</h3><div id="details-artwork" pgs="flex['column' 'gapParagraphs']"></div></section><div pgs="flex['row' 'justifyEnd']"><button pgs="button" id="details-done" type="button">Chiudi</button></div>`;
- const modal=createModal({title:'Dettagli post',titleId:'details-modal-title',describedBy:'details-post-title',body,size:'dialogFull',onClose:()=>{disposeArtwork();document.body.classList.remove('details-modal-open');if(opener?.isConnected)opener.focus({preventScroll:true});}});
+ // Switch dei social in alto; a sinistra informazioni e testo, a destra la grafica.
+ const body=`${detailsSwitch(post)}<div pgs="grid['column-2' 'gapGroups' 'itemStart']" class="details-layout"><div pgs="flex['column' 'gapGroups']" class="details-left"><section id="details-metadata" pgs="flex['column' 'gapElements']">${detailsMetadata(post)}</section><section pgs="flex['column' 'gapElements']" class="details-text-section" aria-label="Testo del post"><h3 pgs="h5">Testo del post</h3><div id="details-text" pgs="flex['column' 'gapElements']" aria-live="polite"><p class="hint">Caricamento del testo…</p></div></section></div><section pgs="flex['column' 'gapElements']" class="details-text-section details-artwork-section" aria-label="Grafica del post"><h3 pgs="h5">Grafica del post</h3><div id="details-artwork" pgs="flex['column' 'gapParagraphs']"></div></section></div><div pgs="flex['row' 'justifyEnd']"><button pgs="button" id="details-done" type="button">Chiudi</button></div>`;
+ const modal=createModal({titleHtml:`<span class="modal-title-muted">Dettagli post</span> <span id="details-post-title">${escape(post.title)}</span>`,titleId:'details-modal-title',body,size:'dialogFull',onClose:()=>{disposeArtwork();document.body.classList.remove('details-modal-open');if(opener?.isConnected)opener.focus({preventScroll:true});}});
  const dialog=modal.dialog;dialog.id='post-details-modal';dialog.classList.add('post-details-modal');
  document.body.classList.add('details-modal-open');
  dialog.querySelector('#details-done').addEventListener('click',()=>modal.close());
+ dialog.querySelectorAll('[data-switch-post]').forEach(button=>button.addEventListener('click',()=>{
+  const other=(state.drafts||[]).find(p=>p.key===button.dataset.switchPost);
+  if(!other||other.key===post.key)return;
+  modal.close();setTimeout(()=>openPostDetails(other,opener),60);
+ }));
  let openingFolder=false;
  dialog.addEventListener('click',async event=>{
   const link=event.target.closest?.('[data-open-post-folder]');if(!link)return;
@@ -466,7 +483,7 @@ function openPostDetails(post,opener){
    name.insertAdjacentHTML('beforeend',icon('externalLink'));
    const openingError=document.createElement('div');openingError.setAttribute('role','alert');openingError.hidden=true;
    let opening=false;name.addEventListener('click',async event=>{event.preventDefault();if(opening)return;opening=true;name.setAttribute('aria-disabled','true');setAlert(openingError,'');try{await call('openText',{key:post.key,revision:state.revision,name:file.name});}catch(e){setAlert(openingError,e.message);}finally{opening=false;name.removeAttribute('aria-disabled');}});
-   head.appendChild(name);block.append(head,openingError);
+   head.appendChild(name);
    const box=document.createElement('div');box.className='details-text-box';box.setAttribute('pgs',"box['boxMini']");
    const content=document.createElement('div');content.className='details-text md-content';content.setAttribute('pgs','list');
    if(file.message||file.content===''){content.classList.add('details-text-empty');content.textContent=file.message||'Il file di testo è vuoto.';}
@@ -477,7 +494,7 @@ function openPostDetails(post,opener){
     copy.addEventListener('click',()=>copySocialText(file.content,copy));
     box.appendChild(copy);box.classList.add('has-copy');
    }
-   box.appendChild(content);block.appendChild(box);container.appendChild(block);
+   box.appendChild(content);block.append(box,head,openingError);container.appendChild(block);
   }
  }).catch(e=>{if(!dialog.isConnected)return;const container=dialog.querySelector('#details-text');container.replaceChildren();const box=document.createElement('div');box.setAttribute('role','alert');container.appendChild(box);setAlert(box,e.message);});
 }
@@ -485,22 +502,28 @@ function openDateModal(post,opener){
  if(document.getElementById('date-modal')||anyModalOpen())return;
  const mode=state.listMode,scrollY=window.scrollY;
  const initial=post.date||(post.year===new Date().getFullYear()?localToday():post.year+'-01-01');
- const body=`${postHeading(post,'date-modal-post')}${field('Data pubblicazione',`<input pgs="input" type="date" id="draft-date" required min="${post.year}-01-01" max="${post.year}-12-31" value="${escape(initial)}">`,`La modifica riguarda solo ${escape(post.channel)}.`)}<div id="date-modal-error" role="alert" hidden></div><div pgs="flex['row' 'justifyEnd' 'gapParagraphs']"><button pgs="button" id="date-modal-cancel" type="button">Annulla</button><button pgs="button['btnStrong']" id="date-modal-save" type="submit">Salva data</button></div>`;
+ const body=`${postHeading(post,'date-modal-post')}<div pgs="flex['column' 'gapParagraphs']">${field('Data pubblicazione',`<input pgs="input" type="date" id="draft-date" required min="${post.year}-01-01" max="${post.year}-12-31" value="${escape(initial)}">`,`La modifica riguarda solo ${escape(post.channel)}.`)}<label pgs="checkbox"><input type="checkbox" id="draft-undefined"><span>Data da definire</span></label></div><div id="date-modal-error" role="alert" hidden></div><div pgs="flex['row' 'justifyEnd' 'gapParagraphs']"><button pgs="button" id="date-modal-cancel" type="button">Annulla</button><button pgs="button['btnStrong']" id="date-modal-save" type="submit">Salva data</button></div>`;
  const modal=createModal({title:'Aggiorna data',titleId:'date-modal-title',describedBy:'date-modal-post',body,form:true,onClose:()=>{document.body.classList.remove('date-modal-open');state.selected=null;if(opener.isConnected)opener.focus({preventScroll:true});}});
  modal.dialog.id='date-modal';
  document.body.classList.add('date-modal-open');
  const input=modal.dialog.querySelector('#draft-date'),save=modal.dialog.querySelector('#date-modal-save'),message=modal.dialog.querySelector('#date-modal-error');
- function busy(value){modal.busy=value;state.loading=value;modal.dialog.querySelectorAll('button,input').forEach(el=>{el.disabled=value;});save.textContent=value?'Salvataggio…':'Salva data';modal.dialog.setAttribute('aria-busy',String(value));}
+ function busy(value){modal.busy=value;state.loading=value;modal.dialog.querySelectorAll('button,input').forEach(el=>{el.disabled=value||(el.id==='draft-date'&&undefinedBox.checked);});save.textContent=value?'Salvataggio…':'Salva data';modal.dialog.setAttribute('aria-busy',String(value));}
  modal.dialog.querySelector('#date-modal-cancel').addEventListener('click',()=>modal.close());
+ const undefinedBox=modal.dialog.querySelector('#draft-undefined');
  input.addEventListener('input',()=>setAlert(message,''));
+ // Data da definire: la cella della data nel piano torna vuota (anche per un post già programmato).
+ undefinedBox.addEventListener('change',()=>{input.disabled=undefinedBox.checked;input.required=!undefinedBox.checked;setAlert(message,'');});
  modal.dialog.querySelector('form').addEventListener('submit',async event=>{
-  event.preventDefault();if(modal.busy||!input.reportValidity())return;
-  const request={key:post.key,revision:state.revision,date:input.value};setAlert(message,'');busy(true);
+  event.preventDefault();if(modal.busy)return;
+  const undefinedDate=undefinedBox.checked;
+  if(!undefinedDate&&!input.reportValidity())return;
+  if(undefinedDate&&!post.date){setAlert(message,'La data di questo post è già da definire.');return;}
+  const request=undefinedDate?{key:post.key,revision:state.revision,undefinedDate:true}:{key:post.key,revision:state.revision,date:input.value};setAlert(message,'');busy(true);
   try{
    const plan=await call('planDate',request);
    const result=await call('updateDate',request,plan.fingerprint);
    if(result.canceled)return;
-   state.notice=`Data aggiornata per ${result.channel}: ${formatDate(result.date)}.`;
+   state.notice=result.date?`Data aggiornata per ${result.channel}: ${formatDate(result.date)}.`:`Data di ${result.channel} impostata come da definire.`;
    busy(false);modal.close();await loadList(mode);
    window.scrollTo({top:scrollY});
    main.querySelector(`[data-change-date="${post.key}"]`)?.focus({preventScroll:true});
@@ -508,6 +531,12 @@ function openDateModal(post,opener){
   finally{if(modal.dialog.isConnected)busy(false);else state.loading=false;}
  });
  modal.open();input.focus();
+}
+function addChannelSection(post,busy){
+ if(post.id===null||post.id===undefined||post.id===''||!post.sourcesRelative||!post.sourcesRelative.startsWith('01_Posts/'))return'';
+ const present=siblingPosts(post).map(p=>p.channel),missing=CHANNELS.filter(c=>!present.includes(c));
+ if(!missing.length)return'';
+ return `<section pgs="box flex['column' 'gapParagraphs']" class="add-channel-section" aria-labelledby="add-channel-title"><h2 pgs="h5" id="add-channel-title">Pubblica anche su altri social</h2><p class="hint">Crea lo stesso post (stesso ID e stessa cartella) per un social che non avevi scelto all’inizio. Verranno aggiunti la riga nel piano editoriale e i file del social nei sorgenti.</p><div pgs="flex['row' 'wrap' 'gapParagraphs']">${missing.map(c=>`<button pgs="button" type="button" data-add-channel="${c}" ${busy}>${socialIcon(c)}<span>Crea anche per ${c}</span></button>`).join('')}</div></section>`;
 }
 function editInput(){return{key:state.selected.key,revision:state.revision,...state.editValues};}
 function editOptions(current,values){return [...new Set([current,...values])].map(value=>`<option value="${escape(value)}" ${value===current?'selected':''}>${escape(value||'Non indicato')}</option>`).join('');}
@@ -656,7 +685,7 @@ function setupMarkdownEditor(area,v){
 function renderPostEdit(){
  const d=state.selected,v=state.editValues,busy=disabled(state.loading);
  const text=v.textName?`<div pgs="flex['column' 'gapParagraphs']" class="md-field">${markdownToolbar()}<div pgs="input list" class="post-text-input md-editor md-content" id="edit-post-text" contenteditable="${state.loading?'false':'true'}" role="textbox" aria-multiline="true" aria-labelledby="edit-post-text-label" spellcheck="true" ${state.loading?'aria-disabled="true"':''}></div><p class="hint">${escape(v.textName)} · Modifichi solo il testo di ${escape(d.channel)}. Usa i pulsanti per titoli, grassetto, corsivo, barrato ed elenchi.</p></div>`:alertHtml('warning',state.editTextNote||'Nessun file di testo modificabile presente nei Sorgenti.')+(state.editNoText?`<div pgs="flex['column' 'gapParagraphs']"><div><button pgs="button" type="button" id="edit-regenerate-md" ${busy}>${icon('refresh')}<span>Rigenera file di testo</span></button></div><div id="edit-regenerate-error" role="alert" hidden></div></div>`:'');
- main.innerHTML=`<div><button pgs="button['btnTransparent']" class="edit-back" id="back-posts" type="button" ${busy}>${icon('arrowLeft')}<span>Torna indietro</span></button></div><h1 pgs="h2">Modifica post</h1><p class="lead" pgs="flex['row' 'itemCenter' 'gapDetails']">${socialIcon(d.channel)}<span>${escape(d.channel)} · ${d.year}${d.id!==null&&d.id!==''?' · ID '+escape(d.id):''}</span></p>${state.editFolderMissing?`<div pgs="alert['alertWarning']" role="status"><i pgs="icon['icon-triangleExclamation'] alert-icon" aria-hidden="true"></i><div pgs="alert-content flex['column' 'gapParagraphs']"><strong pgs="alert-content-title">Cartella del post non trovata</strong><p>Senza la cartella non puoi salvare le modifiche né vedere il testo. Ricollegala: le verrà ridato il nome che il piano si aspetta.</p><div><button pgs="button" type="button" id="edit-relink" ${busy}>${icon('folderOpen')}<span>Ricollega cartella</span></button></div></div></div>`:''}<div pgs="form flex['column' 'gapElements']" class="edit-fields">${field('Titolo',`<input pgs="input" id="edit-title" maxlength="140" required placeholder=" " value="${escape(v.title)}" ${busy}>`)}${field('Argomento',`<input pgs="input" id="edit-topic" maxlength="200" placeholder=" " value="${escape(v.topic)}" ${busy}>`)}<div pgs="grid['column-2' 'gapParagraphs']">${field('Formato',`<select pgs="select" id="edit-format" ${busy}>${editOptions(v.format,FORMATS)}</select>`)}${field('Stato pubblicazione',`<select pgs="select" id="edit-status" ${busy}>${editOptions(v.status,STATUSES)}</select>`)}</div><div pgs="flex['column' 'gapParagraphs']">${field('Data pubblicazione',`<input pgs="input" id="edit-date" type="date" min="${d.year}-01-01" max="${d.year}-12-31" value="${escape(v.date)}" ${disabled(v.undefinedDate||state.loading)}>`,`La data deve rimanere nel ${d.year}.`)}<label pgs="checkbox"><input type="checkbox" id="edit-undefined" ${v.undefinedDate?'checked':''} ${busy}><span>Data da definire</span></label></div><div pgs="flex['column']"><span pgs="label" id="edit-post-text-label">Testo del post</span>${text}</div></div><section pgs="alert['alertError']" class="delete-post-section" aria-labelledby="delete-post-title"><i pgs="icon['icon-trash'] alert-icon" aria-hidden="true"></i><div pgs="alert-content flex['column' 'gapParagraphs']"><h2 pgs="alert-content-title h5" id="delete-post-title">Elimina post</h2><p>Rimuove la riga di ${escape(d.channel)} dal piano editoriale e sposta la sua cartella in <strong>00_cestino</strong>.</p><div><button pgs="button" class="danger" id="delete-post" type="button" ${busy}>${icon('trash')}<span>Elimina post</span></button></div></div></section>${errorBox()}`;
+ main.innerHTML=`<div><button pgs="button['btnTransparent']" class="edit-back" id="back-posts" type="button" ${busy}>${icon('arrowLeft')}<span>Torna indietro</span></button></div><h1 pgs="h2">Modifica post</h1><p class="lead" pgs="flex['row' 'itemCenter' 'gapDetails']">${socialIcon(d.channel)}<span>${escape(d.channel)} · ${d.year}${d.id!==null&&d.id!==''?' · ID '+escape(d.id):''}</span></p>${state.editFolderMissing?`<div pgs="alert['alertWarning']" role="status"><i pgs="icon['icon-triangleExclamation'] alert-icon" aria-hidden="true"></i><div pgs="alert-content flex['column' 'gapParagraphs']"><strong pgs="alert-content-title">Cartella del post non trovata</strong><p>Senza la cartella non puoi salvare le modifiche né vedere il testo. Ricollegala: le verrà ridato il nome che il piano si aspetta.</p><div><button pgs="button" type="button" id="edit-relink" ${busy}>${icon('folderOpen')}<span>Ricollega cartella</span></button></div></div></div>`:''}<div pgs="form flex['column' 'gapElements']" class="edit-fields">${field('Titolo',`<input pgs="input" id="edit-title" maxlength="140" required placeholder=" " value="${escape(v.title)}" ${busy}>`)}${field('Argomento',`<input pgs="input" id="edit-topic" maxlength="200" placeholder=" " value="${escape(v.topic)}" ${busy}>`)}<div pgs="grid['column-2' 'gapParagraphs']">${field('Formato',`<select pgs="select" id="edit-format" ${busy}>${editOptions(v.format,FORMATS)}</select>`)}${field('Stato pubblicazione',`<select pgs="select" id="edit-status" ${busy}>${editOptions(v.status,STATUSES)}</select>`)}</div><div pgs="flex['column' 'gapParagraphs']">${field('Data pubblicazione',`<input pgs="input" id="edit-date" type="date" min="${d.year}-01-01" max="${d.year}-12-31" value="${escape(v.date)}" ${disabled(v.undefinedDate||state.loading)}>`,`La data deve rimanere nel ${d.year}.`)}<label pgs="checkbox"><input type="checkbox" id="edit-undefined" ${v.undefinedDate?'checked':''} ${busy}><span>Data da definire</span></label></div><div pgs="flex['column']"><span pgs="label" id="edit-post-text-label">Testo del post</span>${text}</div></div>${addChannelSection(d,busy)}<section pgs="alert['alertError']" class="delete-post-section" aria-labelledby="delete-post-title"><i pgs="icon['icon-trash'] alert-icon" aria-hidden="true"></i><div pgs="alert-content flex['column' 'gapParagraphs']"><h2 pgs="alert-content-title h5" id="delete-post-title">Elimina post</h2><p>Rimuove la riga di ${escape(d.channel)} dal piano editoriale e sposta nel <strong>00_cestino</strong> la sua cartella (o solo i suoi file, se la cartella è condivisa con altri social).</p><div><button pgs="button" class="danger" id="delete-post" type="button" ${busy}>${icon('trash')}<span>Elimina post</span></button></div></div></section>${errorBox()}`;
  footer.innerHTML=`<span></span><button pgs="button['btnStrong']" id="save-post" type="button" ${disabled(state.loading||!v.title.trim())}>${icon('save')}<span>${state.loading?'Attendi…':'Salva modifiche'}</span></button>`;
  document.getElementById('back-posts').addEventListener('click',leavePostEdit);
  document.getElementById('edit-relink')?.addEventListener('click',()=>openRelinkModal(d,reloadEditAfterRelink));
@@ -665,12 +694,22 @@ function renderPostEdit(){
  const textArea=document.getElementById('edit-post-text');
  if(textArea)setupMarkdownEditor(textArea,v);
  document.getElementById('edit-undefined').addEventListener('change',e=>{v.undefinedDate=e.target.checked;state.error='';render();});
+ // Aggiungi social: crea la riga di un altro social con lo stesso ID, nella stessa cartella del post
+ document.querySelectorAll('[data-add-channel]').forEach(button=>button.addEventListener('click',async()=>{
+  if(state.loading||!await confirmLeave())return;
+  const request={key:d.key,revision:state.revision,channel:button.dataset.addChannel};state.loading=true;state.error='';render();
+  try{
+   const result=await call('addChannel',request);if(result.canceled)return;
+   state.notice=`“${result.title}” è stato creato anche per ${result.channel} (ID ${result.id}).`;state.loading=false;await loadList(state.listMode);return;
+  }catch(e){state.error=e.message;}
+  finally{state.loading=false;render();}
+ }));
  document.getElementById('delete-post').addEventListener('click',async()=>{
   if(state.loading)return;
   const request={key:d.key,revision:state.revision};state.loading=true;state.error='';render();
   try{
    const result=await call('deletePost',request);if(result.canceled)return;
-   state.notice=`Post eliminato per ${result.channel}: ${result.title}. Cartella spostata in ${result.trashRelative}.`;state.loading=false;await loadList(state.listMode);return;
+   state.notice=`Post eliminato per ${result.channel}: ${result.title}. ${result.partial?(result.trashRelative?`File di ${result.channel} spostati in ${result.trashRelative}.`:'Nessun file spostato.'):`Cartella spostata in ${result.trashRelative}.`}`;state.loading=false;await loadList(state.listMode);return;
   }catch(e){state.error=e.message;}
   finally{state.loading=false;render();}
  });

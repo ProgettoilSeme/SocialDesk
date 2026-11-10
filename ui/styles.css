@@ -189,3 +189,20 @@ main{--page-bottom:var(--gap-elements)}
 .relink-options{border:0;margin:0;padding:0;min-width:0}
 .folder-report{list-style:none;margin:0;padding:0}
 .folder-report .draft-item{border-bottom:var(--border-width,1px) solid #dce2e9}
+
+/* Dettagli post: più respiro tra le sezioni e nel testo, due colonne (informazioni | grafica) */
+.post-details-modal .details-grid{row-gap:var(--gap-paragraphs)}
+.post-details-modal .details-text.md-content{line-height:1.75}
+.post-details-modal .details-text.md-content :is(p,li){margin-block:.15em}
+/* Switch dei social: si restringe con la finestra; il nome del social si accorcia con i puntini, niente scorrimento orizzontale */
+.details-switch-wrap{min-width:0;max-width:100%}
+.details-switch{min-width:0;max-width:100%}
+.details-switch>ul{flex-wrap:nowrap;max-width:100%;min-width:0}
+.details-switch>ul>li{flex:0 1 auto;min-width:0}
+.details-switch [data-switch-post]{white-space:nowrap;max-width:100%;min-width:0;overflow:hidden}
+.details-switch [data-switch-post]>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.details-switch [data-switch-post]>svg,.details-switch [data-switch-post]>i,.details-switch [data-switch-post]>.social-icon{flex:none}
+.details-layout{align-items:start}
+
+/* Dettagli: "Dettagli post" in grigio prima del titolo del post nell'header della modale */
+.modal-title-muted{color:var(--color-gray);font-weight:inherit}
