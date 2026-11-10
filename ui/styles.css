@@ -250,3 +250,4 @@ main{--page-bottom:var(--gap-elements)}
 }
 .field-error{color:var(--color-error)}
 :is([pgs~=header],[pgs*="header["]){--header-background:transparent}
+.post-date{white-space:nowrap}
