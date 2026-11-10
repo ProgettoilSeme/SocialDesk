@@ -238,3 +238,4 @@ main{--page-bottom:var(--gap-elements)}
  .group-summary .post-body{flex:1 1 0;min-width:0}
  .group-summary .group-status-badges{order:3;flex:1 1 100%;margin-left:0;justify-content:flex-start;padding-inline:0;padding-top:var(--gap-details)}
 }
+.field-error{color:var(--color-error)}

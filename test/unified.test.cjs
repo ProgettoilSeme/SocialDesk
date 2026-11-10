@@ -270,3 +270,13 @@ test('creazione: formato facoltativo, data vuota nel piano invece di xx-xx',asyn
  assert.equal(r.format,'');assert.equal(r.date,null);
  assert.equal(count(await sheet()),before,'nessun nuovo xx-xx scritto nel piano');
 });
+
+test('titolo tutto in maiuscolo rifiutato, prima lettera maiuscola accettata',()=>{
+ const {allCaps,validate}=require('../lib/posts.cjs');
+ assert.equal(allCaps('BUONE FESTE'),true);
+ assert.equal(allCaps('PNRR 2026'),true);
+ assert.equal(allCaps('Buone feste'),false);
+ assert.equal(allCaps('Lab PNRR'),false);
+ assert.equal(allCaps('A'),false);
+ assert.throws(()=>validate({title:'BUONE FESTE',channels:['Facebook'],channelDates:{Facebook:{undefinedDate:true}},year:'2026'}),/maiuscolo/);
+});
