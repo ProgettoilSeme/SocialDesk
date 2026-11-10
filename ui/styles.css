@@ -222,7 +222,8 @@ main{--page-bottom:var(--gap-elements)}
 /* Gruppi per ID: badge con icona del social e stato, vicino alla freccia */
 .group-status-badges{margin-left:auto;padding-inline:var(--gap-paragraphs);flex:0 1 auto;min-width:0}
 .group-status-badge{display:inline-flex;align-items:center;gap:.35em;white-space:nowrap}
-.group-status-badge .social-icon{--icon-size:1em;width:1em;height:1em}
+.group-status-badge .social-icon{--icon-size:1em;width:1em;height:1em;--icon-color:currentColor}
+:root[pgs-state~=darkmode] .group-status-badge .social-icon{--icon-color:#fff}
 
 /* Tema scuro (myPgs: :root[pgs-state~=darkmode]): i pochi colori fissi del progetto */
 .theme-toggle{--darkmode-label-toDark:"Tema scuro";--darkmode-label-toLight:"Tema chiaro"}
@@ -248,3 +249,4 @@ main{--page-bottom:var(--gap-elements)}
  .group-summary .group-status-badges{order:3;flex:1 1 100%;margin-left:0;justify-content:flex-start;padding-inline:0;padding-top:var(--gap-details)}
 }
 .field-error{color:var(--color-error)}
+:is([pgs~=header],[pgs*="header["]){--header-background:transparent}
