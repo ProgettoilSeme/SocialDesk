@@ -14,6 +14,7 @@ const {illustratorFiles,resolveIllustrator,illustratorData}=require('./lib/illus
 const {planPostStatus,savePostStatus}=require('./lib/status.cjs');
 const {planDeletePost,deletePost}=require('./lib/delete.cjs');
 const settings=require('./lib/settings.cjs');
+const update=require('./lib/update.cjs');
 if(process.env.SOCIAL_TEST_USER_DATA)app.setPath('userData',process.env.SOCIAL_TEST_USER_DATA);
 let window,root='',busy=false,lastResult=null,startupFailed=false;
 // Registro di avvio: aiuta a capire perché l'app non si apre (es. su Windows/NAS).
@@ -154,6 +155,21 @@ else{
    if(busy)throw new PostError('BUSY','La creazione è già in corso.');
    if(typeof fingerprint!=='string'||fingerprint.length!==64)throw new PostError('INPUT','Aggiorna il riepilogo prima di creare il post.');
    busy=true;try{lastResult=await createPost(root,input,fingerprint);return lastResult;}finally{busy=false;}
+  });
+  // Aggiornamento da App Social/versione.json nella cartella Social (NAS)
+  endpoint('social:check-update',async()=>update.checkUpdate(root,app.getVersion()));
+  endpoint('social:install-update',async()=>{
+   if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione in corso, poi aggiorna.');
+   busy=true;
+   try{
+    const plan=await update.prepareUpdate(root,{currentVersion:app.getVersion(),packaged:app.isPackaged});
+    log(`aggiornamento a ${plan.version} (${plan.platform}${plan.restartOnly?', solo riavvio':''})`);
+    if(plan.restartOnly){busy=false;setTimeout(()=>{app.relaunch();app.exit(0);},400);return{started:true,version:plan.version};}
+    if(plan.platform==='darwin')await update.launchMacUpdate(plan,{keepEnv:!!process.env.SOCIAL_TEST_ROOT});
+    else await update.launchWindowsUpdate(plan);
+    busy=false;setTimeout(()=>app.quit(),600);
+    return{started:true,version:plan.version};
+   }finally{busy=false;}
   });
   endpoint('social:open',async channel=>{
    if(!lastResult)throw new PostError('INPUT','Non è ancora stato creato un post.');

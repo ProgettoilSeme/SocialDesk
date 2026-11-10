@@ -26,4 +26,6 @@ contextBridge.exposeInMainWorld('socialAPI',{
  plan:input=>ipcRenderer.invoke('social:plan',input),
  create:(input,fingerprint)=>ipcRenderer.invoke('social:create',input,fingerprint),
  openResult:channel=>ipcRenderer.invoke('social:open',channel),
+ checkUpdate:()=>ipcRenderer.invoke('social:check-update'),
+ installUpdate:()=>ipcRenderer.invoke('social:install-update'),
 });

@@ -153,12 +153,36 @@ function renderSuccess(){
  document.querySelectorAll('[data-open-post]').forEach(button=>button.addEventListener('click',async()=>{button.disabled=true;try{await call('openResult',button.dataset.openPost);}catch(e){error(e.message);}finally{button.disabled=false;}}));
  document.getElementById('new-post').addEventListener('click',()=>{state.step=0;state.visited=0;state.post=initialPost();state.plan=null;state.result=null;state.error='';render();});
 }
-async function goHome(){if(state.loading||!await confirmLeave())return;state.route='home';state.error='';state.notice='';state.selected=null;render();window.scrollTo({top:0});}
+async function goHome(){if(state.loading||!await confirmLeave())return;state.route='home';state.error='';state.notice='';state.selected=null;render();window.scrollTo({top:0});refreshUpdate();}
+// Aggiornamento: App Social/versione.json nella cartella Social. Controllato all'avvio e tornando in home (al massimo ogni minuto).
+let lastUpdateCheck=0;
+async function refreshUpdate(force=false){
+ if(!state.rootValid||!api?.checkUpdate||(!force&&Date.now()-lastUpdateCheck<60000))return;
+ lastUpdateCheck=Date.now();
+ try{const result=await call('checkUpdate');const changed=!!result.available!==!!state.update?.available||result.version!==state.update?.version;state.update=result;if(changed&&state.route==='home'&&!state.loading)render();}catch{}
+}
+function openUpdateModal(){
+ if(anyModalOpen()||!state.update?.available)return;
+ const u=state.update,opener=document.getElementById('install-update');
+ const body=`<p>È disponibile <strong>SocialDesk ${escape(u.version)}</strong> (ora usi la ${escape(state.version)}).</p>${u.notes?`<p class="hint">${escape(u.notes)}</p>`:''}<p>SocialDesk si chiuderà, installerà la nuova versione dalla cartella App Social e si riaprirà da solo. Le impostazioni restano invariate.</p><div id="update-error" role="alert" hidden></div><div pgs="flex['row' 'justifyEnd' 'gapParagraphs']"><button pgs="button" id="update-later" type="button">Più tardi</button><button pgs="button['btnStrong']" id="update-now" type="button">${icon('refresh')}<span>Aggiorna ora</span></button></div>`;
+ const modal=createModal({title:'Aggiorna SocialDesk',titleId:'update-title',body,onClose:()=>{if(opener?.isConnected)opener.focus({preventScroll:true});}});
+ modal.dialog.id='update-modal';
+ const now=modal.dialog.querySelector('#update-now'),message=modal.dialog.querySelector('#update-error');
+ modal.dialog.querySelector('#update-later').addEventListener('click',()=>modal.close());
+ now.addEventListener('click',async()=>{
+  if(modal.busy)return;modal.busy=true;state.loading=true;setAlert(message,'');
+  modal.dialog.querySelectorAll('button').forEach(button=>button.disabled=true);now.textContent='Aggiornamento in corso…';
+  try{await call('installUpdate');setAlert(message,'SocialDesk si chiude e si riapre con la nuova versione tra pochi secondi.','info');}
+  catch(e){modal.busy=false;state.loading=false;modal.dialog.querySelectorAll('button').forEach(button=>button.disabled=false);now.innerHTML=`${icon('refresh')}<span>Aggiorna ora</span>`;setAlert(message,e.message);}
+ });
+ modal.open();now.focus();
+}
 function renderHome(){
  const card=(id,tone,image,label)=>`<button pgs="box${tone?` background['${tone}']`:''} flex['column' 'itemCenter' 'gapParagraphs']" class="home-action" id="${id}" type="button" ${disabled(state.loading)}><img src="assets/${image}" alt="" width="240" height="240"><span pgs="h4">${label}</span></button>`;
- main.innerHTML=`<h1 class="home-title">Cosa vuoi fare oggi?</h1><div pgs="grid['column-3' 'gapElements']" class="home-actions">${card('all-posts','','calendar.png','Tutti i post')}${card('drafts','','draft.png','Post in bozza')}${card('create-new','bgSuccessSoft','megaphone.png','Crea nuovo post')}</div><hr><div pgs="flex['row' 'wrap' 'itemCenter' 'gapParagraphs']" class="home-settings"><button pgs="button" id="open-settings" type="button" ${disabled(state.loading)}>${icon('gear')}<span>Impostazioni</span></button><button pgs="button" id="sync-assets" type="button" ${disabled(state.loading||!state.rootValid)} title="Copia le immagini di tutti i post in 00_template/Archivio asset, divise per social e anno">${icon('images')}<span>${state.assetSyncing?'Aggiornamento…':'Aggiorna archivio asset'}</span></button>${state.version?`<span pgs="badge['badgeNeutral']" class="app-version">Versione ${escape(state.version)}</span>`:''}</div>${noticeBox()}${errorBox()}`;
+ main.innerHTML=`<h1 class="home-title">Cosa vuoi fare oggi?</h1><div pgs="grid['column-3' 'gapElements']" class="home-actions">${card('all-posts','','calendar.png','Tutti i post')}${card('drafts','','draft.png','Post in bozza')}${card('create-new','bgSuccessSoft','megaphone.png','Crea nuovo post')}</div><hr><div pgs="flex['row' 'wrap' 'itemCenter' 'gapParagraphs']" class="home-settings"><button pgs="button" id="open-settings" type="button" ${disabled(state.loading)}>${icon('gear')}<span>Impostazioni</span></button><button pgs="button" id="sync-assets" type="button" ${disabled(state.loading||!state.rootValid)} title="Copia le immagini di tutti i post in 00_template/Archivio asset, divise per social e anno">${icon('images')}<span>${state.assetSyncing?'Aggiornamento…':'Aggiorna archivio asset'}</span></button>${state.version?`<span pgs="flex['row' 'itemCenter' 'gapParagraphs']" class="app-version">${state.update?.available?`<button pgs="button['btnStrong' 'btnMini']" id="install-update" type="button" ${disabled(state.loading)} title="Installa la versione ${escape(state.update.version)} da App Social">${icon('refresh')}<span>Aggiorna alla ${escape(state.update.version)}</span></button>`:''}<span pgs="badge['badgeNeutral']">Versione ${escape(state.version)}</span></span>`:''}</div>${noticeBox()}${errorBox()}`;
  footer.innerHTML='';
  document.getElementById('open-settings').addEventListener('click',openSettings);
+ document.getElementById('install-update')?.addEventListener('click',openUpdateModal);
  document.getElementById('sync-assets').addEventListener('click',syncAssets);
  document.getElementById('drafts').addEventListener('click',loadDrafts);
  document.getElementById('all-posts').addEventListener('click',loadPosts);
@@ -570,4 +594,4 @@ document.querySelectorAll('[data-nav]').forEach(link=>link.addEventListener('cli
 }));
 
 render();
-call('initial').then(result=>{state.version=result.version||'';state.root=result.root;state.rootValid=result.valid;state.error=result.valid?'':result.message||'';render();}).catch(e=>error(e.message));
+call('initial').then(result=>{state.version=result.version||'';state.root=result.root;state.rootValid=result.valid;state.error=result.valid?'':result.message||'';render();refreshUpdate(true);}).catch(e=>error(e.message));

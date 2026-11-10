@@ -75,4 +75,10 @@ const os = require('node:os');
     }
     } finally { await fs.rm(staging, {recursive:true, force:true}); }
   }
+  // versione.json va copiato nella cartella "App Social" della cartella Social, accanto a
+  // Mac/SocialDesk.app e Windows/SocialDesk-Setup-<versione>.exe: l'app lo legge per proporre
+  // l'aggiornamento. Note facoltative con SOCIAL_NOTES="...".
+  const manifest = { version: pkg.version, mac: 'Mac/SocialDesk.app', windows: `Windows/${pkg.productName}-Setup-${pkg.version}.exe`, notes: process.env.SOCIAL_NOTES || '' };
+  await fs.writeFile(path.join(out, 'versione.json'), JSON.stringify(manifest, null, 2) + '\n');
+  console.log(path.join(out, 'versione.json'));
 })().catch(error => { console.error(error); process.exitCode = 1; });
