@@ -61,6 +61,14 @@ function createWindow(){
   ...(process.platform==='darwin'?{titleBarStyle:'hiddenInset',trafficLightPosition:{x:18,y:26}}:{}),webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
  window.webContents.setWindowOpenHandler(()=>({action:'deny'}));
  window.webContents.on('will-navigate',(event,url)=>{if(url!==page)event.preventDefault();});
+ // DevTools come in Chrome: ⌥⌘I su Mac, Ctrl+Maiusc+I e F12 su Windows (anche nell'app compilata).
+ window.webContents.on('before-input-event',(event,input)=>{
+  if(input.type!=='keyDown')return;
+  const key=String(input.key||'').toLowerCase();
+  const mac=process.platform==='darwin'&&input.meta&&input.alt&&!input.control&&(key==='i'||input.code==='KeyI');
+  const other=process.platform!=='darwin'&&((input.control&&input.shift&&!input.alt&&(key==='i'||input.code==='KeyI'))||input.key==='F12');
+  if(mac||other){event.preventDefault();window.webContents.toggleDevTools();}
+ });
  // Menu del tasto destro (Electron non ne mostra uno da solo): taglia/copia/incolla sul testo selezionato e nei campi.
  window.webContents.on('context-menu',(event,params)=>{
   const flags=params.editFlags||{},selected=!!(params.selectionText&&params.selectionText.trim()),template=[];
