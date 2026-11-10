@@ -91,7 +91,7 @@ header,main{--page-width:960px}
 [data-status="published"]{--tone-bg:#e8f5ed;--tone-fg:#216b48}
 [data-status="unassigned"]{--tone-bg:var(--color-box);--tone-fg:var(--color-text)}
 .status-badge[data-status]{--badge-background:var(--tone-bg);--badge-color:var(--tone-fg)}
-.status-action[data-status]{--button-background:var(--tone-bg);--button-color:var(--tone-fg);--button-borderColor:color-mix(in srgb,var(--tone-fg) 35%,transparent);--button-background-hover:color-mix(in srgb,var(--tone-bg) 70%,var(--tone-fg) 12%);--button-color-hover:var(--tone-fg)}
+.status-action[data-status]{--button-background:var(--tone-bg);--button-color:var(--tone-fg);--button-background-hover:color-mix(in srgb,var(--tone-bg) 70%,var(--tone-fg) 12%);--button-color-hover:var(--tone-fg)}
 .status-filter[data-status]:not([data-status="all"]):not([data-status=""]){background-color:var(--tone-bg);color:var(--tone-fg)}
 
 /* pulsanti distruttivi */
