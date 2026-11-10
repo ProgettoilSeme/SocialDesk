@@ -182,3 +182,10 @@ header,main{--page-width:960px}
 main{--page-bottom:var(--gap-elements)}
 /* Impostazioni: i pulsanti Sfoglia / Cambia cartella non si restringono né vanno a capo */
 .settings-control>button{flex:none;white-space:nowrap}
+
+/* Ricollega cartella */
+.folder-missing{color:var(--color-warning,#b45309);font-weight:600}
+.relink-option{cursor:pointer;width:100%}
+.relink-options{border:0;margin:0;padding:0;min-width:0}
+.folder-report{list-style:none;margin:0;padding:0}
+.folder-report .draft-item{border-bottom:var(--border-width,1px) solid #dce2e9}

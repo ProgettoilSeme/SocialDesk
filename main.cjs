@@ -15,6 +15,7 @@ const {planPostStatus,savePostStatus}=require('./lib/status.cjs');
 const {planDeletePost,deletePost}=require('./lib/delete.cjs');
 const settings=require('./lib/settings.cjs');
 const update=require('./lib/update.cjs');
+const relink=require('./lib/relink.cjs');
 if(process.env.SOCIAL_TEST_USER_DATA)app.setPath('userData',process.env.SOCIAL_TEST_USER_DATA);
 let window,root='',busy=false,lastResult=null,startupFailed=false;
 // Registro di avvio: aiuta a capire perché l'app non si apre (es. su Windows/NAS).
@@ -157,6 +158,26 @@ else{
    if(busy)throw new PostError('BUSY','La creazione è già in corso.');
    if(typeof fingerprint!=='string'||fingerprint.length!==64)throw new PostError('INPUT','Aggiorna il riepilogo prima di creare il post.');
    busy=true;try{lastResult=await createPost(root,input,fingerprint);return lastResult;}finally{busy=false;}
+  });
+  // Ricollega cartella: post con la cartella rinominata a mano
+  endpoint('social:missing-folders',async()=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return relink.missingFolders(root);});
+  endpoint('social:relink-candidates',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return relink.relinkCandidates(root,input);});
+  endpoint('social:relink',async input=>{
+   if(busy)throw new PostError('BUSY','Un’operazione è già in corso.');
+   busy=true;
+   try{
+    let chosen=null;
+    if(input&&input.browse){
+     const candidates=await relink.relinkCandidates(root,input);
+     const result=await dialog.showOpenDialog(window,{title:'Scegli la cartella del post',buttonLabel:'Ricollega questa cartella',properties:['openDirectory'],defaultPath:path.join(root,...candidates.parent.split('/'))});
+     if(result.canceled)return{canceled:true};
+     chosen=result.filePaths[0];
+    }
+    const plan=await relink.planRelink(root,input,chosen);
+    const answer=await dialog.showMessageBox(window,{type:'question',title:'Ricollega cartella',message:`Ricollegare “${plan.post.title}” (${plan.post.channel})?`,detail:`La cartella\n${plan.from}\nverrà rinominata in\n${plan.to}\ncioè il nome che il piano editoriale si aspetta. Il piano Excel e il contenuto dei file non cambiano.\n\nHai chiuso i file del post (Illustrator, testi, immagini)?`,buttons:['Annulla','Sì, ricollega'],defaultId:0,cancelId:0,noLink:true});
+    if(answer.response!==1)return{canceled:true};
+    return await relink.relinkFolder(root,input,chosen);
+   }finally{busy=false;}
   });
   // Aggiornamento da App Social/versione.json nella cartella Social (NAS)
   endpoint('social:check-update',async()=>update.checkUpdate(root,app.getVersion()));

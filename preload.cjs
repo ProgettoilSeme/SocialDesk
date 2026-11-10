@@ -27,5 +27,8 @@ contextBridge.exposeInMainWorld('socialAPI',{
  create:(input,fingerprint)=>ipcRenderer.invoke('social:create',input,fingerprint),
  openResult:channel=>ipcRenderer.invoke('social:open',channel),
  checkUpdate:()=>ipcRenderer.invoke('social:check-update'),
+ missingFolders:()=>ipcRenderer.invoke('social:missing-folders'),
+ relinkCandidates:input=>ipcRenderer.invoke('social:relink-candidates',input),
+ relink:input=>ipcRenderer.invoke('social:relink',input),
  installUpdate:()=>ipcRenderer.invoke('social:install-update'),
 });
