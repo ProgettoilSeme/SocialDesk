@@ -77,9 +77,20 @@ header,main{--page-width:960px}
 .post-topic{min-width:0;max-width:24rem}
 .post-actions{flex:none}
 .post-actions [pgs*="button"]{min-height:42px}
-.post-icon-stack{display:inline-flex;align-items:center;flex:none}
-.post-icon-stack .post-social-icon{display:grid;place-items:center;width:1.9em;height:1.9em;border-radius:50%;background:var(--color-background)}
-.post-icon-stack .post-social-icon+.post-social-icon{margin-left:-.5em}
+/* Colonna delle icone a larghezza fissa: i titoli partono tutti dallo stesso punto, singoli o in gruppo. */
+.draft-list{--post-icon-box:2.5em}
+.post-summary>.post-social-icon{display:flex;justify-content:center;width:var(--post-icon-box);flex:none}
+.post-icon-stack{position:relative;display:block;width:var(--post-icon-box);height:var(--post-icon-box);flex:none}
+.post-icon-stack .post-social-icon{position:absolute;display:grid;place-items:center;width:1.2em;height:1.2em}
+.post-icon-stack .post-social-icon .social-icon{--icon-size:1.05em}
+.post-icon-stack .post-social-icon:first-child:nth-last-child(2),.post-icon-stack .post-social-icon:nth-child(2):last-child{width:1.25em;height:1.25em}
+.post-icon-stack .post-social-icon:first-child:nth-last-child(2) .social-icon,.post-icon-stack .post-social-icon:nth-child(2):last-child .social-icon{--icon-size:1.15em}
+.post-icon-stack .post-social-icon:only-child{inset:0;margin:auto}
+.post-icon-stack .post-social-icon:first-child:nth-last-child(2){top:0;left:0}
+.post-icon-stack .post-social-icon:nth-child(2):last-child{right:0;bottom:0}
+.post-icon-stack .post-social-icon:first-child:nth-last-child(3){top:0;left:0;right:0;margin-inline:auto}
+.post-icon-stack .post-social-icon:nth-child(2):nth-last-child(2){bottom:0;left:.05em}
+.post-icon-stack .post-social-icon:nth-child(3):last-child{bottom:0;right:.05em}
 .group-summary{width:100%;text-align:left}
 @media(max-width:660px){.draft-item{flex-wrap:wrap}.post-actions{flex-wrap:wrap}}
 
