@@ -218,6 +218,7 @@ main{--page-bottom:var(--gap-elements)}
 
 /* Tema scuro (myPgs: :root[pgs-state~=darkmode]): i pochi colori fissi del progetto */
 .theme-toggle{--darkmode-label-toDark:"Tema scuro";--darkmode-label-toLight:"Tema chiaro"}
+:root[pgs-state~=darkmode]{--color-background:#191919}
 :root[pgs-state~=darkmode] .review dt,:root[pgs-state~=darkmode] .post-details{color:#9aa5b1}
 :root[pgs-state~=darkmode] .draft-list{--draft-list-line:rgba(255,255,255,.12)}
 :root[pgs-state~=darkmode] .folder-report .draft-item{border-bottom-color:rgba(255,255,255,.12)}
