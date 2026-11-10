@@ -173,7 +173,6 @@ header,main{--page-width:960px}
 /* titoli lunghi nell'intestazione delle modali: vanno a capo accanto alla X */
 [pgs~="modal-dialog-content-header"]>h2{min-width:0;overflow-wrap:anywhere}
 /* icone della home nei link dell'header, alte come il testo */
-.nav-icon{width:auto;height:1.4em;flex:none;object-fit:contain}
 [data-nav]{gap:var(--gap-details)}
 /* Dettagli: icona Copia per i social in alto a destra nel riquadro del testo */
 .details-text-box{position:relative}
