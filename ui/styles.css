@@ -206,3 +206,12 @@ main{--page-bottom:var(--gap-elements)}
 
 /* Dettagli: "Dettagli post" in grigio prima del titolo del post nell'header della modale */
 .modal-title-muted{color:var(--color-gray);font-weight:inherit}
+
+/* Gruppi per ID: pallini con il colore dello stato di ogni social, vicino alla freccia */
+.group-status-dots{margin-left:auto;padding-inline:var(--gap-paragraphs)}
+.group-status-dot{width:10px;height:10px;border-radius:50%;background:#aab3bd;flex:none}
+.group-status-dot[data-status="text-needed"]{background:#d99100}
+.group-status-dot[data-status="text-draft"]{background:#d9762b}
+.group-status-dot[data-status="image-needed"]{background:#8a55c9}
+.group-status-dot[data-status="ready"]{background:#2f7fcc}
+.group-status-dot[data-status="published"]{background:#2e9160}
