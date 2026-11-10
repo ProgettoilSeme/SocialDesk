@@ -207,14 +207,10 @@ main{--page-bottom:var(--gap-elements)}
 /* Dettagli: "Dettagli post" in grigio prima del titolo del post nell'header della modale */
 .modal-title-muted{color:var(--color-gray);font-weight:inherit}
 
-/* Gruppi per ID: pallini con il colore dello stato di ogni social, vicino alla freccia */
-.group-status-dots{margin-left:auto;padding-inline:var(--gap-paragraphs)}
-.group-status-dot{width:10px;height:10px;border-radius:50%;background:#aab3bd;flex:none}
-.group-status-dot[data-status="text-needed"]{background:#d99100}
-.group-status-dot[data-status="text-draft"]{background:#d9762b}
-.group-status-dot[data-status="image-needed"]{background:#8a55c9}
-.group-status-dot[data-status="ready"]{background:#2f7fcc}
-.group-status-dot[data-status="published"]{background:#2e9160}
+/* Gruppi per ID: badge con icona del social e stato, vicino alla freccia */
+.group-status-badges{margin-left:auto;padding-inline:var(--gap-paragraphs);flex:0 1 auto;min-width:0}
+.group-status-badge{display:inline-flex;align-items:center;gap:.35em;white-space:nowrap}
+.group-status-badge .social-icon{--icon-size:1em;width:1em;height:1em}
 
 /* Tema scuro (myPgs: :root[pgs-state~=darkmode]): i pochi colori fissi del progetto */
 .theme-toggle{--darkmode-label-toDark:"Tema scuro";--darkmode-label-toLight:"Tema chiaro"}
@@ -231,3 +227,9 @@ main{--page-bottom:var(--gap-elements)}
 :root[pgs-state~=darkmode] .status-select :is([pgs~="listbox-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="image-needed"]){--tone-bg:#2e2240;--tone-fg:#c4a2f0}
 :root[pgs-state~=darkmode] .status-select :is([pgs~="listbox-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="ready"]){--tone-bg:#16293e;--tone-fg:#8cc0f5}
 :root[pgs-state~=darkmode] .status-select :is([pgs~="listbox-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="published"]){--tone-bg:#163223;--tone-fg:#7fd1a4}
+/* finestre strette: i badge del gruppo vanno su una riga sotto il titolo */
+@media(max-width:760px){
+ .group-summary{flex-wrap:wrap}
+ .group-summary .post-body{flex:1 1 0;min-width:0}
+ .group-summary .group-status-badges{order:3;flex:1 1 100%;margin-left:0;justify-content:flex-start;padding-inline:0;padding-top:var(--gap-details)}
+}
