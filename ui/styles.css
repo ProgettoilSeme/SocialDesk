@@ -215,3 +215,19 @@ main{--page-bottom:var(--gap-elements)}
 .group-status-dot[data-status="image-needed"]{background:#8a55c9}
 .group-status-dot[data-status="ready"]{background:#2f7fcc}
 .group-status-dot[data-status="published"]{background:#2e9160}
+
+/* Tema scuro (myPgs: :root[pgs-state~=darkmode]): i pochi colori fissi del progetto */
+.theme-toggle{--darkmode-label-toDark:"Tema scuro";--darkmode-label-toLight:"Tema chiaro"}
+:root[pgs-state~=darkmode] .review dt,:root[pgs-state~=darkmode] .post-details{color:#9aa5b1}
+:root[pgs-state~=darkmode] :is(.draft-list>:is(.draft-item,.post-group),.folder-report .draft-item){border-bottom-color:rgba(255,255,255,.12)}
+:root[pgs-state~=darkmode] .group-children .draft-item+.draft-item{border-top-color:rgba(255,255,255,.12)}
+:root[pgs-state~=darkmode] [data-status="text-needed"]{--tone-bg:#3d2e0c;--tone-fg:#f3c35c}
+:root[pgs-state~=darkmode] [data-status="text-draft"]{--tone-bg:#3d2614;--tone-fg:#f2a466}
+:root[pgs-state~=darkmode] [data-status="image-needed"]{--tone-bg:#2e2240;--tone-fg:#c4a2f0}
+:root[pgs-state~=darkmode] [data-status="ready"]{--tone-bg:#16293e;--tone-fg:#8cc0f5}
+:root[pgs-state~=darkmode] [data-status="published"]{--tone-bg:#163223;--tone-fg:#7fd1a4}
+:root[pgs-state~=darkmode] .status-select :is([pgs~="listbox-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="text-needed"]){--tone-bg:#3d2e0c;--tone-fg:#f3c35c}
+:root[pgs-state~=darkmode] .status-select :is([pgs~="listbox-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="text-draft"]){--tone-bg:#3d2614;--tone-fg:#f2a466}
+:root[pgs-state~=darkmode] .status-select :is([pgs~="listbox-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="image-needed"]){--tone-bg:#2e2240;--tone-fg:#c4a2f0}
+:root[pgs-state~=darkmode] .status-select :is([pgs~="listbox-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="ready"]){--tone-bg:#16293e;--tone-fg:#8cc0f5}
+:root[pgs-state~=darkmode] .status-select :is([pgs~="listbox-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="published"]){--tone-bg:#163223;--tone-fg:#7fd1a4}

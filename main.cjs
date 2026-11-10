@@ -181,6 +181,7 @@ else{
    busy=true;try{lastResult=await createPost(root,input,fingerprint);return lastResult;}finally{busy=false;}
   });
   // Rigenera sorgente: ricrea il file Illustrator o di testo mancante (mai sovrascrivendo)
+  endpoint('social:set-theme',async dark=>{nativeTheme.themeSource=dark===true?'dark':'light';return true;});
   endpoint('social:add-channel',async input=>{
    if(busy)throw new PostError('BUSY','Un’operazione è già in corso.');
    busy=true;
