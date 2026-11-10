@@ -16,6 +16,7 @@ const {planDeletePost,deletePost}=require('./lib/delete.cjs');
 const settings=require('./lib/settings.cjs');
 const update=require('./lib/update.cjs');
 const relink=require('./lib/relink.cjs');
+const {regenerateSource}=require('./lib/regenerate.cjs');
 if(process.env.SOCIAL_TEST_USER_DATA)app.setPath('userData',process.env.SOCIAL_TEST_USER_DATA);
 let window,root='',busy=false,lastResult=null,startupFailed=false;
 // Registro di avvio: aiuta a capire perché l'app non si apre (es. su Windows/NAS).
@@ -84,6 +85,8 @@ else{
    fatal('Avvio da cartella di rete non supportato','SocialDesk è stato avviato direttamente dal NAS. Windows non permette a SocialDesk di funzionare da una cartella di rete.\n\nInstallalo sul PC aprendo il programma di installazione SocialDesk-Setup, poi avvialo dal menu Start o dall’icona sul desktop.\nI dati possono restare sul NAS.');return;
   }
   await preferences();
+  // residui di un aggiornamento interrotto accanto all'app (solo app installata su Mac)
+  if(app.isPackaged&&process.platform==='darwin')update.cleanupLeftovers().then(n=>{if(n)log(`rimossi ${n} residui di aggiornamento`);}).catch(()=>{});
   log(`cartella Social: ${root||'(non scelta)'}`);
   if(process.platform==='darwin')Menu.setApplicationMenu(Menu.buildFromTemplate([{role:'appMenu'},{role:'editMenu'},{role:'windowMenu'}]));else Menu.setApplicationMenu(null);
   endpoint('social:initial',async()=>{
@@ -159,6 +162,8 @@ else{
    if(typeof fingerprint!=='string'||fingerprint.length!==64)throw new PostError('INPUT','Aggiorna il riepilogo prima di creare il post.');
    busy=true;try{lastResult=await createPost(root,input,fingerprint);return lastResult;}finally{busy=false;}
   });
+  // Rigenera sorgente: ricrea il file Illustrator o di testo mancante (mai sovrascrivendo)
+  endpoint('social:regenerate-source',async input=>{if(busy)throw new PostError('BUSY','Un’operazione è già in corso.');busy=true;try{return await regenerateSource(root,input);}finally{busy=false;}});
   // Ricollega cartella: post con la cartella rinominata a mano
   endpoint('social:missing-folders',async()=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return relink.missingFolders(root);});
   endpoint('social:relink-candidates',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return relink.relinkCandidates(root,input);});

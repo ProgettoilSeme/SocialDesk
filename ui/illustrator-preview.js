@@ -4,7 +4,7 @@ window.SocialIllustratorPreview=(()=>{
  let library;
  function pdfLibrary(){return library||=(async()=>{const pdf=await import('../node_modules/pdfjs-dist/build/pdf.mjs');pdf.GlobalWorkerOptions.workerSrc=new URL('../node_modules/pdfjs-dist/build/pdf.worker.mjs',document.baseURI).href;return pdf;})().catch(error=>{library=null;throw error;});}
  const externalIcon='<i pgs="icon[\'icon-externalLink\']" aria-hidden="true"></i>';
- function mount(host,request,call){
+ function mount(host,request,call,options={}){
   let closed=false,generation=0,loadingTask=null,renderTask=null,documentPdf=null,pageNumber=1,rendering=false,resizeTimer;
   const note=document.createElement('p');note.className='hint artwork-note';note.setAttribute('role','status');note.textContent='Caricamento della grafica…';host.appendChild(note);
   let select,link,label,openError,canvas,stage,controls,previous,next,counter;
@@ -12,6 +12,15 @@ window.SocialIllustratorPreview=(()=>{
   function clearDocument(){renderTask?.cancel();renderTask=null;documentPdf=null;const task=loadingTask;loadingTask=null;if(task)void task.destroy().catch(()=>{});}
   function updateControls(){if(!controls)return;const pages=documentPdf?.numPages||0;controls.hidden=pages<2;previous.disabled=rendering||pageNumber<=1;next.disabled=rendering||pageNumber>=pages;counter.textContent=`Tavola ${pageNumber} di ${pages}`;}
   function message(text){note.textContent=text;note.hidden=!text;}
+  // Altezza disponibile per la tavola: l'area visibile della modale meno link al file, scelta del file,
+  // pulsanti delle tavole e margini, così grafica e pulsanti stanno insieme nello schermo.
+  function availableHeight(){
+   const box=host.closest('[pgs~="modal-dialog-content-scroll"]');
+   const visible=box?box.clientHeight:window.innerHeight;
+   const pages=documentPdf?.numPages||0;
+   const reserved=(link?.offsetHeight||0)+(select?.parentElement?.offsetHeight||0)+(pages>1?Math.max(controls?.offsetHeight||0,44):0)+26+56;
+   return Math.max(160,visible-reserved);
+  }
   async function renderPage(token,resize=false){
    if(!alive(token)||!documentPdf||rendering)return;
    rendering=true;updateControls();stage.setAttribute('aria-busy','true');message('Caricamento della tavola…');
@@ -19,7 +28,7 @@ window.SocialIllustratorPreview=(()=>{
     const page=await documentPdf.getPage(pageNumber);if(!alive(token))return;
     const original=page.getViewport({scale:1});
     if(!Number.isFinite(original.width)||!Number.isFinite(original.height)||original.width<=0||original.height<=0)throw new Error('Invalid page size');
-    const width=Math.max(120,Math.min(stage.clientWidth-24,620));const scale=Math.min(width/original.width,540/original.height)*Math.min(window.devicePixelRatio||1,2);const viewport=page.getViewport({scale});
+    const width=Math.max(120,Math.min(stage.clientWidth-24,1400));const scale=Math.min(width/original.width,availableHeight()/original.height)*Math.min(window.devicePixelRatio||1,2);const viewport=page.getViewport({scale});
     // Render offscreen: the visible canvas and frame keep their size while loading.
     const pendingCanvas=document.createElement('canvas');pendingCanvas.width=Math.max(1,Math.ceil(viewport.width));pendingCanvas.height=Math.max(1,Math.ceil(viewport.height));
     renderTask=page.render({canvasContext:pendingCanvas.getContext('2d'),viewport,background:'rgb(255,255,255)',annotationMode:0});await renderTask.promise;
@@ -44,7 +53,16 @@ window.SocialIllustratorPreview=(()=>{
   }
   call('illustratorFiles',request).then(result=>{
    if(closed||!host.isConnected)return;
-   if(!result.files.length){message(result.message||'Nessun file Illustrator presente nella cartella sorgenti.');host.dataset.preview='empty';return;}
+   if(!result.files.length){
+    message(result.message||'Nessun file Illustrator presente nella cartella sorgenti.');host.dataset.preview='empty';
+    // file .ai mancante: lo si ricrea dal template del social
+    if(result.empty&&options.onRegenerated){
+     const button=document.createElement('button');button.type='button';button.setAttribute('pgs','button');button.dataset.regenerate='ai';button.innerHTML='<i pgs="icon[\'icon-refresh\']" aria-hidden="true"></i><span>Rigenera file Illustrator</span>';
+     const wrap=document.createElement('div');wrap.appendChild(button);host.appendChild(wrap);
+     button.addEventListener('click',async()=>{button.disabled=true;message('Creo il file Illustrator dal template…');try{await call('regenerateSource',{...request,kind:'ai'});if(!closed)options.onRegenerated();}catch(error){if(!closed){button.disabled=false;message(error.message);}}});
+    }
+    return;
+   }
    if(result.message){const extra=document.createElement('p');extra.className='hint details-note';extra.textContent=result.message;host.insertBefore(extra,note);}
    if(result.files.length>1){const field=document.createElement('div');field.className='artwork-file-field';field.setAttribute('pgs',"flex['column']");const caption=document.createElement('label');caption.setAttribute('pgs','label');caption.htmlFor='artwork-file';caption.textContent='File Illustrator';select=document.createElement('select');select.id='artwork-file';select.setAttribute('pgs','select');for(const file of result.files){const option=document.createElement('option');option.value=file.name;option.textContent=file.name;select.appendChild(option);}select.addEventListener('change',()=>void loadFile(select.value));field.append(caption,select);host.insertBefore(field,note);}
    link=document.createElement('a');link.href='#';link.className='details-filename details-file-link artwork-file-link';link.title='Apri il file Illustrator';label=document.createElement('span');link.appendChild(label);link.insertAdjacentHTML('beforeend',externalIcon);

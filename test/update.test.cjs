@@ -74,3 +74,26 @@ test('Mac: sostituzione accanto all’app in uso, solo riavvio se è la stessa a
  const {root:wrong}=await social(manifest('1.3.0'),{version:'1.2.99'});
  await assert.rejects(update.prepareUpdate(wrong,{currentVersion:'1.2.15',platform:'darwin',execPath:path.join(installed,'Contents','MacOS','SocialDesk')}),/non corrisponde/);
 });
+
+test('Mac: lo zip ha la precedenza, si estrae accanto all’app in uso e la versione viene verificata',{skip:process.platform!=='darwin'},async()=>{
+ const {execFileSync}=require('node:child_process');
+ const {base,root,folder}=await social({...manifest('1.3.0'),macZip:'Mac/SocialDesk-Mac.zip'});
+ execFileSync('/usr/bin/ditto',['-c','-k','--keepParent',path.join(folder,'Mac','SocialDesk.app'),path.join(folder,'Mac','SocialDesk-Mac.zip')]);
+ const installed=path.join(base,'Applicazioni','SocialDesk.app');
+ await fs.mkdir(path.join(installed,'Contents','MacOS'),{recursive:true});
+ const plan=await update.prepareUpdate(root,{currentVersion:'1.2.15',platform:'darwin',execPath:path.join(installed,'Contents','MacOS','SocialDesk')});
+ assert.equal(plan.zip,path.join(folder,'Mac','SocialDesk-Mac.zip'));assert.equal(plan.source,undefined);
+ const staged=await update.stageMacApp(plan,123);
+ assert.equal(staged,path.join(base,'Applicazioni','.SocialDesk-aggiornamento-123.app'));
+ assert.ok((await fs.readFile(path.join(staged,'Contents','Info.plist'),'utf8')).includes('1.3.0'));
+ assert.deepEqual((await fs.readdir(path.join(base,'Applicazioni'))).sort(),['.SocialDesk-aggiornamento-123.app','SocialDesk.app']);
+ // residui tolti all'avvio
+ assert.equal(await update.cleanupLeftovers(path.join(installed,'Contents','MacOS','SocialDesk')),1);
+ assert.deepEqual(await fs.readdir(path.join(base,'Applicazioni')),['SocialDesk.app']);
+ // zip con una versione diversa: errore e nessun residuo
+ const wrong=await social({...manifest('1.3.1'),macZip:'Mac/SocialDesk-Mac.zip'},{version:'1.3.0'});
+ execFileSync('/usr/bin/ditto',['-c','-k','--keepParent',path.join(wrong.folder,'Mac','SocialDesk.app'),path.join(wrong.folder,'Mac','SocialDesk-Mac.zip')]);
+ const plan2=await update.prepareUpdate(wrong.root,{currentVersion:'1.2.15',platform:'darwin',execPath:path.join(installed,'Contents','MacOS','SocialDesk')});
+ await assert.rejects(update.stageMacApp(plan2,456),/non corrisponde/);
+ assert.deepEqual(await fs.readdir(path.join(base,'Applicazioni')),['SocialDesk.app']);
+});

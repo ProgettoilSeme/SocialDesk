@@ -271,7 +271,7 @@ async function reloadEditAfterRelink(){
  const d=state.selected,v=state.editValues;if(!d||state.route!=='edit-post')return;
  try{
   const details=await call('details',{key:d.key,revision:state.revision});
-  state.editFolderMissing=!!details.folderMissing;const fresh=details.editableText;
+  state.editFolderMissing=!!details.folderMissing;state.editNoText=!!details.noText;const fresh=details.editableText;
   if(fresh){v.postText=fresh.content.replace(/\r\n/g,'\n');v.textName=fresh.name;v.textRevision=fresh.revision;Object.assign(state.editOriginal,{postText:v.postText,textName:v.textName,textRevision:v.textRevision});state.editTextNote='';}
   else state.editTextNote=details.textMessage||'';
  }catch(e){state.error=e.message;}
@@ -383,7 +383,7 @@ function renderDrafts(){
   let editable=null,note='';state.editFolderMissing=false;
   try{
    const details=await call('details',{key:d.key,revision:state.revision});
-   editable=details.editableText;state.editFolderMissing=!!details.folderMissing;
+   editable=details.editableText;state.editFolderMissing=!!details.folderMissing;state.editNoText=!!details.noText;
    if(!editable)note=details.textMessage||'Il file di testo principale non è individuabile: controlla i file nella cartella Sorgenti.';
   }catch(e){note=e.message;}
   state.editValues={title:d.title,topic:d.topic,format:d.format,status:d.status,undefinedDate:!d.date,date:d.date||(d.year===new Date().getFullYear()?localToday():d.year+'-01-01')};
@@ -432,7 +432,7 @@ function openPostDetails(post,opener){
  if(anyModalOpen())return;
  let disposeArtwork=()=>{};
  const body=`<section id="details-metadata" pgs="flex['column' 'gapParagraphs']">${detailsMetadata(post)}</section><section pgs="flex['column' 'gapParagraphs']" class="details-text-section" aria-label="Testo del post"><h3 pgs="h5">Testo del post</h3><div id="details-text" pgs="flex['column' 'gapParagraphs']" aria-live="polite"><p class="hint">Caricamento del testo…</p></div></section><section pgs="flex['column' 'gapParagraphs']" class="details-text-section details-artwork-section" aria-label="Grafica del post"><h3 pgs="h5">Grafica del post</h3><div id="details-artwork" pgs="flex['column' 'gapParagraphs']"></div></section><div pgs="flex['row' 'justifyEnd']"><button pgs="button" id="details-done" type="button">Chiudi</button></div>`;
- const modal=createModal({title:'Dettagli post',titleId:'details-modal-title',describedBy:'details-post-title',body,size:'dialogMedium',onClose:()=>{disposeArtwork();document.body.classList.remove('details-modal-open');if(opener?.isConnected)opener.focus({preventScroll:true});}});
+ const modal=createModal({title:'Dettagli post',titleId:'details-modal-title',describedBy:'details-post-title',body,size:'dialogFull',onClose:()=>{disposeArtwork();document.body.classList.remove('details-modal-open');if(opener?.isConnected)opener.focus({preventScroll:true});}});
  const dialog=modal.dialog;dialog.id='post-details-modal';dialog.classList.add('post-details-modal');
  document.body.classList.add('details-modal-open');
  dialog.querySelector('#details-done').addEventListener('click',()=>modal.close());
@@ -447,13 +447,16 @@ function openPostDetails(post,opener){
   finally{openingFolder=false;link.removeAttribute('aria-disabled');}
  });
  modal.open();dialog.querySelector('[data-modal-x]').focus();
- disposeArtwork=SocialIllustratorPreview.mount(dialog.querySelector('#details-artwork'),{key:post.key,revision:state.revision},call);
+ // dopo una rigenerazione i Dettagli si riaprono con il file nuovo
+ const reopen=()=>{modal.close();setTimeout(()=>openPostDetails(post,opener),60);};
+ disposeArtwork=SocialIllustratorPreview.mount(dialog.querySelector('#details-artwork'),{key:post.key,revision:state.revision},call,{onRegenerated:reopen});
  call('details',{key:post.key,revision:state.revision}).then(result=>{
   if(!dialog.isConnected)return;
   dialog.querySelector('#details-metadata').innerHTML=detailsMetadata(result.post);
   const container=dialog.querySelector('#details-text');container.replaceChildren();
   if(result.folderMissing){const box=document.createElement('div');box.innerHTML=`<div pgs="alert['alertWarning']" role="status"><i pgs="icon['icon-triangleExclamation'] alert-icon" aria-hidden="true"></i><div pgs="alert-content flex['column' 'gapParagraphs']"><strong pgs="alert-content-title">Cartella del post non trovata</strong><p>Probabilmente è stata rinominata o spostata a mano. Puoi ricollegarla: le verrà ridato il nome che il piano si aspetta.</p><div><button pgs="button" type="button" data-relink>${icon('folderOpen')}<span>Ricollega cartella</span></button></div></div></div>`;container.appendChild(box);box.querySelector('[data-relink]').addEventListener('click',()=>{modal.close();openRelinkModal(result.post,()=>loadList(state.listMode));});}
-  else if(result.textMessage){const note=document.createElement('p');note.className='hint details-note';note.textContent=result.textMessage;container.appendChild(note);}
+  else if(result.textMessage){const note=document.createElement('p');note.className='hint details-note';note.textContent=result.textMessage;container.appendChild(note);
+   if(result.noText){const box=document.createElement('div');box.innerHTML=`<button pgs="button" type="button" data-regenerate="md">${icon('refresh')}<span>Rigenera file di testo</span></button><div role="alert" hidden></div>`;container.appendChild(box);const button=box.querySelector('[data-regenerate]'),err=box.querySelector('[role=alert]');button.addEventListener('click',async()=>{button.disabled=true;setAlert(err,'');try{await call('regenerateSource',{key:post.key,revision:state.revision,kind:'md'});reopen();}catch(e){button.disabled=false;setAlert(err,e.message);}});}}
   for(const file of result.textFiles){
    // nome del file fuori dal riquadro; nel riquadro il testo e, in alto a destra, l'icona Copia per i social
    const block=document.createElement('section');block.className='details-text-file';block.setAttribute('pgs',"flex['column' 'gapDetails']");
@@ -652,11 +655,12 @@ function setupMarkdownEditor(area,v){
 }
 function renderPostEdit(){
  const d=state.selected,v=state.editValues,busy=disabled(state.loading);
- const text=v.textName?`<div pgs="flex['column' 'gapParagraphs']" class="md-field">${markdownToolbar()}<div pgs="input list" class="post-text-input md-editor md-content" id="edit-post-text" contenteditable="${state.loading?'false':'true'}" role="textbox" aria-multiline="true" aria-labelledby="edit-post-text-label" spellcheck="true" ${state.loading?'aria-disabled="true"':''}></div><p class="hint">${escape(v.textName)} · Modifichi solo il testo di ${escape(d.channel)}. Usa i pulsanti per titoli, grassetto, corsivo, barrato ed elenchi.</p></div>`:alertHtml('warning',state.editTextNote||'Nessun file di testo modificabile presente nei Sorgenti.');
+ const text=v.textName?`<div pgs="flex['column' 'gapParagraphs']" class="md-field">${markdownToolbar()}<div pgs="input list" class="post-text-input md-editor md-content" id="edit-post-text" contenteditable="${state.loading?'false':'true'}" role="textbox" aria-multiline="true" aria-labelledby="edit-post-text-label" spellcheck="true" ${state.loading?'aria-disabled="true"':''}></div><p class="hint">${escape(v.textName)} · Modifichi solo il testo di ${escape(d.channel)}. Usa i pulsanti per titoli, grassetto, corsivo, barrato ed elenchi.</p></div>`:alertHtml('warning',state.editTextNote||'Nessun file di testo modificabile presente nei Sorgenti.')+(state.editNoText?`<div pgs="flex['column' 'gapParagraphs']"><div><button pgs="button" type="button" id="edit-regenerate-md" ${busy}>${icon('refresh')}<span>Rigenera file di testo</span></button></div><div id="edit-regenerate-error" role="alert" hidden></div></div>`:'');
  main.innerHTML=`<div><button pgs="button['btnTransparent']" class="edit-back" id="back-posts" type="button" ${busy}>${icon('arrowLeft')}<span>Torna indietro</span></button></div><h1 pgs="h2">Modifica post</h1><p class="lead" pgs="flex['row' 'itemCenter' 'gapDetails']">${socialIcon(d.channel)}<span>${escape(d.channel)} · ${d.year}${d.id!==null&&d.id!==''?' · ID '+escape(d.id):''}</span></p>${state.editFolderMissing?`<div pgs="alert['alertWarning']" role="status"><i pgs="icon['icon-triangleExclamation'] alert-icon" aria-hidden="true"></i><div pgs="alert-content flex['column' 'gapParagraphs']"><strong pgs="alert-content-title">Cartella del post non trovata</strong><p>Senza la cartella non puoi salvare le modifiche né vedere il testo. Ricollegala: le verrà ridato il nome che il piano si aspetta.</p><div><button pgs="button" type="button" id="edit-relink" ${busy}>${icon('folderOpen')}<span>Ricollega cartella</span></button></div></div></div>`:''}<div pgs="form flex['column' 'gapElements']" class="edit-fields">${field('Titolo',`<input pgs="input" id="edit-title" maxlength="140" required placeholder=" " value="${escape(v.title)}" ${busy}>`)}${field('Argomento',`<input pgs="input" id="edit-topic" maxlength="200" placeholder=" " value="${escape(v.topic)}" ${busy}>`)}<div pgs="grid['column-2' 'gapParagraphs']">${field('Formato',`<select pgs="select" id="edit-format" ${busy}>${editOptions(v.format,FORMATS)}</select>`)}${field('Stato pubblicazione',`<select pgs="select" id="edit-status" ${busy}>${editOptions(v.status,STATUSES)}</select>`)}</div><div pgs="flex['column' 'gapParagraphs']">${field('Data pubblicazione',`<input pgs="input" id="edit-date" type="date" min="${d.year}-01-01" max="${d.year}-12-31" value="${escape(v.date)}" ${disabled(v.undefinedDate||state.loading)}>`,`La data deve rimanere nel ${d.year}.`)}<label pgs="checkbox"><input type="checkbox" id="edit-undefined" ${v.undefinedDate?'checked':''} ${busy}><span>Data da definire</span></label></div><div pgs="flex['column']"><span pgs="label" id="edit-post-text-label">Testo del post</span>${text}</div></div><section pgs="alert['alertError']" class="delete-post-section" aria-labelledby="delete-post-title"><i pgs="icon['icon-trash'] alert-icon" aria-hidden="true"></i><div pgs="alert-content flex['column' 'gapParagraphs']"><h2 pgs="alert-content-title h5" id="delete-post-title">Elimina post</h2><p>Rimuove la riga di ${escape(d.channel)} dal piano editoriale e sposta la sua cartella in <strong>00_cestino</strong>.</p><div><button pgs="button" class="danger" id="delete-post" type="button" ${busy}>${icon('trash')}<span>Elimina post</span></button></div></div></section>${errorBox()}`;
  footer.innerHTML=`<span></span><button pgs="button['btnStrong']" id="save-post" type="button" ${disabled(state.loading||!v.title.trim())}>${icon('save')}<span>${state.loading?'Attendi…':'Salva modifiche'}</span></button>`;
  document.getElementById('back-posts').addEventListener('click',leavePostEdit);
  document.getElementById('edit-relink')?.addEventListener('click',()=>openRelinkModal(d,reloadEditAfterRelink));
+ document.getElementById('edit-regenerate-md')?.addEventListener('click',async event=>{const button=event.currentTarget;if(state.loading)return;button.disabled=true;try{const r=await call('regenerateSource',{key:d.key,revision:state.revision,kind:'md'});state.notice='';await reloadEditAfterRelink();setAlert(document.getElementById('error'),`Creato ${r.name} nei sorgenti.`,'success');}catch(e){button.disabled=false;setAlert(document.getElementById('edit-regenerate-error'),e.message);}});
  for(const name of ['title','topic','format','status','date'])document.getElementById('edit-'+name).addEventListener('input',e=>{v[name]=e.target.value;document.getElementById('save-post').disabled=!v.title.trim();error('');});
  const textArea=document.getElementById('edit-post-text');
  if(textArea)setupMarkdownEditor(textArea,v);

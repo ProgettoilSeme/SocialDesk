@@ -30,5 +30,6 @@ contextBridge.exposeInMainWorld('socialAPI',{
  missingFolders:()=>ipcRenderer.invoke('social:missing-folders'),
  relinkCandidates:input=>ipcRenderer.invoke('social:relink-candidates',input),
  relink:input=>ipcRenderer.invoke('social:relink',input),
+ regenerateSource:input=>ipcRenderer.invoke('social:regenerate-source',input),
  installUpdate:()=>ipcRenderer.invoke('social:install-update'),
 });
