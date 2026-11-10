@@ -409,21 +409,34 @@ function openStatusModal(post,opener){
  if(anyModalOpen())return;
  const mode=state.listMode,scrollY=window.scrollY,current=post.status.trim().toLowerCase();
  const initial=STATUSES.includes(current)?current:'';
- const body=`${postHeading(post,'status-modal-post')}<div pgs="flex['column']"><label pgs="label" for="quick-status">Nuovo stato</label><div pgs="selectBox" class="status-select"><select pgs="select" id="quick-status" required>${initial?'':`<option value="" selected disabled hidden>${escape(post.status?'Attuale: '+post.status:'Scegli uno stato')}</option>`}${STATUSES.map(status=>`<option value="${status}" ${initial===status?'selected':''}>${statusDot(status)}${status}</option>`).join('')}</select></div></div><p class="hint">La modifica riguarda solo ${escape(post.channel)}.</p><div id="status-error" role="alert" hidden></div><div pgs="flex['row' 'justifyEnd' 'gapParagraphs']"><button pgs="button" id="status-cancel" type="button">Annulla</button><button pgs="button['btnStrong']" id="status-save" type="submit" disabled>Salva stato</button></div>`;
+ // Passando a da pubblicare o pubblicato si può indicare anche la data (precompilata con quella del post o con oggi se è dello stesso anno).
+ const withDate=status=>status==='da pubblicare'||status==='pubblicato';
+ const today=localToday(),initialDate=post.date||(today.startsWith(post.year+'-')?today:'');
+ const body=`${postHeading(post,'status-modal-post')}<div pgs="flex['column']"><label pgs="label" for="quick-status">Nuovo stato</label><div pgs="selectBox" class="status-select"><select pgs="select" id="quick-status" required>${initial?'':`<option value="" selected disabled hidden>${escape(post.status?'Attuale: '+post.status:'Scegli uno stato')}</option>`}${STATUSES.map(status=>`<option value="${status}" ${initial===status?'selected':''}>${statusDot(status)}${status}</option>`).join('')}</select></div></div><div id="status-date-block" pgs="flex['column' 'gapParagraphs']" ${withDate(initial)?'':'hidden'}>${field('Data di pubblicazione',`<input pgs="input" id="status-date" type="date" min="${post.year}-01-01" max="${post.year}-12-31" value="${escape(initialDate)}">`,`Deve essere nel ${post.year}. Lasciala vuota se non la conosci.`)}</div><p class="hint">La modifica riguarda solo ${escape(post.channel)}.</p><div id="status-error" role="alert" hidden></div><div pgs="flex['row' 'justifyEnd' 'gapParagraphs']"><button pgs="button" id="status-cancel" type="button">Annulla</button><button pgs="button['btnStrong']" id="status-save" type="submit" disabled>Salva</button></div>`;
   const modal=createModal({title:'Cambia stato',titleId:'status-modal-title',describedBy:'status-modal-post',body,form:true,onClose:()=>{document.body.classList.remove('status-modal-open');if(opener.isConnected)opener.focus({preventScroll:true});}});
  modal.dialog.id='status-modal';
  document.body.classList.add('status-modal-open');
- const select=modal.dialog.querySelector('#quick-status'),save=modal.dialog.querySelector('#status-save'),message=modal.dialog.querySelector('#status-error');
- function changed(){return!!select.value&&select.value!==current;}
- function busy(value){modal.busy=value;state.loading=value;modal.dialog.querySelectorAll('button,select').forEach(el=>{el.disabled=value;});save.disabled=value||!changed();save.textContent=value?'Salvataggio…':'Salva stato';modal.dialog.setAttribute('aria-busy',String(value));}
+ const dateBlock=modal.dialog.querySelector('#status-date-block'),dateInput=modal.dialog.querySelector('#status-date'),select=modal.dialog.querySelector('#quick-status'),save=modal.dialog.querySelector('#status-save'),message=modal.dialog.querySelector('#status-error');
+ function statusChanged(){return!!select.value&&select.value!==current;}
+ function dateChanged(){return withDate(select.value)&&!!dateInput.value&&dateInput.value!==(post.date||'');}
+ function changed(){return statusChanged()||dateChanged();}
+ function busy(value){modal.busy=value;state.loading=value;modal.dialog.querySelectorAll('button,select,input').forEach(el=>{el.disabled=value;});save.disabled=value||!changed();save.textContent=value?'Salvataggio…':'Salva';modal.dialog.setAttribute('aria-busy',String(value));}
  modal.dialog.querySelector('#status-cancel').addEventListener('click',()=>modal.close());
- select.addEventListener('change',()=>{select.dataset.status=SocialPostFilters.statusTone(select.value);save.disabled=!changed();setAlert(message,'');});
+ select.addEventListener('change',()=>{select.dataset.status=SocialPostFilters.statusTone(select.value);dateBlock.hidden=!withDate(select.value);save.disabled=!changed();setAlert(message,'');});
+ dateInput.addEventListener('input',()=>{save.disabled=!changed();setAlert(message,'');});
  modal.dialog.querySelector('form').addEventListener('submit',async event=>{
-  event.preventDefault();if(modal.busy||!changed()||!select.reportValidity())return;
-  const request={key:post.key,revision:state.revision,status:select.value};setAlert(message,'');busy(true);
+  event.preventDefault();if(modal.busy||!changed()||!select.reportValidity()||(withDate(select.value)&&!dateInput.reportValidity()))return;
+  setAlert(message,'');busy(true);
   try{
-   const result=await call('updateStatus',request);if(result.canceled)return;
-   state.notice=`Stato aggiornato per ${result.channel}: ${result.status}.${mode==='drafts'&&result.status==='pubblicato'?' Lo trovi in Tutti i post.':''}`;
+   const notes=[];let revision=state.revision;
+   if(dateChanged()){
+    const request={key:post.key,revision,date:dateInput.value};
+    const plan=await call('planDate',request);const r=await call('updateDate',request,plan.fingerprint);if(r.canceled)return;
+    notes.push(`data ${formatDate(dateInput.value)}`);
+    revision=(await call('posts')).revision;
+   }
+   if(statusChanged()){const r=await call('updateStatus',{key:post.key,revision,status:select.value});if(r.canceled)return;notes.push(`stato ${r.status}`);}
+   state.notice=`Aggiornato per ${post.channel}: ${notes.join(' e ')}.${mode==='drafts'&&select.value==='pubblicato'?' Lo trovi in Tutti i post.':''}`;
    busy(false);modal.close();await loadList(mode);window.scrollTo({top:scrollY});main.querySelector(`[data-change-status="${post.key}"]`)?.focus({preventScroll:true});
   }catch(e){setAlert(message,e.message);}
   finally{if(modal.dialog.isConnected)busy(false);else state.loading=false;}
