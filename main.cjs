@@ -2,6 +2,8 @@
 const {app,BrowserWindow,ipcMain,dialog,shell,Menu,clipboard,nativeTheme}=require('electron');
 // L'interfaccia è chiara: barra del titolo e finestre di sistema chiare anche con macOS/Windows in modalità scura.
 nativeTheme.themeSource='light';
+// prima di tutto: stat/lstat/realpath tolleranti ai file del NAS che Windows non sa interrogare (ENOTSUP)
+require('./lib/safe-fs.cjs');
 const fs=require('node:fs/promises');
 const path=require('node:path');
 const {pathToFileURL}=require('node:url');
