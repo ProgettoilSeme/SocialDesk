@@ -97,3 +97,17 @@ test('Mac: lo zip ha la precedenza, si estrae accanto all’app in uso e la vers
  await assert.rejects(update.stageMacApp(plan2,456),/non corrisponde/);
  assert.deepEqual(await fs.readdir(path.join(base,'Applicazioni')),['SocialDesk.app']);
 });
+
+test('Mac: consegna solo zip (senza SocialDesk.app sul NAS)',{skip:process.platform!=='darwin'},async()=>{
+ const {execFileSync}=require('node:child_process');
+ const {base,root,folder}=await social({version:'1.3.0',macZip:'Mac/SocialDesk-Mac.zip',windows:'Windows/SocialDesk-Setup-1.3.0.exe'});
+ execFileSync('/usr/bin/ditto',['-c','-k','--keepParent',path.join(folder,'Mac','SocialDesk.app'),path.join(folder,'Mac','SocialDesk-Mac.zip')]);
+ await fs.rm(path.join(folder,'Mac','SocialDesk.app'),{recursive:true});
+ assert.equal((await update.checkUpdate(root,'1.2.15','darwin')).available,true);
+ const installed=path.join(base,'Applicazioni','SocialDesk.app');
+ await fs.mkdir(path.join(installed,'Contents','MacOS'),{recursive:true});
+ const plan=await update.prepareUpdate(root,{currentVersion:'1.2.15',platform:'darwin',execPath:path.join(installed,'Contents','MacOS','SocialDesk')});
+ assert.equal(plan.zip,path.join(folder,'Mac','SocialDesk-Mac.zip'));
+ const staged=await update.stageMacApp(plan,7);
+ assert.ok((await fs.readFile(path.join(staged,'Contents','Info.plist'),'utf8')).includes('1.3.0'));
+});

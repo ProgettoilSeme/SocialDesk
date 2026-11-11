@@ -21,6 +21,7 @@
      <ul>
       <li><a pgs="button['btnTransparent' 'btnForHeader' 'btnPaddingEqual' 'btnCurrent']" href="#posts" data-nav="posts"><i pgs="icon['icon-calendar']" aria-hidden="true"></i><span>Tutti i post</span></a></li>
       <li><a pgs="button['btnTransparent' 'btnForHeader' 'btnPaddingEqual' 'btnCurrent']" href="#drafts" data-nav="drafts"><i pgs="icon['icon-fileText']" aria-hidden="true"></i><span>Post in bozza</span></a></li>
+      <li><a pgs="button['btnTransparent' 'btnForHeader' 'btnPaddingEqual' 'btnCurrent']" href="#ideas" data-nav="ideas"><i pgs="icon['icon-lightbulb']" aria-hidden="true"></i><span>Idee</span></a></li>
       <li><a pgs="button['btnStrong' 'btnForHeader' 'btnCurrent']" href="#create" data-nav="create"><i pgs="icon['icon-circlePlus']" aria-hidden="true"></i><span>Crea nuovo post</span></a></li>
      </ul>
     </nav>
@@ -36,6 +37,7 @@
         <ul>
       <li><a pgs="button['btnTransparent' 'btnPaddingEqual' 'btnCurrent']" href="#posts" data-nav="posts"><i pgs="icon['icon-calendar']" aria-hidden="true"></i><span>Tutti i post</span></a></li>
       <li><a pgs="button['btnTransparent' 'btnPaddingEqual' 'btnCurrent']" href="#drafts" data-nav="drafts"><i pgs="icon['icon-fileText']" aria-hidden="true"></i><span>Post in bozza</span></a></li>
+      <li><a pgs="button['btnTransparent' 'btnPaddingEqual' 'btnCurrent']" href="#ideas" data-nav="ideas"><i pgs="icon['icon-lightbulb']" aria-hidden="true"></i><span>Idee</span></a></li>
       <li><a pgs="button['btnStrong' 'btnCurrent']" href="#create" data-nav="create"><i pgs="icon['icon-circlePlus']" aria-hidden="true"></i><span>Crea nuovo post</span></a></li>
         </ul>
        </nav>
@@ -52,6 +54,8 @@
    <div pgs="flex['row' 'wrap' 'gapParagraphs' 'itemCenter' 'justifyBetween']" class="footer" id="footer"></div>
   </section>
  </main>
+ <!-- toast di myPgs: popover, così resta sopra anche alle modali aperte -->
+ <div pgs="toast" id="toast-host" popover="manual" aria-live="polite"></div>
  <script src="post-filters.js"></script>
  <script src="illustrator-preview.js"></script>
  <script src="markdown.js"></script>
