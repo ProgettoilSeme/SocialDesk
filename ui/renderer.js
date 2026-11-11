@@ -5,7 +5,7 @@ const api=window.socialAPI;
 document.documentElement.dataset.platform=/Mac/i.test(navigator.platform)?'mac':'other';
 const localToday=()=>{const d=new Date();return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
 const initialPost=()=>({channels:[],title:'',topic:'',channelFormats:{},channelDates:{},year:String(new Date().getFullYear())});
-const state={route:'home',step:0,visited:0,root:'',rootValid:false,post:initialPost(),plan:null,result:null,error:'',loading:false,drafts:[],revision:'',selected:null,notice:'',filterYear:String(new Date().getFullYear()),filterChannels:['Facebook','LinkedIn','Instagram'],filterStatus:'',filterMonth:'',groupById:true,hidePublished:true,expandedGroups:new Set(),years:[],listMode:'drafts',editValues:null,editOriginal:null,settings:null,highlight:null,editModal:null,ideas:null,ideaDraft:{text:'',channels:[]},ideasLoading:false};
+const state={route:'home',step:0,visited:0,root:'',rootValid:false,post:initialPost(),plan:null,result:null,error:'',loading:false,drafts:[],revision:'',selected:null,notice:'',filterYear:String(new Date().getFullYear()),filterChannels:['Facebook','LinkedIn','Instagram'],filterStatus:'',filterMonth:'',groupById:true,hidePublished:true,expandedGroups:new Set(),years:[],listMode:'drafts',editValues:null,editOriginal:null,settings:null,highlight:null,editModal:null,ideas:null,ideaDraft:{text:'',notes:'',channels:[]},ideasLoading:false};
 const main=document.getElementById('main'),footer=document.getElementById('footer'),progress=document.getElementById('progress');
 const CHANNELS=['Facebook','Instagram','LinkedIn'];
 // Tema: myPgs lo salva e lo applica; le finestre di sistema (conferme, dialoghi) lo seguono.
@@ -214,8 +214,8 @@ async function submit(){
  try{
   state.result=await call('create',state.post,state.plan.fingerprint);
   let note='';
-  // post nato da un'idea: l'idea viene segnata come fatta
-  if(state.post.fromIdea){try{await call('changeIdea',{action:'update',id:state.post.fromIdea,done:true});note=' L’idea è stata segnata come fatta.';state.ideas=null;}catch{}}
+  // post nato da un'idea: l'idea viene segnata come sviluppata
+  if(state.post.fromIdea){try{await call('changeIdea',{action:'update',id:state.post.fromIdea,done:true});note=' L’idea è stata segnata come sviluppata.';state.ideas=null;}catch{}}
   job.success('Post creato',`${state.result.title} · ${state.result.channels.join(', ')}.${note}`);
  }
  catch(e){job.cancel();state.error=e.message;if(e.code==='CHANGED'){try{state.plan=await call('plan',state.post);}catch{state.plan=null;}}}
@@ -273,7 +273,9 @@ function openUpdateModal(){
 }
 function renderHome(){
  const card=(id,tone,image,label)=>`<button pgs="box${tone?` background['${tone}']`:''} flex['column' 'itemCenter' 'gapParagraphs']" class="home-action" id="${id}" type="button" ${disabled(state.loading)}><img src="assets/${image}" alt="" width="240" height="240"><span pgs="h4">${label}</span></button>`;
- main.innerHTML=`<h1 pgs="h2" class="home-title">Cosa vuoi fare oggi?</h1><div pgs="grid['column-3' 'gapElements']" class="home-actions">${card('all-posts','','calendar.png','Tutti i post')}${card('drafts','','draft.png','Post in bozza')}${card('create-new','bgSuccessSoft','megaphone.png','Crea nuovo post')}</div><hr><div pgs="flex['row' 'wrap' 'itemCenter' 'gapParagraphs']" class="home-settings"><button pgs="button" id="open-settings" type="button" ${disabled(state.loading)}>${icon('gear')}<span>Impostazioni</span></button><button pgs="button" id="sync-assets" type="button" ${disabled(state.loading||!state.rootValid)} title="Copia le immagini di tutti i post in 00_template/Archivio asset, divise per social e anno">${icon('images')}<span>${state.assetSyncing?'Aggiornamento…':'Aggiorna archivio asset'}</span></button>${state.version?`<span pgs="flex['row' 'itemCenter' 'gapParagraphs']" class="app-version">${state.update?.available?`<button pgs="button['btnStrong' 'btnMini']" id="install-update" type="button" ${disabled(state.loading)} title="Installa la versione ${escape(state.update.version)} da App Social">${icon('refresh')}<span>Aggiorna alla ${escape(state.update.version)}</span></button>`:`<button pgs="button['btnMini']" id="check-update" type="button" ${disabled(state.loading||state.checkingUpdate)} title="Controlla se in App Social c'è una versione più recente">${icon('refresh')}<span>${state.checkingUpdate?'Controllo…':'Cerca aggiornamenti'}</span></button>`}<span pgs="badge['badgeNeutral']">Versione ${escape(state.version)}</span></span>`:''}</div>${noticeBox()}${homeErrorBox()}`;
+ // Home: a sinistra Tutti i post e Post in bozza nello stesso riquadro, a destra Crea nuovo post, sotto Idee
+ const row=(id,image,label)=>`<button pgs="flex['row' 'itemCenter' 'gapParagraphs']" class="home-action home-row" id="${id}" type="button" ${disabled(state.loading)}><img src="assets/${image}" alt="" width="120" height="120"><span pgs="h4">${label}</span></button>`;
+ main.innerHTML=`<h1 pgs="h2" class="home-title">Cosa vuoi fare oggi?</h1><div pgs="grid['column-2' 'gapElements']" class="home-actions"><div pgs="box flex['column']" class="home-pair">${row('all-posts','calendar.png','Tutti i post')}<hr class="home-divider">${row('drafts','draft.png','Post in bozza')}</div>${card('create-new','bgSuccessSoft','megaphone.png','Crea nuovo post')}</div><button pgs="box flex['row' 'itemCenter' 'gapParagraphs']" class="home-action home-ideas" id="home-ideas" type="button" ${disabled(state.loading||!state.rootValid)}><img src="assets/idea.png" alt="" width="120" height="120"><span pgs="flex['column' 'gapDetails']"><span pgs="h4">Idee</span><span class="hint">Le idee per i prossimi post, condivise con tutti.</span></span></button><hr><div pgs="flex['row' 'wrap' 'itemCenter' 'gapParagraphs']" class="home-settings"><button pgs="button" id="open-settings" type="button" ${disabled(state.loading)}>${icon('gear')}<span>Impostazioni</span></button><button pgs="button" id="sync-assets" type="button" ${disabled(state.loading||!state.rootValid)} title="Copia le immagini di tutti i post in 00_template/Archivio asset, divise per social e anno">${icon('images')}<span>${state.assetSyncing?'Aggiornamento…':'Aggiorna archivio asset'}</span></button>${state.version?`<span pgs="flex['row' 'itemCenter' 'gapParagraphs']" class="app-version">${state.update?.available?`<button pgs="button['btnStrong' 'btnMini']" id="install-update" type="button" ${disabled(state.loading)} title="Installa la versione ${escape(state.update.version)} da App Social">${icon('refresh')}<span>Aggiorna alla ${escape(state.update.version)}</span></button>`:`<button pgs="button['btnMini']" id="check-update" type="button" ${disabled(state.loading||state.checkingUpdate)} title="Controlla se in App Social c'è una versione più recente">${icon('refresh')}<span>${state.checkingUpdate?'Controllo…':'Cerca aggiornamenti'}</span></button>`}<span pgs="badge['badgeNeutral']">Versione ${escape(state.version)}</span></span>`:''}</div>${noticeBox()}${homeErrorBox()}`;
  footer.innerHTML='';
  document.getElementById('open-settings').addEventListener('click',openSettings);
  document.getElementById('install-update')?.addEventListener('click',openUpdateModal);
@@ -283,6 +285,7 @@ function renderHome(){
  document.getElementById('drafts').addEventListener('click',loadDrafts);
  document.getElementById('all-posts').addEventListener('click',loadPosts);
  document.getElementById('create-new').addEventListener('click',startCreate);
+ document.getElementById('home-ideas').addEventListener('click',openIdeas);
 }
 // Home: se la cartella Social non è valida, l'avviso offre subito la scelta della cartella
 function homeErrorBox(){
@@ -838,7 +841,7 @@ function renderPostEdit(){
 }
 
 //# Idee
-// To do list condivisa: 00_template/idee.json nella cartella Social. Ogni idea ha testo, social e spunta "fatta";
+// To do list condivisa: 00_template/idee.json nella cartella Social. Ogni idea ha titolo, appunti (testo semplice), social e spunta "sviluppata";
 // "Crea post" apre la creazione con titolo e social già compilati.
 async function openIdeas(){
  if(state.loading)return;
@@ -856,29 +859,34 @@ const ideaChips=(name,selected)=>`<fieldset pgs="chips" class="channel-chips"><l
 const shortDate=iso=>{const d=new Date(iso);return Number.isNaN(d.getTime())?'':d.toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit',year:'numeric'});};
 function ideaRow(idea){
  const icons=idea.channels.map(c=>`<span class="idea-social" title="${escape(c)}">${socialIcon(c)}<span pgs="visuallyHidden">${escape(c)}</span></span>`).join('');
- const when=idea.done&&idea.doneAt?`Fatta il ${shortDate(idea.doneAt)}`:idea.createdAt?`Aggiunta il ${shortDate(idea.createdAt)}`:'';
- return `<li pgs="flex['row' 'itemCenter' 'justifyBetween' 'gapParagraphs']" class="draft-item idea-item${idea.done?' idea-done':''}" data-idea="${escape(idea.id)}"><div pgs="flex['row' 'itemStart' 'gapParagraphs' 'nowrap']" class="post-body"><label pgs="checkbox" class="idea-check" title="${idea.done?'Segna come da fare':'Segna come fatta'}"><input type="checkbox" data-idea-done ${idea.done?'checked':''} ${disabled(state.loading)}><span pgs="visuallyHidden">Fatta</span></label><div pgs="flex['column' 'gapDetails']" class="post-heading"><p class="idea-text">${escape(idea.text)}</p>${icons||when?`<p pgs="flex['row' 'wrap' 'itemCenter' 'gapParagraphs']" class="post-details">${icons?`<span pgs="flex['row' 'itemCenter' 'gapDetails']">${icons}</span>`:''}${when?`<span>${escape(when)}</span>`:''}</p>`:''}</div></div><div pgs="flex['row' 'wrap' 'itemCenter' 'gapDetails']" class="post-actions">${idea.done?'':`<button pgs="button['btnMini']" type="button" data-idea-create title="Crea un post da questa idea" ${disabled(state.loading)}>${icon('circlePlus')}<span>Crea post</span></button>`}<button pgs="button['btnIconOnly' 'btnMini']" type="button" data-idea-edit aria-label="Modifica idea" title="Modifica idea" ${disabled(state.loading)}>${icon('pencil')}</button><button pgs="button['btnIconOnly' 'btnMini']" type="button" data-idea-delete aria-label="Elimina idea" title="Elimina idea" ${disabled(state.loading)}>${icon('trash')}</button></div></li>`;
+ const notes=(idea.notes||'').replace(/\s+/g,' ').trim();
+ // tutta la riga apre la modifica (il titolo è il pulsante per la tastiera); spunta, Crea post ed Elimina restano a parte
+ return `<li pgs="flex['row' 'itemCenter' 'justifyBetween' 'gapParagraphs']" class="draft-item idea-item${idea.done?' idea-done':''}" data-idea="${escape(idea.id)}" title="Apri l’idea"><div pgs="flex['row' 'itemStart' 'gapParagraphs' 'nowrap']" class="post-body"><label pgs="checkbox" class="idea-check" title="${idea.done?'Segna come da sviluppare':'Segna come sviluppata'}"><input type="checkbox" data-idea-done ${idea.done?'checked':''} ${disabled(state.loading)}><span pgs="visuallyHidden">Sviluppata</span></label><div pgs="flex['column' 'gapDetails']" class="post-heading idea-heading"><h3 pgs="h6"><button class="post-title-button idea-title" type="button" data-idea-open ${disabled(state.loading)}>${escape(idea.text)}</button></h3>${icons||notes?`<p pgs="flex['row' 'itemCenter' 'gapParagraphs' 'nowrap']" class="post-details idea-meta">${icons?`<span pgs="flex['row' 'itemCenter' 'gapDetails' 'nowrap']" class="idea-socials">${icons}</span>`:''}${notes?`<span pgs="truncate" class="idea-notes">${escape(notes)}</span>`:''}</p>`:''}</div></div><div pgs="flex['row' 'wrap' 'itemCenter' 'gapDetails']" class="post-actions">${idea.done?'':`<button pgs="button['btnMini']" type="button" data-idea-create title="Crea un post da questa idea" ${disabled(state.loading)}>${icon('circlePlus')}<span>Crea post</span></button>`}<button pgs="button['btnIconOnly' 'btnMini']" type="button" data-idea-delete aria-label="Elimina idea" title="Elimina idea" ${disabled(state.loading)}>${icon('trash')}</button></div></li>`;
 }
 function renderIdeas(){
  const list=state.ideas||[],draft=state.ideaDraft;
  const todo=list.filter(i=>!i.done).reverse(),done=list.filter(i=>i.done).sort((a,b)=>String(b.doneAt).localeCompare(String(a.doneAt)));
  const section=(title,items,emptyText)=>`<section pgs="flex['column' 'gapParagraphs']" class="idea-section"><h2 pgs="h4">${title} <span pgs="badge['badgeNeutral']">${items.length}</span></h2>${items.length?`<ul pgs="flex['column']" class="draft-list idea-list">${items.map(ideaRow).join('')}</ul>`:`<p class="hint">${emptyText}</p>`}</section>`;
- main.innerHTML=`<div pgs="flex['row' 'itemCenter' 'gapParagraphs']" class="list-heading"><h1 pgs="h2">Idee</h1><button pgs="button['btnIconOnly']" id="ideas-refresh" type="button" aria-label="Aggiorna idee" title="Aggiorna idee" ${disabled(state.loading||state.ideasLoading)}>${icon('refresh')}</button></div><p class="lead">Le idee per i prossimi post, da spuntare quando sono fatte. Le vedono tutti: sono salvate nella cartella Social.</p><form pgs="box form flex['column' 'gapParagraphs']" id="idea-form" novalidate>${field('Nuova idea',`<input pgs="input" id="idea-text" maxlength="500" autocomplete="off" placeholder=" " value="${escape(draft.text)}" ${disabled(state.loading)}>`)}<div pgs="flex['row' 'wrap' 'itemCenter' 'justifyBetween' 'gapParagraphs']">${ideaChips('idea-channel',draft.channels)}<button pgs="button['btnStrong']" type="submit" id="idea-add" ${disabled(state.loading||!draft.text.trim())}>${icon('plus')}<span>Aggiungi</span></button></div></form>${errorBox()}${state.ideas===null?`<p class="hint">${state.ideasLoading?'Caricamento delle idee…':''}</p>`:`${section('Da fare',todo,'Nessuna idea da fare. Scrivine una qui sopra.')}${done.length?section('Fatte',done,''):''}`}`;
+ main.innerHTML=`<div pgs="flex['row' 'itemCenter' 'gapParagraphs']" class="list-heading"><h1 pgs="h2">Idee</h1><button pgs="button['btnIconOnly']" id="ideas-refresh" type="button" aria-label="Aggiorna idee" title="Aggiorna idee" ${disabled(state.loading||state.ideasLoading)}>${icon('refresh')}</button></div><p class="lead">Le idee per i prossimi post, da spuntare quando sono sviluppate. Le vedono tutti: sono salvate nella cartella Social.</p><form pgs="box form flex['column' 'gapParagraphs']" id="idea-form" novalidate>${field('Nuova idea',`<input pgs="input" id="idea-text" maxlength="500" autocomplete="off" placeholder=" " value="${escape(draft.text)}" ${disabled(state.loading)}>`)}${field('Appunti <span class="optional">(facoltativo)</span>',`<textarea pgs="textarea" id="idea-notes" rows="2" maxlength="10000" placeholder=" " ${disabled(state.loading)}>${escape(draft.notes||'')}</textarea>`,'Spunti e promemoria per chi svilupperà l’idea: non finiscono nel post.')}<div pgs="flex['row' 'wrap' 'itemCenter' 'justifyBetween' 'gapParagraphs']">${ideaChips('idea-channel',draft.channels)}<button pgs="button['btnStrong']" type="submit" id="idea-add" ${disabled(state.loading||!draft.text.trim())}>${icon('plus')}<span>Aggiungi</span></button></div></form>${errorBox()}${state.ideas===null?`<p class="hint">${state.ideasLoading?'Caricamento delle idee…':''}</p>`:`${section('Da sviluppare',todo,'Nessuna idea da sviluppare. Scrivine una qui sopra.')}${done.length?section('Sviluppate',done,''):''}`}`;
  footer.innerHTML=`<button pgs="button['btnTransparent']" id="ideas-home" type="button" ${disabled(state.loading)}>${icon('arrowLeft')}<span>Torna alla home</span></button>`;
  document.getElementById('ideas-home').addEventListener('click',goHome);
  document.getElementById('ideas-refresh').addEventListener('click',loadIdeas);
  const text=document.getElementById('idea-text'),add=document.getElementById('idea-add');
  text.addEventListener('input',()=>{draft.text=text.value;add.disabled=state.loading||!draft.text.trim();});
+ document.getElementById('idea-notes').addEventListener('input',event=>{draft.notes=event.target.value;});
+ // Invio nel titolo aggiunge l'idea; negli appunti va a capo
+ text.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();document.getElementById('idea-form').requestSubmit();}});
  main.querySelectorAll('[name=idea-channel]').forEach(input=>input.addEventListener('change',()=>{draft.channels=[...main.querySelectorAll('[name=idea-channel]:checked')].map(x=>x.value);}));
  document.getElementById('idea-form').addEventListener('submit',async event=>{
   event.preventDefault();if(state.loading||!draft.text.trim())return;
-  await changeIdea({action:'add',text:draft.text,channels:draft.channels},()=>{state.ideaDraft={text:'',channels:[]};},'Idea aggiunta');
+  await changeIdea({action:'add',text:draft.text,notes:draft.notes||'',channels:draft.channels},()=>{state.ideaDraft={text:'',notes:'',channels:[]};},'Idea aggiunta');
   document.getElementById('idea-text')?.focus();
  });
  main.querySelectorAll('[data-idea]').forEach(row=>{
   const idea=list.find(i=>i.id===row.dataset.idea);if(!idea)return;
   row.querySelector('[data-idea-done]').addEventListener('change',event=>changeIdea({action:'update',id:idea.id,done:event.target.checked}));
-  row.querySelector('[data-idea-edit]').addEventListener('click',event=>openIdeaModal(idea,event.currentTarget));
+  const title=row.querySelector('[data-idea-open]');
+  row.addEventListener('click',event=>{if(state.loading||event.target.closest('button:not([data-idea-open]),input,label,a'))return;openIdeaModal(idea,title);});
   row.querySelector('[data-idea-delete]').addEventListener('click',event=>confirmDeleteIdea(idea,event.currentTarget));
   row.querySelector('[data-idea-create]')?.addEventListener('click',()=>createFromIdea(idea));
  });
@@ -895,15 +903,19 @@ async function changeIdea(input,onDone,successTitle=''){
 }
 function openIdeaModal(idea,opener){
  if(anyModalOpen())return;
- const body=`<div pgs="form flex['column' 'gapParagraphs']">${field('Idea',`<input pgs="input" id="idea-edit-text" maxlength="500" autocomplete="off" required placeholder=" " value="${escape(idea.text)}">`)}${ideaChips('idea-edit-channel',idea.channels)}</div><div id="idea-edit-error" role="alert" hidden></div><div pgs="flex['row' 'justifyEnd' 'gapParagraphs']"><button pgs="button" type="button" id="idea-edit-cancel">Annulla</button><button pgs="button['btnStrong']" type="submit" id="idea-edit-save">Salva</button></div>`;
- const modal=createModal({title:'Modifica idea',titleId:'idea-edit-title',body,size:'dialogMedium',form:true,onClose:()=>{if(opener?.isConnected)opener.focus({preventScroll:true});}});
- const dialog=modal.dialog,input=dialog.querySelector('#idea-edit-text'),save=dialog.querySelector('#idea-edit-save'),message=dialog.querySelector('#idea-edit-error');
+ const dates=[idea.createdAt?`Aggiunta il ${shortDate(idea.createdAt)}`:'',idea.done&&idea.doneAt?`sviluppata il ${shortDate(idea.doneAt)}`:'',!idea.done&&idea.updatedAt&&idea.updatedAt!==idea.createdAt?`modificata il ${shortDate(idea.updatedAt)}`:''].filter(Boolean).join(' · ');
+ const body=`${dates?`<p pgs="flex['row' 'itemCenter' 'gapDetails']" class="hint">${icon('calendar')}<span>${escape(dates)}</span></p>`:''}<div pgs="form flex['column' 'gapParagraphs']">${field('Titolo',`<input pgs="input" id="idea-edit-text" maxlength="500" autocomplete="off" required placeholder=" " value="${escape(idea.text)}">`)}${field('Appunti',`<textarea pgs="textarea" id="idea-edit-notes" rows="8" maxlength="10000" placeholder=" ">${escape(idea.notes||'')}</textarea>`,'Testo semplice, senza formattazione: non finisce nel post.')}${ideaChips('idea-edit-channel',idea.channels)}</div><div id="idea-edit-error" role="alert" hidden></div><div pgs="flex['row' 'justifyEnd' 'gapParagraphs']"><button pgs="button" type="button" id="idea-edit-cancel">Annulla</button><button pgs="button['btnStrong']" type="submit" id="idea-edit-save">${icon('save')}<span>Salva</span></button></div>`;
+ const channels=d=>[...d.querySelectorAll('[name=idea-edit-channel]:checked')].map(x=>x.value);
+ let dialogRef=null;
+ const changed=()=>dialogRef&&(dialogRef.querySelector('#idea-edit-text').value!==idea.text||dialogRef.querySelector('#idea-edit-notes').value!==(idea.notes||'')||channels(dialogRef).join()!==idea.channels.join());
+ const modal=createModal({title:'Idea',titleId:'idea-edit-title',body,size:'dialogMedium',form:true,beforeClose:async()=>!changed()||confirmDiscardEdit('Chiudere senza salvare?','Le modifiche a questa idea andranno perse.'),onClose:()=>{if(opener?.isConnected)opener.focus({preventScroll:true});}});
+ const dialog=dialogRef=modal.dialog,input=dialog.querySelector('#idea-edit-text'),save=dialog.querySelector('#idea-edit-save'),message=dialog.querySelector('#idea-edit-error');
  input.addEventListener('input',()=>{save.disabled=!input.value.trim();});
- dialog.querySelector('#idea-edit-cancel').addEventListener('click',()=>modal.close());
+ dialog.querySelector('#idea-edit-cancel').addEventListener('click',()=>modal.request());
  dialog.querySelector('form').addEventListener('submit',async event=>{
   event.preventDefault();if(modal.busy||!input.value.trim())return;
   modal.busy=true;save.disabled=true;setAlert(message,'');
-  try{const result=await call('changeIdea',{action:'update',id:idea.id,text:input.value,channels:[...dialog.querySelectorAll('[name=idea-edit-channel]:checked')].map(x=>x.value)});state.ideas=result.ideas;modal.busy=false;modal.close();render();}
+  try{const result=await call('changeIdea',{action:'update',id:idea.id,text:input.value,notes:dialog.querySelector('#idea-edit-notes').value,channels:channels(dialog)});state.ideas=result.ideas;modal.busy=false;modal.close();render();globalThis.pgs?.toast.success({title:'Idea salvata',description:result.idea?.text||'',timeout:3000,closeTitle:'Chiudi'});bringToastToFront();}
   catch(e){modal.busy=false;save.disabled=false;setAlert(message,e.message);}
  });
  modal.open();input.focus();

@@ -267,8 +267,24 @@ main{--page-bottom:var(--gap-elements)}
 .post-group.has-selected:not([pgs-state~="open"])>.group-summary{background:var(--row-selected);border-radius:var(--borderRadius-details)}
 /* Modifica post nella modale: pulsanti di salvataggio sempre visibili in fondo */
 /* Idee */
-.idea-text{white-space:pre-line;overflow-wrap:anywhere;font-weight:600}
-.idea-done .idea-text{text-decoration:line-through;color:var(--color-gray,#626d7b);font-weight:400}
 .idea-check{flex:none;margin-top:.15em}
 .idea-social .social-icon{--icon-size:1.1em}
 .idea-list{list-style:none;padding:0;margin:0}
+.idea-item{cursor:pointer}
+.idea-heading{min-width:0;flex:1 1 0}
+.idea-title{text-align:left}
+.idea-done .idea-title{text-decoration:line-through;color:var(--color-gray,#626d7b);font-weight:400}
+.idea-meta{min-width:0}
+.idea-socials{flex:none}
+.idea-notes{min-width:0;flex:1 1 auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#idea-form textarea,#idea-edit-notes{resize:vertical}
+/* Home: riquadro con Tutti i post / Post in bozza, Crea nuovo post a destra, Idee sotto a tutta larghezza */
+.home-pair{padding:0;overflow:hidden;gap:0}
+.home-row{width:100%;flex:1 1 0;padding:var(--padding-paragraphs) var(--padding-elements);background:transparent;border-radius:0;text-align:left}
+.home-row:hover:not(:disabled){transform:none;box-shadow:none;background:color-mix(in srgb,var(--color-black) 4%,transparent)}
+.home-row img,.home-ideas img{width:80px;max-width:80px;flex:none}
+.home-actions>#create-new img{max-width:170px}
+.home-divider{margin:0 var(--padding-elements);border:0;border-top:var(--border-width,1px) solid var(--border-color)}
+.home-ideas{width:100%;text-align:left;padding-block:var(--padding-paragraphs)}
+:root[pgs-state~=darkmode] .home-row:hover:not(:disabled){background:rgba(255,255,255,.06)}
+@media(max-width:660px){.home-row img,.home-ideas img{width:64px;max-width:64px}}

@@ -35,6 +35,16 @@ test('idee: elenco vuoto senza file, aggiunta, modifica, fatta e eliminazione',a
  assert.deepEqual((await fs.readdir(path.join(root,'00_template'))).filter(n=>n.includes('.tmp')||n.includes('.lock')),[]);
 });
 
+test('idee: appunti in testo semplice, a capo conservati, modificabili e svuotabili',async t=>{
+ const root=await seed(t);
+ const a=await changeIdea(root,{action:'add',text:'Intervista',notes:'Chiedere a Marta\n- foto in sede\n**non grassetto**  \n\n'});
+ assert.equal(a.idea.notes,'Chiedere a Marta\n- foto in sede\n**non grassetto**');
+ const b=await changeIdea(root,{action:'add',text:'Senza appunti'});assert.equal(b.idea.notes,'');
+ const u=await changeIdea(root,{action:'update',id:a.idea.id,notes:''});assert.equal(u.idea.notes,'');assert.equal(u.idea.text,'Intervista');
+ await assert.rejects(changeIdea(root,{action:'update',id:a.idea.id,notes:'x'.repeat(10001)}),/troppo lunghi/);
+ await assert.rejects(changeIdea(root,{action:'update',id:a.idea.id,notes:42}),/Appunti non validi/);
+});
+
 test('idee: testo vuoto, troppo lungo, social non valido e idea già eliminata',async t=>{
  const root=await seed(t);
  await assert.rejects(changeIdea(root,{action:'add',text:'   '}),/Scrivi il testo/);
