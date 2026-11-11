@@ -251,3 +251,24 @@ main{--page-bottom:var(--gap-elements)}
 .field-error{color:var(--color-error)}
 :is([pgs~=header],[pgs*="header["]){--header-background:transparent}
 .post-date{white-space:nowrap}
+/* Toast di attesa (popover sopra le modali): icona che gira, passo in corso e barra di avanzamento */
+#toast-host[popover]{margin:0;border:0;background:transparent;color:inherit;width:auto;height:auto;max-width:none;max-height:none;overflow:visible}
+.toast-spinner{display:block;width:1.25em;height:1.25em;border-radius:50%;border:.18em solid color-mix(in srgb,currentColor 20%,transparent);border-top-color:var(--color-success);animation:toast-spin .8s linear infinite}
+@keyframes toast-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.toast-spinner{animation-duration:2.4s}}
+.progress-toast{min-width:min(340px,calc(100vw - 32px))}
+.progress-toast [pgs~="_alert-dismiss"]{display:none}
+.toast-step{font-size:.85em;color:var(--color-gray,#626d7b)}
+.toast-progress{height:6px;margin-top:.5em;border-radius:3px;overflow:hidden;background:color-mix(in srgb,currentColor 12%,transparent)}
+.toast-progress>span{display:block;height:100%;width:0;border-radius:inherit;background:var(--color-success);transition:width .35s ease}
+/* Riga dell'ultimo post aperto: resta evidenziata come un file appena aperto */
+.draft-list{--row-selected:color-mix(in srgb,var(--color-info) 14%,transparent)}
+.draft-item.is-selected{background:var(--row-selected);border-radius:var(--borderRadius-details)}
+.post-group.has-selected:not([pgs-state~="open"])>.group-summary{background:var(--row-selected);border-radius:var(--borderRadius-details)}
+/* Modifica post nella modale: pulsanti di salvataggio sempre visibili in fondo */
+/* Idee */
+.idea-text{white-space:pre-line;overflow-wrap:anywhere;font-weight:600}
+.idea-done .idea-text{text-decoration:line-through;color:var(--color-gray,#626d7b);font-weight:400}
+.idea-check{flex:none;margin-top:.15em}
+.idea-social .social-icon{--icon-size:1.1em}
+.idea-list{list-style:none;padding:0;margin:0}

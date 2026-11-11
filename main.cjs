@@ -20,6 +20,7 @@ const update=require('./lib/update.cjs');
 const relink=require('./lib/relink.cjs');
 const {regenerateSource}=require('./lib/regenerate.cjs');
 const {planAddChannel,addChannel}=require('./lib/addchannel.cjs');
+const ideas=require('./lib/ideas.cjs');
 if(process.env.SOCIAL_TEST_USER_DATA)app.setPath('userData',process.env.SOCIAL_TEST_USER_DATA);
 let window,root='',busy=false,lastResult=null,startupFailed=false;
 // Registro di avvio: aiuta a capire perché l'app non si apre (es. su Windows/NAS).
@@ -52,6 +53,8 @@ function errorMessage(e){
  if(e.code==='ENOENT')return{code:'MISSING',message:'Un file o una cartella non è più disponibile. Verifica il collegamento al NAS e riprova.'};
  return{code:'ERROR',message:e.message||'Non riesco a completare l’operazione. Nessun post è stato creato.'};
 }
+// Avanzamento delle operazioni lunghe (creazione, salvataggio, eliminazione…): il renderer lo mostra nel toast.
+const progress=(step,total,label)=>{if(window&&!window.isDestroyed())window.webContents.send('social:progress',{step,total,label});};
 function endpoint(name,handler){ipcMain.handle(name,async(event,...args)=>{
  if(event.sender!==window.webContents||event.senderFrame?.url!==page)return{ok:false,error:{code:'ACCESS',message:'Richiesta non valida.'}};
  try{return{ok:true,value:await handler(...args)};}catch(e){return{ok:false,error:errorMessage(e)};}
@@ -147,7 +150,7 @@ else{
   endpoint('social:update-status',async input=>{
    if(busy)throw new PostError('BUSY','Un’operazione è già in corso.');
    busy=true;
-   try{const plan=await planPostStatus(root,input);if(!plan.changed)return plan;return await savePostStatus(root,input);}finally{busy=false;}
+   try{const plan=await planPostStatus(root,input);if(!plan.changed)return plan;return await savePostStatus(root,input,{progress});}finally{busy=false;}
   });
   endpoint('social:delete-post',async input=>{
    if(busy)throw new PostError('BUSY','Un’operazione è già in corso.');
@@ -156,7 +159,7 @@ else{
     const plan=await planDeletePost(root,input);
     const confirmation=await dialog.showMessageBox(window,{type:'warning',title:'Elimina post',message:`Eliminare “${plan.title}” per ${plan.channel}?`,detail:`Verrà rimossa solo questa riga dal piano editoriale. ${plan.partial?(plan.trashRelative?`La cartella è condivisa con gli altri social: solo i file di ${plan.channel} (${plan.movedFiles.length}) saranno spostati in:\n${plan.trashRelative}`:`La cartella è condivisa con gli altri social e non contiene file di ${plan.channel}: nessun file verrà spostato.`):`La cartella del post sarà spostata in:\n${plan.trashRelative}`}\n\nGli altri social dello stesso post resteranno invariati.\nLe modifiche non salvate in questa schermata verranno scartate.`,buttons:['Annulla','Elimina'],defaultId:0,cancelId:0,noLink:true});
     if(confirmation.response!==1)return{canceled:true};
-    return await deletePost(root,input,plan.fingerprint);
+    return await deletePost(root,input,plan.fingerprint,{progress});
    }finally{busy=false;}
   });
   endpoint('social:plan-edit',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return planPostEdit(root,input);});
@@ -168,19 +171,19 @@ else{
     const plan=await planPostEdit(root,input);
     if(plan.fingerprint!==fingerprint)throw new PostError('CHANGED','I dati o i file sono cambiati. Controlla di nuovo il riepilogo.');
     
-    return await savePostEdit(root,input,fingerprint);
+    return await savePostEdit(root,input,fingerprint,{progress});
    }finally{busy=false;}
   });
   endpoint('social:plan-date',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return planDraftDate(root,input);});
   endpoint('social:update-date',async(input,fingerprint)=>{
    if(busy)throw new PostError('BUSY','Un’operazione è già in corso.');
    if(typeof fingerprint!=='string'||fingerprint.length!==64)throw new PostError('INPUT','Controlla di nuovo il riepilogo.');
-   busy=true;try{return await updateDraftDate(root,input,fingerprint);}finally{busy=false;}
+   busy=true;try{return await updateDraftDate(root,input,fingerprint,{progress});}finally{busy=false;}
   });
   endpoint('social:create',async(input,fingerprint)=>{
    if(busy)throw new PostError('BUSY','La creazione è già in corso.');
    if(typeof fingerprint!=='string'||fingerprint.length!==64)throw new PostError('INPUT','Aggiorna il riepilogo prima di creare il post.');
-   busy=true;try{lastResult=await createPost(root,input,fingerprint);return lastResult;}finally{busy=false;}
+   busy=true;try{lastResult=await createPost(root,input,fingerprint,{progress});return lastResult;}finally{busy=false;}
   });
   // Rigenera sorgente: ricrea il file Illustrator o di testo mancante (mai sovrascrivendo)
   endpoint('social:set-theme',async dark=>{nativeTheme.themeSource=dark===true?'dark':'light';return true;});
@@ -191,10 +194,13 @@ else{
     const plan=await planAddChannel(root,{key:input?.key,revision:input?.revision,channel:input?.channel,format:input?.format});
     const confirmation=await dialog.showMessageBox(window,{type:'question',title:'Aggiungi social',message:`Creare “${plan.title}” anche per ${plan.channel}?`,detail:`Verrà aggiunta una riga ${plan.channel} con lo stesso ID (${plan.id}) e lo stato “testi da creare”. Nella cartella del post verranno creati ${plan.files.join(' e ')}${plan.aiExists||plan.mdExists?' (i file già presenti restano come sono)':''}.`,buttons:['Annulla','Sì, crea'],defaultId:0,cancelId:0,noLink:true});
     if(confirmation.response!==1)return{canceled:true};
-    return await addChannel(root,{key:input.key,revision:input.revision,channel:input.channel,format:input.format});
+    return await addChannel(root,{key:input.key,revision:input.revision,channel:input.channel,format:input.format},{progress});
    }finally{busy=false;}
   });
   endpoint('social:regenerate-source',async input=>{if(busy)throw new PostError('BUSY','Un’operazione è già in corso.');busy=true;try{return await regenerateSource(root,input);}finally{busy=false;}});
+  // Idee: to do list condivisa in 00_template/idee.json
+  endpoint('social:ideas',async()=>ideas.listIdeas(root));
+  endpoint('social:idea',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return ideas.changeIdea(root,input);});
   // Ricollega cartella: post con la cartella rinominata a mano
   endpoint('social:missing-folders',async()=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return relink.missingFolders(root);});
   endpoint('social:relink-candidates',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return relink.relinkCandidates(root,input);});

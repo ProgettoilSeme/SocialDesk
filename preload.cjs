@@ -34,4 +34,8 @@ contextBridge.exposeInMainWorld('socialAPI',{
  addChannel:input=>ipcRenderer.invoke('social:add-channel',input),
  setTheme:dark=>ipcRenderer.invoke('social:set-theme',dark===true),
  installUpdate:()=>ipcRenderer.invoke('social:install-update'),
+ ideas:()=>ipcRenderer.invoke('social:ideas'),
+ changeIdea:input=>ipcRenderer.invoke('social:idea',input),
+ // avanzamento delle operazioni lunghe: {step,total,label}
+ onProgress:callback=>{const listener=(event,data)=>callback(data);ipcRenderer.on('social:progress',listener);return()=>ipcRenderer.removeListener('social:progress',listener);},
 });
