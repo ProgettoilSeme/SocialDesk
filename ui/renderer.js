@@ -155,10 +155,17 @@ async function submit(){
  finally{state.loading=false;render();}
 }
 function renderSuccess(){
- const r=state.result,single=new Set(r.created.map(f=>f.path)).size===1,folders=single?r.created.slice(0,1):r.created;
- main.innerHTML=`<div pgs="alert['alertSuccess']" role="status"><i pgs="icon['icon-circleCheck'] alert-icon" aria-hidden="true"></i><div pgs="alert-content"><h1 pgs="alert-content-title h3">Post creato</h1><p>${single?(r.channels.length===1?'La cartella e la riga Excel sono pronte.':'La cartella e le righe Excel sono pronte.'):'Le '+r.channels.length+' cartelle e le righe Excel sono pronte.'}</p></div></div><dl pgs="box" class="review"><dt>Titolo</dt><dd>${escape(r.title)}</dd><dt>ID post</dt><dd>${r.id}</dd><dt>Anno</dt><dd>${r.year}</dd>${single?`<dt>Social</dt><dd>${escape(r.channels.join(', '))}</dd><dt>Cartella</dt><dd class="path">${escape(r.created[0].path)}</dd>`:''}</dl>${single?'':`<div pgs="grid['column-3' 'gapParagraphs']">${r.created.map(f=>channelCard(f.channel,`<p class="path">${escape(f.path)}</p>`)).join('')}</div>`}<div pgs="flex['row' 'wrap' 'gapParagraphs']">${folders.map(f=>`<button pgs="button" data-open-post="${escape(f.channel)}" type="button">${icon('folderOpen')}<span>${folders.length===1?'Apri cartella del post':'Apri cartella '+escape(f.channel)}</span></button>`).join('')}<button pgs="button['btnStrong']" id="new-post" type="button">${icon('plus')}<span>Crea un altro post</span></button></div><div id="error" role="alert"></div>`;
+ const r=state.result,single=new Set(r.created.map(f=>f.path)).size===1;
+ main.innerHTML=`<div pgs="alert['alertSuccess']" role="status"><i pgs="icon['icon-circleCheck'] alert-icon" aria-hidden="true"></i><div pgs="alert-content"><h1 pgs="alert-content-title h3">Post creato</h1><p>${single?(r.channels.length===1?'La cartella e la riga Excel sono pronte.':'La cartella e le righe Excel sono pronte.'):'Le '+r.channels.length+' cartelle e le righe Excel sono pronte.'}</p></div></div><dl pgs="box" class="review"><dt>Titolo</dt><dd>${escape(r.title)}</dd><dt>ID post</dt><dd>${r.id}</dd><dt>Anno</dt><dd>${r.year}</dd>${single?`<dt>Social</dt><dd>${escape(r.channels.join(', '))}</dd><dt>Cartella</dt><dd class="path">${escape(r.created[0].path)}</dd>`:''}</dl>${single?'':`<div pgs="grid['column-3' 'gapParagraphs']">${r.created.map(f=>channelCard(f.channel,`<p class="path">${escape(f.path)}</p>`)).join('')}</div>`}<div pgs="flex['row' 'wrap' 'gapParagraphs']"><button pgs="button" data-created-open="edit" type="button">${icon('pencil')}<span>Modifica post</span></button><button pgs="button" data-created-open="details" type="button">${icon('eye')}<span>Visualizza post</span></button><button pgs="button['btnStrong']" id="new-post" type="button">${icon('plus')}<span>Crea un altro post</span></button></div><div id="error" role="alert"></div>`;
  footer.innerHTML=`<span pgs="badge['badgeSuccess']">${icon('check')}Creazione completata</span>`;
- document.querySelectorAll('[data-open-post]').forEach(button=>button.addEventListener('click',async()=>{button.disabled=true;try{await call('openResult',button.dataset.openPost);}catch(e){error(e.message);}finally{button.disabled=false;}}));
+ // Modifica / Visualizza: carica Tutti i post e apre la riga appena creata (il primo social scelto; gli altri dallo switch dei Dettagli).
+ document.querySelectorAll('[data-created-open]').forEach(button=>button.addEventListener('click',async()=>{
+  const kind=button.dataset.createdOpen,created={year:r.year,id:r.id,channel:r.channels[0]};
+  await loadList('posts');
+  const post=state.drafts.find(p=>p.year===created.year&&String(p.id)===String(created.id)&&p.channel===created.channel);
+  if(!post){error('Non trovo il post appena creato nell’elenco: aggiorna l’elenco.');return;}
+  if(kind==='edit')openPostEditor(post);else openPostDetails(post,null);
+ }));
  document.getElementById('new-post').addEventListener('click',()=>{state.step=0;state.visited=0;state.post=initialPost();state.plan=null;state.result=null;state.error='';render();});
 }
 async function goHome(){if(state.loading||!await confirmLeave())return;state.route='home';state.error='';state.notice='';state.selected=null;render();window.scrollTo({top:0});refreshUpdate();}
@@ -382,11 +389,16 @@ function renderDrafts(){
  main.querySelectorAll('[data-change-status]').forEach(button=>button.addEventListener('click',()=>{
   const post=state.drafts.find(d=>d.key===button.dataset.changeStatus);if(post)openStatusModal(post,button);
  }));
- main.querySelectorAll('[data-draft]').forEach(button=>button.addEventListener('click',async()=>{
+ main.querySelectorAll('[data-draft]').forEach(button=>button.addEventListener('click',()=>{
+  const post=state.drafts.find(d=>d.key===button.dataset.draft);if(post){button.disabled=true;openPostEditor(post);}
+ }));
+}
+// Apre Modifica post per una riga dell'elenco (dall'elenco, dai Dettagli o dopo la creazione).
+async function openPostEditor(post){
   if(state.loading)return;
   state.editReturn={route:state.listMode,scrollY:window.scrollY};
-  state.selected=state.drafts.find(d=>d.key===button.dataset.draft);
-  const d=state.selected;state.loading=true;button.disabled=true;
+  state.selected=post;
+  const d=state.selected;state.loading=true;
   let editable=null,note='';state.editFolderMissing=false;
   try{
    const details=await call('details',{key:d.key,revision:state.revision});
@@ -397,7 +409,6 @@ function renderDrafts(){
   if(editable){state.editValues.postText=editable.content.replace(/\r\n/g,'\n');state.editValues.textName=editable.name;state.editValues.textRevision=editable.revision;}
   state.editOriginal={...state.editValues};
   state.editTextNote=note;state.error='';state.loading=false;state.route='edit-post';render();window.scrollTo({top:0});
- }));
 }
 // il menu compatto dell'header è una modale myPgs dentro <header>: non blocca la navigazione
 const anyModalOpen=()=>[...document.querySelectorAll('dialog[open]')].some(dialog=>!dialog.closest('header'));
@@ -467,10 +478,11 @@ function openPostDetails(post,opener){
  if(anyModalOpen())return;
  let disposeArtwork=()=>{};
  // Switch dei social in alto; a sinistra informazioni e testo, a destra la grafica.
- const body=`${detailsSwitch(post)}<div pgs="grid['column-2' 'gapGroups' 'itemStart']" class="details-layout"><div pgs="flex['column' 'gapGroups']" class="details-left"><section id="details-metadata" pgs="flex['column' 'gapElements']">${detailsMetadata(post)}</section><section pgs="flex['column' 'gapElements']" class="details-text-section" aria-label="Testo del post"><h3 pgs="h5">Testo del post</h3><div id="details-text" pgs="flex['column' 'gapElements']" aria-live="polite"><p class="hint">Caricamento del testo…</p></div></section></div><section pgs="flex['column' 'gapElements']" class="details-text-section details-artwork-section" aria-label="Grafica del post"><h3 pgs="h5">Grafica del post</h3><div id="details-artwork" pgs="flex['column' 'gapParagraphs']"></div></section></div>`;
+ const body=`${detailsSwitch(post)}<div pgs="grid['column-2' 'gapGroups' 'itemStart']" class="details-layout"><div pgs="flex['column' 'gapGroups']" class="details-left"><section id="details-metadata" pgs="flex['column' 'gapElements']">${detailsMetadata(post)}</section><section pgs="flex['column' 'gapElements']" class="details-text-section" aria-label="Testo del post"><h3 pgs="h5">Testo del post</h3><div id="details-text" pgs="flex['column' 'gapElements']" aria-live="polite"><p class="hint">Caricamento del testo…</p></div></section></div><section pgs="flex['column' 'gapElements']" class="details-text-section details-artwork-section" aria-label="Grafica del post"><h3 pgs="h5">Grafica del post</h3><div id="details-artwork" pgs="flex['column' 'gapParagraphs']"></div></section></div><div pgs="flex['row' 'justifyEnd']"><button pgs="button['btnStrong']" id="details-edit" type="button">${icon('pencil')}<span>Modifica</span></button></div>`;
  const modal=createModal({titleHtml:`<span class="modal-title-muted">Dettagli post</span> <span id="details-post-title">${escape(post.title)}</span>`,titleId:'details-modal-title',body,size:'dialogFull',onClose:()=>{disposeArtwork();document.body.classList.remove('details-modal-open');if(opener?.isConnected)opener.focus({preventScroll:true});}});
  const dialog=modal.dialog;dialog.id='post-details-modal';dialog.classList.add('post-details-modal');
  document.body.classList.add('details-modal-open');
+ dialog.querySelector('#details-edit').addEventListener('click',()=>{modal.close();openPostEditor(post);});
  dialog.querySelectorAll('[data-switch-post]').forEach(button=>button.addEventListener('click',()=>{
   const other=(state.drafts||[]).find(p=>p.key===button.dataset.switchPost);
   if(!other||other.key===post.key)return;
