@@ -79,7 +79,7 @@ const os = require('node:os');
   // Mac/SocialDesk.app, Mac/SocialDesk-Mac.zip (= SocialDesk-Mac-arm64.zip, usato dall'aggiornamento:
   // un solo file dal NAS) e Windows/SocialDesk-Setup-<versione>.exe: l'app lo legge per proporre
   // l'aggiornamento. Note facoltative con SOCIAL_NOTES="...".
-  const manifest = { version: pkg.version, mac: 'Mac/SocialDesk.app', macZip: 'Mac/SocialDesk-Mac.zip', windows: `Windows/${pkg.productName}-Setup-${pkg.version}.exe`, notes: process.env.SOCIAL_NOTES || '' };
+  const manifest = { version: pkg.version, macZip: 'Mac/SocialDesk-Mac.zip', windows: `Windows/${pkg.productName}-Setup-${pkg.version}.exe`, notes: process.env.SOCIAL_NOTES || '' };
   await fs.writeFile(path.join(out, 'versione.json'), JSON.stringify(manifest, null, 2) + '\n');
   console.log(path.join(out, 'versione.json'));
 })().catch(error => { console.error(error); process.exitCode = 1; });
