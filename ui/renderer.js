@@ -5,7 +5,7 @@ const api=window.socialAPI;
 document.documentElement.dataset.platform=/Mac/i.test(navigator.platform)?'mac':'other';
 const localToday=()=>{const d=new Date();return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
 const initialPost=()=>({channels:[],title:'',topic:'',channelFormats:{},channelDates:{},year:String(new Date().getFullYear())});
-const state={route:'home',step:0,visited:0,root:'',rootValid:false,post:initialPost(),plan:null,result:null,error:'',loading:false,drafts:[],revision:'',selected:null,notice:'',filterYear:String(new Date().getFullYear()),filterChannels:['Facebook','LinkedIn','Instagram'],filterStatus:'',filterMonth:'',groupById:true,hidePublished:true,expandedGroups:new Set(),years:[],listMode:'drafts',editValues:null,editOriginal:null,settings:null,highlight:null,editModal:null,ideas:null,ideaDraft:{text:'',notes:'',channels:[]},ideasLoading:false};
+const state={route:'home',step:0,visited:0,root:'',rootValid:false,post:initialPost(),plan:null,result:null,error:'',loading:false,drafts:[],revision:'',selected:null,notice:'',filterYear:String(new Date().getFullYear()),filterChannels:['Facebook','LinkedIn','Instagram'],filterStatus:'',filterMonth:'',filterSearch:'',groupById:true,hidePublished:true,expandedGroups:new Set(),years:[],listMode:'drafts',editValues:null,editOriginal:null,settings:null,highlight:null,editModal:null,ideas:null,ideaDraft:{text:'',notes:'',channels:[]},ideasLoading:false};
 const main=document.getElementById('main'),footer=document.getElementById('footer'),progress=document.getElementById('progress');
 const CHANNELS=['Facebook','Instagram','LinkedIn'];
 // Tema: myPgs lo salva e lo applica; le finestre di sistema (conferme, dialoghi) lo seguono.
@@ -409,7 +409,7 @@ async function loadList(kind){
  if(!state.rootValid){error('Configura prima la cartella Social in Impostazioni.');return;}
  const reset=state.route==='home'||state.listMode!==kind;
  state.loading=true;state.error='';render();
- try{const result=await call('posts');state.drafts=result.posts;state.hidePublished=kind==='drafts';state.revision=result.revision;state.years=result.years||[];state.route=kind;state.listMode=kind;state.selected=null;if(reset){state.highlight=null;state.filterYear=String(new Date().getFullYear());state.filterChannels=['Facebook','LinkedIn','Instagram'];state.filterStatus='';state.filterMonth='';}}
+ try{const result=await call('posts');state.drafts=result.posts;state.hidePublished=kind==='drafts';state.revision=result.revision;state.years=result.years||[];state.route=kind;state.listMode=kind;state.selected=null;if(reset){state.highlight=null;state.filterYear=String(new Date().getFullYear());state.filterChannels=['Facebook','LinkedIn','Instagram'];state.filterStatus='';state.filterMonth='';state.filterSearch='';}}
  catch(e){state.error=e.message;}
  finally{state.loading=false;render();}
  refreshMissing();
@@ -436,28 +436,66 @@ function renderPostGroup(group){
 function groupStatusDots(posts){
  return `<span pgs="flex['row' 'wrap' 'itemCenter' 'justifyEnd' 'gapDetails']" class="group-status-badges">${posts.map(p=>`<span pgs="badge" class="status-badge group-status-badge" data-status="${SocialPostFilters.statusTone(p.status)}" title="${escape(p.channel+': '+(p.status||'stato non indicato'))}">${socialIcon(p.channel)}<span>${escape(p.status||'Non indicato')}</span><span pgs="visuallyHidden"> (${escape(p.channel)})</span></span>`).join('')}</span>`;
 }
+// Filtri dell'elenco senza la ricerca (usati anche per contare i risultati negli altri anni)
+function listFilters(year=state.filterYear,month=state.filterMonth){return{year,channels:state.filterChannels,status:state.filterStatus,month,hidePublished:state.hidePublished};}
+function listItems(){return state.drafts.filter(d=>SocialPostFilters.matchesPost(d,listFilters())&&SocialPostFilters.matchesSearch(d,state.filterSearch));}
+// Risultati: conteggio, eventuali risultati negli altri anni e righe. Si ridisegna da solo mentre si scrive nella ricerca.
+function listResults(){
+ const items=listItems(),query=state.filterSearch.trim();
+ const groups=(state.groupById?SocialPostFilters.groupById(items):items.map(post=>({key:post.key,posts:[post]}))).reverse();
+ const rows=groups.map(group=>group.posts.length>1?renderPostGroup(group):renderPostRow(group.posts[0])).join('');
+ let elsewhere='';
+ if(query){
+  const counts=new Map();
+  for(const d of state.drafts)if(String(d.year)!==state.filterYear&&SocialPostFilters.matchesPost(d,listFilters(String(d.year),''))&&SocialPostFilters.matchesSearch(d,query))counts.set(String(d.year),(counts.get(String(d.year))||0)+1);
+  const years=[...counts.keys()].sort().reverse();
+  if(years.length)elsewhere=`<p pgs="flex['row' 'wrap' 'itemCenter' 'gapDetails']" class="search-elsewhere"><span>Anche in altri anni:</span>${years.map(y=>`<button pgs="button['btnMini']" type="button" data-search-year="${escape(y)}" title="Mostra i risultati del ${escape(y)}">${escape(y)} <span pgs="badge['badgeNeutral']">${counts.get(y)}</span></button>`).join('')}</p>`;
+ }
+ const message=!state.filterChannels.length?'Seleziona almeno un social per visualizzare i post.':query?`Nessun post trovato per “${escape(query)}”${state.filterMonth?' in questo mese':''} nel ${escape(state.filterYear)}.`:'Nessun post per questi filtri.';
+ const empty=`<div pgs="alert['alertInfo']" class="empty-state"><i pgs="icon['icon-circleInfo'] alert-icon" aria-hidden="true"></i><div pgs="alert-content"><p>${message}</p></div></div>`;
+ return `<p class="draft-count"><span pgs="badge['badgeNeutral']">${items.length} post</span></p>${elsewhere}<div pgs="flex['column']" class="draft-list">${rows||empty}</div>`;
+}
+function bindListResults(root){
+ // l'accordion di myPgs scrive pgs-state="open": lo si legge dopo il suo listener per ricordare i gruppi aperti
+ root.querySelectorAll('[data-group-key]').forEach(group=>group.querySelector('[pgs~="accordion-button"]')?.addEventListener('click',()=>{const open=globalThis.pgs?globalThis.pgs(group).state.contains('open'):false;if(open)state.expandedGroups.add(group.dataset.groupKey);else state.expandedGroups.delete(group.dataset.groupKey);}));
+ root.querySelectorAll('[data-details]').forEach(summary=>summary.addEventListener('click',()=>{
+  const post=state.drafts.find(d=>d.key===summary.dataset.details);
+  if(post)openPostDetails(post,summary.querySelector('.post-title-button'));
+ }));
+ root.querySelectorAll('[data-change-status]').forEach(button=>button.addEventListener('click',()=>{
+  const post=state.drafts.find(d=>d.key===button.dataset.changeStatus);if(post)openStatusModal(post,button);
+ }));
+ root.querySelectorAll('[data-draft]').forEach(button=>button.addEventListener('click',()=>{
+  const post=state.drafts.find(d=>d.key===button.dataset.draft);if(post)openPostEditor(post,button);
+ }));
+ root.querySelectorAll('[data-search-year]').forEach(button=>button.addEventListener('click',()=>{state.filterYear=button.dataset.searchYear;state.filterMonth='';render();document.getElementById('post-search')?.focus({preventScroll:true});}));
+}
+function refreshListResults(){
+ const host=document.getElementById('list-results');if(!host)return;
+ host.innerHTML=listResults();enhance(host);bindListResults(host);
+}
 function renderDrafts(){
  const all=state.listMode==='posts',today=localToday(),year=today.slice(0,4);
  const years=[...new Set([year,...state.years.map(String),...state.drafts.map(d=>String(d.year))])].sort().reverse();
  if(!years.includes(state.filterYear))state.filterYear=year;
  const statuses=[...new Set([...STATUSES,...state.drafts.map(d=>d.status.trim().toLowerCase()).filter(Boolean)])].filter(status=>!state.hidePublished||status!=='pubblicato');
- const items=state.drafts.filter(d=>SocialPostFilters.matchesPost(d,{year:state.filterYear,channels:state.filterChannels,status:state.filterStatus,month:state.filterMonth,hidePublished:state.hidePublished}));
  const channels=['Facebook','LinkedIn','Instagram'];
+ const search=`<form pgs="search" role="search" class="post-search" id="post-search-form" autocomplete="off"><button pgs="button['btnIconOnly' 'btnTransparent']" type="submit" title="Cerca" tabindex="-1">${icon('magnifyingGlass')}</button><input type="search" id="post-search" placeholder="Cerca per titolo, argomento o ID" aria-label="Cerca nei post" value="${escape(state.filterSearch)}" maxlength="200" ${disabled(state.loading)}><ul pgs="search-suggestions"></ul></form>`;
  const chips=`<fieldset pgs="chips" class="channel-chips"><legend pgs="visuallyHidden">Filtra per canale</legend>${channels.map(channel=>`<label pgs="button['btnMini' 'btnTwoState']" class="channel-chip" data-channel="${channel}"><input type="checkbox" data-channel-filter="${channel}" ${state.filterChannels.includes(channel)?'checked':''} ${disabled(state.loading)}>${socialIcon(channel)}<span>${channel}</span></label>`).join('')}</fieldset>`;
  const select=(id,label,options,extra='')=>`<label pgs="flex['column']" class="toolbar-field"><span pgs="label">${label}</span><select pgs="select" id="${id}" ${extra} ${disabled(state.loading)}>${options}</select></label>`;
  const toolbar=`<div pgs="form flex['row' 'wrap' 'itemEnd' 'gapParagraphs']" class="posts-toolbar">${select('filter-year','Anno',years.map(y=>`<option ${state.filterYear===y?'selected':''}>${y}</option>`).join(''))}${select('filter-status','Stato',`<option value="">Tutti gli stati</option>${statuses.map(status=>`<option value="${escape(status)}" ${state.filterStatus===status?'selected':''}>${escape(status)}</option>`).join('')}<option value="__none" ${state.filterStatus==='__none'?'selected':''}>Non indicato</option>`,`class="status-filter" data-status="${state.filterStatus?SocialPostFilters.statusTone(state.filterStatus):'all'}"`)}${select('filter-month','Mese',`<option value="">Tutti i mesi</option>${MONTHS.map((name,index)=>{const value=String(index+1).padStart(2,'0');return `<option value="${value}" ${state.filterMonth===value?'selected':''}>${name}</option>`;}).join('')}`)}<label pgs="toggle" class="group-toggle"><span>Raggruppa per ID</span><input type="checkbox" id="group-by-id" ${state.groupById?'checked':''} ${disabled(state.loading)}></label></div>`;
- // i post più recenti (ultime righe del piano) in alto; dentro un gruppo i social restano nell'ordine del piano
- const groups=(state.groupById?SocialPostFilters.groupById(items):items.map(post=>({key:post.key,posts:[post]}))).reverse();
- const rows=groups.map(group=>group.posts.length>1?renderPostGroup(group):renderPostRow(group.posts[0])).join('');
- const empty=`<div pgs="alert['alertInfo']" class="empty-state"><i pgs="icon['icon-circleInfo'] alert-icon" aria-hidden="true"></i><div pgs="alert-content"><p>${state.filterChannels.length?'Nessun post per questi filtri.':'Seleziona almeno un social per visualizzare i post.'}</p></div></div>`;
- main.innerHTML=`<div pgs="flex['row' 'itemCenter' 'gapParagraphs']" class="list-heading"><h1 pgs="h2">${all?'Tutti i post':'Post in bozza'}</h1><button pgs="button['btnIconOnly']" id="refresh" type="button" aria-label="Aggiorna elenco" title="Aggiorna elenco" ${disabled(state.loading)}>${icon('refresh')}</button></div><p class="lead list-intro">${all?'Pubblicati e bozze. Modifica i dati del singolo social.':'Tutti i post non ancora pubblicati. Li trovi tutti, anche pubblicati, in Tutti i post.'}</p>${chips}${toolbar}${noticeBox()}<p class="draft-count"><span pgs="badge['badgeNeutral']">${items.length} post</span></p><div pgs="flex['column']" class="draft-list">${rows||empty}</div>${errorBox()}`;
+ main.innerHTML=`<div pgs="flex['row' 'itemCenter' 'gapParagraphs']" class="list-heading"><h1 pgs="h2">${all?'Tutti i post':'Post in bozza'}</h1><button pgs="button['btnIconOnly']" id="refresh" type="button" aria-label="Aggiorna elenco" title="Aggiorna elenco" ${disabled(state.loading)}>${icon('refresh')}</button></div><p class="lead list-intro">${all?'Pubblicati e bozze. Modifica i dati del singolo social.':'Tutti i post non ancora pubblicati. Li trovi tutti, anche pubblicati, in Tutti i post.'}</p>${search}${chips}${toolbar}${noticeBox()}<div pgs="flex['column' 'gapParagraphs']" id="list-results">${listResults()}</div>${errorBox()}`;
  footer.innerHTML=`<button pgs="button['btnTransparent']" id="home" type="button" ${disabled(state.loading)}>${icon('arrowLeft')}<span>Torna alla home</span></button>`;
  enhance(main);
+ bindListResults(main);
  document.getElementById('home').addEventListener('click',goHome);
  document.getElementById('refresh').addEventListener('click',()=>loadList(state.listMode));
+ const searchInput=document.getElementById('post-search');
+ // mentre si scrive si ridisegnano solo i risultati, così il campo non perde il cursore
+ const onSearch=()=>{if(state.filterSearch===searchInput.value)return;state.filterSearch=searchInput.value;refreshListResults();};
+ searchInput.addEventListener('input',onSearch);searchInput.addEventListener('search',onSearch);
+ document.getElementById('post-search-form').addEventListener('submit',event=>{event.preventDefault();onSearch();});
  document.getElementById('group-by-id')?.addEventListener('change',event=>{state.groupById=event.target.checked;render();document.getElementById('group-by-id')?.focus({preventScroll:true});});
- // l'accordion di myPgs scrive pgs-state="open": lo si legge dopo il suo listener per ricordare i gruppi aperti
- main.querySelectorAll('[data-group-key]').forEach(group=>group.querySelector('[pgs~="accordion-button"]')?.addEventListener('click',()=>{const open=globalThis.pgs?globalThis.pgs(group).state.contains('open'):false;if(open)state.expandedGroups.add(group.dataset.groupKey);else state.expandedGroups.delete(group.dataset.groupKey);}));
  document.getElementById('filter-year').addEventListener('change',e=>{state.filterYear=e.target.value;render();});
  document.getElementById('filter-status').addEventListener('change',e=>{state.filterStatus=e.target.value;render();});
  document.getElementById('filter-month').addEventListener('change',e=>{state.filterMonth=e.target.value;render();});
@@ -465,16 +503,6 @@ function renderDrafts(){
   const channel=input.dataset.channelFilter;
   state.filterChannels=input.checked?[...new Set([...state.filterChannels,channel])]:state.filterChannels.filter(c=>c!==channel);render();
   main.querySelector(`[data-channel-filter="${channel}"]`)?.focus({preventScroll:true});
- }));
- main.querySelectorAll('[data-details]').forEach(summary=>summary.addEventListener('click',()=>{
-  const post=state.drafts.find(d=>d.key===summary.dataset.details);
-  if(post)openPostDetails(post,summary.querySelector('.post-title-button'));
- }));
- main.querySelectorAll('[data-change-status]').forEach(button=>button.addEventListener('click',()=>{
-  const post=state.drafts.find(d=>d.key===button.dataset.changeStatus);if(post)openStatusModal(post,button);
- }));
- main.querySelectorAll('[data-draft]').forEach(button=>button.addEventListener('click',()=>{
-  const post=state.drafts.find(d=>d.key===button.dataset.draft);if(post)openPostEditor(post,button);
  }));
 }
 // Riga "selezionata": l'ultimo post aperto (Dettagli, Modifica, Cambia stato) resta evidenziato nell'elenco,
