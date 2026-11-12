@@ -153,7 +153,8 @@ function renderHeader(){
  const brand=document.getElementById('brand-home');brand.setAttribute('aria-disabled',String(state.loading));
  document.querySelectorAll('[data-nav]').forEach(link=>{
   if(link.dataset.nav===active)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');
-  link.setAttribute('aria-disabled',String(state.loading));link.tabIndex=state.loading?-1:0;
+  // senza cartella Social raggiungibile i collegamenti sono spenti (resta il logo per la home)
+  const off=state.loading||!state.rootValid;link.setAttribute('aria-disabled',String(off));link.tabIndex=off?-1:0;
  });
 }
 function startCreate(){
@@ -272,10 +273,10 @@ function openUpdateModal(){
  modal.open();now.focus();
 }
 function renderHome(){
- const card=(id,tone,image,label)=>`<button pgs="box${tone?` background['${tone}']`:''} flex['column' 'itemCenter' 'gapParagraphs']" class="home-action" id="${id}" type="button" ${disabled(state.loading)}><img src="assets/${image}" alt="" width="240" height="240"><span pgs="h4">${label}</span></button>`;
+ const card=(id,tone,image,label)=>`<button pgs="box${tone?` background['${tone}']`:''} flex['column' 'itemCenter' 'gapParagraphs']" class="home-action" id="${id}" type="button" ${disabled(state.loading||!state.rootValid)}><img src="assets/${image}" alt="" width="240" height="240"><span pgs="h4">${label}</span></button>`;
  // Home: a sinistra Tutti i post e Post in bozza nello stesso riquadro, a destra Crea nuovo post, sotto Idee
- const row=(id,image,label)=>`<button pgs="flex['row' 'itemCenter' 'gapParagraphs']" class="home-action home-row" id="${id}" type="button" ${disabled(state.loading)}><img src="assets/${image}" alt="" width="120" height="120"><span pgs="h4">${label}</span></button>`;
- main.innerHTML=`<h1 pgs="h2" class="home-title">Cosa vuoi fare oggi?</h1><div pgs="grid['column-2' 'gapElements']" class="home-actions"><div pgs="box flex['column']" class="home-pair">${row('all-posts','calendar.png','Tutti i post')}<hr class="home-divider">${row('drafts','draft.png','Post in bozza')}</div>${card('create-new','bgSuccessSoft','megaphone.png','Crea nuovo post')}</div><button pgs="box flex['row' 'itemCenter' 'gapParagraphs']" class="home-action home-ideas" id="home-ideas" type="button" ${disabled(state.loading||!state.rootValid)}><img src="assets/idea.png" alt="" width="120" height="120"><span pgs="flex['column' 'gapDetails']"><span pgs="h4">Idee</span><span class="hint">Le idee per i prossimi post, condivise con tutti.</span></span></button><hr><div pgs="flex['row' 'wrap' 'itemCenter' 'gapParagraphs']" class="home-settings"><button pgs="button" id="open-settings" type="button" ${disabled(state.loading)}>${icon('gear')}<span>Impostazioni</span></button><button pgs="button" id="sync-assets" type="button" ${disabled(state.loading||!state.rootValid)} title="Copia le immagini di tutti i post in 00_template/Archivio asset, divise per social e anno">${icon('images')}<span>${state.assetSyncing?'Aggiornamento…':'Aggiorna archivio asset'}</span></button>${state.version?`<span pgs="flex['row' 'itemCenter' 'gapParagraphs']" class="app-version">${state.update?.available?`<button pgs="button['btnStrong' 'btnMini']" id="install-update" type="button" ${disabled(state.loading)} title="Installa la versione ${escape(state.update.version)} da App Social">${icon('refresh')}<span>Aggiorna alla ${escape(state.update.version)}</span></button>`:`<button pgs="button['btnMini']" id="check-update" type="button" ${disabled(state.loading||state.checkingUpdate)} title="Controlla se in App Social c'è una versione più recente">${icon('refresh')}<span>${state.checkingUpdate?'Controllo…':'Cerca aggiornamenti'}</span></button>`}<span pgs="badge['badgeNeutral']">Versione ${escape(state.version)}</span></span>`:''}</div>${noticeBox()}${homeErrorBox()}`;
+ const row=(id,image,label)=>`<button pgs="flex['row' 'itemCenter' 'gapParagraphs']" class="home-action home-row" id="${id}" type="button" ${disabled(state.loading||!state.rootValid)}><img src="assets/${image}" alt="" width="120" height="120"><span pgs="h4">${label}</span></button>`;
+ main.innerHTML=`<div pgs="flex['row' 'itemCenter' 'justifyCenter' 'gapParagraphs']" class="home-heading"><h1 pgs="h2" class="home-title">Cosa vuoi fare oggi?</h1><button pgs="button['btnIconOnly']" id="home-recheck" class="${state.checkingRoot?'is-checking':''}" type="button" aria-label="Ricontrolla la cartella Social" title="Ricontrolla la cartella Social (es. dopo aver collegato il disco o la VPN)" ${disabled(state.loading||state.checkingRoot)}>${icon('refresh')}</button></div><div pgs="grid['column-2' 'gapElements']" class="home-actions"><div pgs="box flex['column']" class="home-pair">${row('all-posts','calendar.png','Tutti i post')}<hr class="home-divider">${row('drafts','draft.png','Post in bozza')}</div>${card('create-new','bgSuccessSoft','megaphone.png','Crea nuovo post')}<button pgs="box flex['row' 'itemCenter' 'gapParagraphs']" class="home-action home-ideas" id="home-ideas" type="button" ${disabled(state.loading||!state.rootValid)}><img src="assets/idea.png" alt="" width="120" height="120"><span pgs="flex['column' 'gapDetails']"><span pgs="h4">Idee</span><span class="hint">Le idee per i prossimi post, condivise con tutti.</span></span></button></div><hr><div pgs="flex['row' 'wrap' 'itemCenter' 'gapParagraphs']" class="home-settings"><button pgs="button" id="open-settings" type="button" ${disabled(state.loading)}>${icon('gear')}<span>Impostazioni</span></button><button pgs="button" id="sync-assets" type="button" ${disabled(state.loading||!state.rootValid)} title="Copia le immagini di tutti i post in 00_template/Archivio asset, divise per social e anno">${icon('images')}<span>${state.assetSyncing?'Aggiornamento…':'Aggiorna archivio asset'}</span></button>${state.version?`<span pgs="flex['row' 'itemCenter' 'gapParagraphs']" class="app-version">${state.update?.available?`<button pgs="button['btnStrong' 'btnMini']" id="install-update" type="button" ${disabled(state.loading)} title="Installa la versione ${escape(state.update.version)} da App Social">${icon('refresh')}<span>Aggiorna alla ${escape(state.update.version)}</span></button>`:`<button pgs="button['btnMini']" id="check-update" type="button" ${disabled(state.loading||state.checkingUpdate)} title="Controlla se in App Social c'è una versione più recente">${icon('refresh')}<span>${state.checkingUpdate?'Controllo…':'Cerca aggiornamenti'}</span></button>`}<span pgs="badge['badgeNeutral']">Versione ${escape(state.version)}</span></span>`:''}</div>${noticeBox()}${homeErrorBox()}`;
  footer.innerHTML='';
  document.getElementById('open-settings').addEventListener('click',openSettings);
  document.getElementById('install-update')?.addEventListener('click',openUpdateModal);
@@ -286,6 +287,18 @@ function renderHome(){
  document.getElementById('all-posts').addEventListener('click',loadPosts);
  document.getElementById('create-new').addEventListener('click',startCreate);
  document.getElementById('home-ideas').addEventListener('click',openIdeas);
+ document.getElementById('home-recheck').addEventListener('click',recheckRoot);
+}
+// Ricontrolla la cartella Social senza riavviare l'app (disco non collegato, VPN spenta…)
+async function recheckRoot(){
+ if(state.loading||state.checkingRoot)return;
+ state.checkingRoot=true;state.notice='';render();
+ try{
+  const result=await call('initial');
+  state.root=result.root;state.rootValid=result.valid;state.error=result.valid?'':result.message||'';
+  if(result.valid){globalThis.pgs?.toast.success({title:'Cartella Social raggiungibile',timeout:3000,closeTitle:'Chiudi'});bringToastToFront();refreshUpdate(true);}
+ }catch(e){state.error=e.message;}
+ finally{state.checkingRoot=false;render();document.getElementById('home-recheck')?.focus({preventScroll:true});}
 }
 // Home: se la cartella Social non è valida, l'avviso offre subito la scelta della cartella
 function homeErrorBox(){
@@ -942,7 +955,7 @@ function createFromIdea(idea){
 
 document.getElementById('brand-home').addEventListener('click',event=>{event.preventDefault();closeCompactMenu();goHome();});
 document.querySelectorAll('[data-nav]').forEach(link=>link.addEventListener('click',async event=>{
- event.preventDefault();if(state.loading||anyModalOpen())return;
+ event.preventDefault();if(state.loading||!state.rootValid||anyModalOpen())return;
  closeCompactMenu();
  if(!await confirmLeave())return;
  if(link.dataset.nav==='create'){startCreate();return;}

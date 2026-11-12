@@ -34,6 +34,10 @@ header,main{--page-width:960px}
 .optional{font-weight:400;opacity:.7}
 .path{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.85em;overflow-wrap:anywhere}
 .home-title{text-align:center}
+/* pulsante Ricontrolla accanto al titolo: il titolo resta al centro della pagina (il pulsante sporge a destra) */
+.home-heading{position:relative}
+#home-recheck{flex:none}
+#home-recheck.is-checking [pgs*=icon]{animation:toast-spin .8s linear infinite}
 [role="alert"][hidden]{display:none}
 
 /* passi della creazione */
@@ -41,13 +45,15 @@ header,main{--page-width:960px}
 .progress .step-number{width:2.2em;height:2.2em;min-width:0;min-height:0;padding:0;aspect-ratio:1;border-radius:50%;justify-content:center;flex:none}
 
 /* home */
-.home-action{border:0;cursor:pointer;font:inherit;color:inherit;transition:box-shadow .15s ease,transform .15s ease}
+.home-action{border:0;cursor:pointer;font:inherit;color:inherit;transition:background-color .15s ease,background-image .15s ease;--home-hover:color-mix(in srgb,var(--color-black) 4%,transparent)}
 .home-action img{width:100%;max-width:200px;height:auto;aspect-ratio:1;object-fit:contain;pointer-events:none}
-.home-action:hover:not(:disabled){transform:translateY(-3px);box-shadow:var(--box-shadow)}
+/* stesso hover per tutti i pulsanti della home: un velo sopra il loro sfondo (anche quello verde di Crea) */
+.home-action:hover:not(:disabled){background-image:linear-gradient(var(--home-hover),var(--home-hover))}
+:root[pgs-state~=darkmode] .home-action{--home-hover:rgba(255,255,255,.06)}
 .home-action:focus-visible{outline:var(--focus-visible,3px solid var(--color-link));outline-offset:3px}
 .home-action:disabled{opacity:.5;cursor:default}
 .app-version{margin-left:auto}
-@media(prefers-reduced-motion:reduce){.home-action{transition:none}.home-action:hover:not(:disabled){transform:none}}
+@media(prefers-reduced-motion:reduce){.home-action{transition:none}}
 
 /* riepiloghi */
 .review{display:grid;align-items:baseline;grid-template-columns:max-content minmax(0,1fr);gap:var(--gap-details) var(--gap-elements);margin:0}
@@ -281,10 +287,15 @@ main{--page-bottom:var(--gap-elements)}
 /* Home: riquadro con Tutti i post / Post in bozza, Crea nuovo post a destra, Idee sotto a tutta larghezza */
 .home-pair{padding:0;overflow:hidden;gap:0}
 .home-row{width:100%;flex:1 1 0;padding:var(--padding-paragraphs) var(--padding-elements);background:transparent;border-radius:0;text-align:left}
-.home-row:hover:not(:disabled){transform:none;box-shadow:none;background:color-mix(in srgb,var(--color-black) 4%,transparent)}
 .home-row img,.home-ideas img{width:80px;max-width:80px;flex:none}
 .home-actions>#create-new img{max-width:170px}
 .home-divider{margin:0 var(--padding-elements);border:0;border-top:var(--border-width,1px) solid var(--border-color)}
-.home-ideas{width:100%;text-align:left;padding-block:var(--padding-paragraphs)}
-:root[pgs-state~=darkmode] .home-row:hover:not(:disabled){background:rgba(255,255,255,.06)}
+.home-ideas{width:100%;text-align:left;padding:var(--padding-paragraphs) var(--padding-elements)}
+/* Crea nuovo post occupa in altezza le due righe di sinistra (Tutti i post / Post in bozza e Idee) */
+.home-actions>#create-new{grid-row:span 2}
+/* con una sola colonna (myPgs: contenitore sotto 900 px) Crea torna una riga normale; il contenuto resta centrato */
+@container (max-width:900px){.home-actions>#create-new{grid-row:auto}}
+.home-actions>#create-new{justify-content:center}
+.home-pair:has(.home-row:disabled){opacity:.5}
+.home-pair .home-row:disabled{opacity:1}
 @media(max-width:660px){.home-row img,.home-ideas img{width:64px;max-width:64px}}
