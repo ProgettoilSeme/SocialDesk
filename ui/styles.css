@@ -227,6 +227,8 @@ main{--page-bottom:var(--gap-elements)}
 
 /* Gruppi per ID: badge con icona del social e stato, vicino alla freccia */
 .post-group[pgs-state~="open"] .group-status-badges{display:none}
+/* gruppo aperto: intestazione (icone, titolo, ID) al 50%, così risaltano le righe dei social; la freccia resta piena */
+.post-group[pgs-state~="open"]>.group-summary>.post-body{opacity:.5;transition:opacity .15s ease}
 .group-status-badges{margin-left:auto;padding-inline:var(--gap-paragraphs);flex:0 1 auto;min-width:0}
 .group-status-badge{display:inline-flex;align-items:center;gap:.35em;white-space:nowrap}
 .group-status-badge .social-icon{--icon-size:1em;width:1em;height:1em;--icon-color:currentColor}
