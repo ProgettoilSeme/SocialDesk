@@ -14,6 +14,15 @@
   if(filters.month&&(!post.date||post.date.slice(0,7)!==String(filters.year)+'-'+filters.month))return false;
   return true;
  }
+ // Ricerca: senza maiuscole né accenti; ogni parola deve comparire in titolo, argomento, formato o ID.
+ // Un numero trova anche l'ID esatto (es. "12" → ID 12).
+ const fold=value=>String(value??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+ function searchWords(query){return fold(query).replace(/^id\s+(?=\d)/,'id').replace(/\sid\s+(?=\d)/g,' id').split(/\s+/).filter(Boolean);}
+ function matchesSearch(post,query){
+  const words=searchWords(query);if(!words.length)return true;
+  const text=fold([post.title,post.topic,post.format].join(' ')),id=post.id===null||post.id===undefined?'':String(post.id);
+  return words.every(word=>text.includes(word)||(/^\d+$/.test(word)&&id!==''&&Number(word)===Number(id))||(word.startsWith('id')&&/^\d+$/.test(word.slice(2))&&id!==''&&Number(word.slice(2))===Number(id)));
+ }
  function groupById(posts){
   const groups=[],byId=new Map();
   for(const post of posts){
@@ -25,7 +34,7 @@
   }
   return groups;
  }
- const api={matchesPost,statusTone,groupById};
+ const api={matchesPost,matchesSearch,searchWords,statusTone,groupById};
  if(typeof module==='object'&&module.exports)module.exports=api;
  else root.SocialPostFilters=Object.freeze(api);
 })(globalThis);

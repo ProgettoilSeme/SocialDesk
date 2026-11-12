@@ -1,7 +1,7 @@
 'use strict';
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {matchesPost,statusTone,groupById}=require('../ui/post-filters.js');
+const {matchesPost,matchesSearch,statusTone,groupById}=require('../ui/post-filters.js');
 const today='2026-11-04';
 const filters={year:'2026',channels:['Facebook','LinkedIn','Instagram'],status:'',month:''};
 const posts=[
@@ -64,4 +64,25 @@ test('raggruppa solo ID dello stesso anno, preserva ordine e post senza ID',()=>
  ];
  assert.deepEqual(groupById(entries).map(group=>group.posts.map(post=>post.key)),[['2026:2','2026:4'],['2026:3'],['2027:2']]);
  assert.deepEqual(groupById(entries.filter(post=>post.channel==='Instagram')).map(group=>group.posts.map(post=>post.key)),[['2026:3'],['2026:4']]);
+});
+
+test('ricerca: titolo, argomento e formato senza maiuscole né accenti, tutte le parole',()=>{
+ const post={title:'Festival del Cinema Nuovo',topic:'Disabilità e città',format:'Carosello',id:12};
+ assert.equal(matchesSearch(post,''),true);
+ assert.equal(matchesSearch(post,'   '),true);
+ assert.equal(matchesSearch(post,'cinema'),true);
+ assert.equal(matchesSearch(post,'FESTIVAL nuovo'),true);
+ assert.equal(matchesSearch(post,'disabilita citta'),true,'accenti ignorati');
+ assert.equal(matchesSearch(post,'carosello'),true);
+ assert.equal(matchesSearch(post,'cinema teatro'),false,'serve ogni parola');
+});
+test('ricerca: un numero trova l’ID esatto, anche scritto "ID 12"',()=>{
+ const post={title:'Auguri',topic:'',format:'',id:12},noId={title:'Senza ID',topic:'',format:'',id:null};
+ assert.equal(matchesSearch(post,'12'),true);
+ assert.equal(matchesSearch(post,'ID 12'),true);
+ assert.equal(matchesSearch(post,'id12'),true);
+ assert.equal(matchesSearch(post,'012'),true,'ID a tre cifre come nelle cartelle');
+ assert.equal(matchesSearch(post,'1'),false);
+ assert.equal(matchesSearch(noId,'12'),false);
+ assert.equal(matchesSearch({title:'Lab 2026',topic:'',format:'',id:3},'2026'),true,'numeri anche nel titolo');
 });
