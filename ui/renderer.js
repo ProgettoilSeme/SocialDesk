@@ -608,7 +608,7 @@ function siblingPosts(post){
 }
 function detailsSwitch(post){
  const items=siblingPosts(post).map(p=>{const current=p.key===post.key;return `<li><button pgs="button['btnTransparent'${current?" 'btnCurrent'":''}]" type="button" data-switch-post="${escape(p.key)}" ${current?'aria-selected="true" aria-current="page"':''} data-channel="${escape(p.channel)}">${socialIcon(p.channel)}<span>${escape(p.channel)}</span></button></li>`;}).join('');
- return `<div pgs="flex['row' 'justifyCenter']" class="details-switch-wrap"><nav pgs="menu['menuHorizontal' 'menuGrouped']" class="details-switch" aria-label="Social del post"><ul>${items}</ul></nav></div>`;
+ return `<div pgs="flex['row' 'justifyCenter']" class="details-switch-wrap"><nav pgs="menu['menuHorizontal']" class="details-switch" aria-label="Social del post"><ul pgs="buttonGroup">${items}</ul></nav></div>`;
 }
 function openPostDetails(post,opener){
  if(anyModalOpen())return;

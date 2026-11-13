@@ -219,6 +219,8 @@ main{--page-bottom:var(--gap-elements)}
 .details-switch>ul>li{flex:0 1 auto;min-width:0}
 .details-switch [data-switch-post]{white-space:nowrap;max-width:100%;min-width:0;overflow:hidden}
 .details-switch [data-switch-post]>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* finestre strette: solo icone (il nome resta per la lettura vocale), invece di una barretta di nome tagliato */
+@media(max-width:480px){.details-switch [data-switch-post]>span{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}}
 .details-switch [data-switch-post]>svg,.details-switch [data-switch-post]>i,.details-switch [data-switch-post]>.social-icon{flex:none}
 .details-layout{align-items:start}
 
