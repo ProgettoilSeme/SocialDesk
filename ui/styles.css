@@ -347,7 +347,7 @@ header[pgs~="header"]:not([pgs-state~="compact"]) [pgs~="header-element"]{paddin
 .client-brand-logo{height:3.2rem;width:auto;max-width:9rem;object-fit:contain;flex:none}
 /* nome del cliente in testo normale (myPgs dà a logo-text il carattere dei titoli, grande e in grassetto) */
 .client-brand-name{min-width:0;max-width:min(40rem,40vw);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#brand-home.client-brand .client-brand-name{font-family:var(--font);font-size:var(--font-size-text);font-weight:var(--font-weight-text)}
+#brand-home.client-brand .client-brand-name{font-family:var(--font);font-size:var(--font-size-text)}
 .client-switch{flex:none}
 .title-muted{color:var(--color-gray,#626d7b)}
 /* Footer dell'app: logo SocialDesk, impostazioni dell'app, versione, aggiornamenti */
