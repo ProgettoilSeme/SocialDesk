@@ -18,6 +18,15 @@ const disabled=flag=>flag?'disabled':'';
 
 //# myPgs
 // pgs è pubblicato su globalThis dal bundle della libreria; ogni markup inserito dopo il caricamento va inizializzato.
+// Striscia a destra tenuta vuota per la barra di scorrimento (scrollbar-gutter): l'header la copre, così lo spazio a destra
+// di "Crea nuovo post" fino al bordo della finestra è uguale a quello sopra (vedi --header-gutter in styles.css).
+function syncHeaderGutter(){
+ const header=document.querySelector('header');if(!header)return;
+ const root=document.documentElement;root.style.setProperty('--header-gutter','0px');
+ const gap=Math.max(0,Math.round(window.innerWidth-header.getBoundingClientRect().right));
+ root.style.setProperty('--header-gutter',gap+'px');
+}
+window.addEventListener('resize',syncHeaderGutter);
 function enhance(root){try{globalThis.pgs?.helper.init(root);}catch(e){console.error(e);}}
 const icon=(name,size='')=>`<i pgs="icon['icon-${name}'${size?` '${size}'`:''}]" aria-hidden="true"></i>`;
 function socialIcon(channel){return CHANNELS.includes(channel)?`<i pgs="icon" class="social-icon social-${channel.toLowerCase()}" aria-hidden="true"></i>`:'';}
@@ -1063,4 +1072,4 @@ document.querySelectorAll('[data-nav]').forEach(link=>link.addEventListener('cli
 }));
 
 render();
-call('initial').then(result=>{state.version=result.version||'';applyStatus(result);render();refreshUpdate(true);}).catch(e=>error(e.message));
+call('initial').then(result=>{state.version=result.version||'';applyStatus(result);render();syncHeaderGutter();refreshUpdate(true);}).catch(e=>error(e.message));

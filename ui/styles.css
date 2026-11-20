@@ -313,3 +313,7 @@ main{--page-bottom:var(--gap-elements)}
 .client-menu [data-client],.client-menu #client-create{justify-content:flex-start;width:100%;white-space:nowrap}
 .client-menu [data-client]>span:last-child{overflow:hidden;text-overflow:ellipsis}
 .client-check-space{display:inline-block;width:1em;flex:none}
+/* Header pieno: a destra di "Crea nuovo post" lo stesso spazio che c'è sopra, fino al bordo della finestra.
+   --header-gutter (misurato dal renderer) è la striscia vuota tenuta per la barra di scorrimento: l'header la copre. */
+header[pgs~="header"]{width:calc(100% + var(--header-gutter,0px))}
+header[pgs~="header"]:not([pgs-state~="compact"]) [pgs~="header-element"]{padding-inline-end:calc(var(--header-paddingBlock) + 1.5px)}
