@@ -13,6 +13,15 @@
  --social-facebook:#0866ff;
  --social-instagram:#c13584;
  --social-linkedin:#0a66c2;
+ --icon-glyph-tiktok:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill-rule='evenodd' d='M14 2h3a5 5 0 0 0 4 4v3a8 8 0 0 1-4-1.2V15a6.5 6.5 0 1 1-6.5-6.5c.3 0 .7 0 1 .1v3.2a3.3 3.3 0 1 0 2.5 3.2z'/%3E%3C/svg%3E");
+ --icon-glyph-youtube:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill-rule='evenodd' d='M3 6.5A3 3 0 0 1 5.8 4h12.4A3 3 0 0 1 21 6.5c.3 1.6.5 3.5.5 5.5s-.2 3.9-.5 5.5a3 3 0 0 1-2.8 2.5H5.8A3 3 0 0 1 3 17.5c-.3-1.6-.5-3.5-.5-5.5s.2-3.9.5-5.5z M10 8.8v6.4l5.5-3.2z'/%3E%3C/svg%3E");
+ --icon-glyph-x:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill-rule='evenodd' d='M3 3h5.2l4.1 5.7L17.4 3h2.7l-6.5 7.5L21 21h-5.2l-4.4-6.1L5.9 21H3.2l7-8.1z M6.3 4.5l10.5 15h1.8L8.1 4.5z'/%3E%3C/svg%3E");
+ --icon-glyph-reddit:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill-rule='evenodd' d='M17.5 2.5a1.7 1.7 0 1 1 0 3.4a1.7 1.7 0 0 1-1.6-1.2l-3.1-.6l-.8 3.6c3.5.2 6.2 2.3 6.2 5c0 2.9-2.9 5.3-6.2 5.3S5.8 15.6 5.8 12.7c0-2.7 2.5-4.7 5.8-5l.9-4.6l4-.1a1.7 1.7 0 0 1 1-.5z M9.2 11.2a1.1 1.1 0 1 0 0 2.2a1.1 1.1 0 1 0 0-2.2z M14.8 11.2a1.1 1.1 0 1 0 0 2.2a1.1 1.1 0 1 0 0-2.2z M9.5 15.3c.7.6 1.6.9 2.5.9s1.8-.3 2.5-.9l-.5-.6c-.6.4-1.3.7-2 .7s-1.4-.3-2-.7z M3.6 9.6a2 2 0 0 1 2.6.5c-.9.6-1.6 1.4-2 2.3a2 2 0 0 1-.6-2.8z M20.4 9.6a2 2 0 0 1-.6 2.8c-.4-.9-1.1-1.7-2-2.3a2 2 0 0 1 2.6-.5z'/%3E%3C/svg%3E");
+ --social-blog:#4d6278;
+ --social-tiktok:#111111;
+ --social-youtube:#ff0033;
+ --social-x:#111111;
+ --social-reddit:#ff4500;
  scrollbar-gutter:stable;
 }
 /* larghezza compatta dell'app: le modali restano sulla larghezza di pagina della libreria */
@@ -22,6 +31,13 @@ header,main{--page-width:960px}
 .social-icon.social-facebook{--icon:var(--icon-glyph-facebook);--icon-color:var(--social-facebook)}
 .social-icon.social-instagram{--icon:var(--icon-glyph-instagram);--icon-color:var(--social-instagram)}
 .social-icon.social-linkedin{--icon:var(--icon-glyph-linkedin);--icon-color:var(--social-linkedin)}
+.social-icon.social-blog{--icon:var(--icon-glyph-newspaper);--icon-color:var(--social-blog)}
+.social-icon.social-tiktok{--icon:var(--icon-glyph-tiktok);--icon-color:var(--social-tiktok)}
+.social-icon.social-youtube{--icon:var(--icon-glyph-youtube);--icon-color:var(--social-youtube)}
+.social-icon.social-x{--icon:var(--icon-glyph-x);--icon-color:var(--social-x)}
+.social-icon.social-reddit{--icon:var(--icon-glyph-reddit);--icon-color:var(--social-reddit)}
+/* TikTok e X sono neri: in tema scuro chiari, altrimenti non si vedono */
+:root[pgs-state~=darkmode]{--social-tiktok:#f2f2f2;--social-x:#f2f2f2}
 .social-icon::before{-webkit-mask:var(--icon) center/contain no-repeat;mask:var(--icon) center/contain no-repeat}
 
 /* header */
@@ -69,6 +85,11 @@ header,main{--page-width:960px}
 .channel-chip:has(input:checked)[data-channel="Facebook"]{--button-background-twoState:var(--social-facebook)}
 .channel-chip:has(input:checked)[data-channel="Instagram"]{--button-background-twoState:var(--social-instagram)}
 .channel-chip:has(input:checked)[data-channel="LinkedIn"]{--button-background-twoState:var(--social-linkedin)}
+.channel-chip:has(input:checked)[data-channel="Blog"]{--button-background-twoState:var(--social-blog)}
+.channel-chip:has(input:checked)[data-channel="TikTok"]{--button-background-twoState:var(--social-tiktok)}
+.channel-chip:has(input:checked)[data-channel="YouTube"]{--button-background-twoState:var(--social-youtube)}
+.channel-chip:has(input:checked)[data-channel="X"]{--button-background-twoState:var(--social-x)}
+.channel-chip:has(input:checked)[data-channel="Reddit"]{--button-background-twoState:var(--social-reddit)}
 .channel-chip:has(input:checked){--button-color-twoState:#fff;--button-borderColor-twoState:transparent}
 .channel-chip:has(input:checked) .social-icon{--icon-color:#fff}
 .toolbar-field{min-width:10rem}
@@ -333,3 +354,15 @@ header[pgs~="header"]:not([pgs-state~="compact"]) [pgs~="header-element"]{paddin
 .app-footer [pgs~="footer-legal-content"]{padding-block:var(--padding-paragraphs)}
 /* Sfumatura in alto alla pagina nel colore primario (quello del cliente, se scelto) al 50% di trasparenza */
 body::before{content:"";width:100%;height:100px;background:linear-gradient(180deg,color-mix(in srgb,var(--color-primary) 50%,transparent),transparent);position:absolute;top:0;left:0;z-index:-1;pointer-events:none}
+/* Impostazioni del cliente: righe dei template (ognuna apre la sua modale) */
+.template-group-title{display:flex;align-items:center;gap:var(--gap-details);margin:0}
+.template-list{list-style:none;margin:0;padding:0;gap:0}
+.template-row{width:100%;justify-content:flex-start;gap:var(--gap-paragraphs);text-align:left}
+.template-row .template-format{flex:1 1 auto;min-width:0}
+.platform-choices{flex-wrap:wrap}
+/* Benvenuto (nessun cliente) */
+.welcome{text-align:center;max-width:44rem;margin-inline:auto;padding-block:var(--padding-groups,3rem)}
+.welcome-logo{width:120px;height:auto}
+/* in tema scuro TikTok e X selezionati hanno lo sfondo chiaro: testo e icona scuri */
+:root[pgs-state~=darkmode] .channel-chip:has(input:checked):is([data-channel="TikTok"],[data-channel="X"]){--button-color-twoState:#111}
+:root[pgs-state~=darkmode] .channel-chip:has(input:checked):is([data-channel="TikTok"],[data-channel="X"]) .social-icon{--icon-color:#111}

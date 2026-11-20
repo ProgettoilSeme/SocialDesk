@@ -236,26 +236,32 @@ test('piano: righe importate con stato e senza link, schede annuali in ordine di
  void root;
 });
 
-test('aggiungi social: riga con lo stesso ID nella stessa cartella, file dal template, data vuota e formato facoltativo',async t=>{
+test('aggiungi social: riga con lo stesso ID nella stessa cartella, file del formato, data vuota',async t=>{
  const {addChannel,planAddChannel}=require('../lib/addchannel.cjs');
  const {root,plan,book}=await seed(t,{channels:['Facebook'],title:'Solo Facebook'});
  const folder=path.join(root,'01_Posts','2026',`${F(plan.id)}_Solo-Facebook`,'01_Sorgenti');
  let list=await rows(root,'Solo Facebook');
- const p=await planAddChannel(root,input(list,'Facebook',{channel:'Instagram'}));
+ const p=await planAddChannel(root,input(list,'Facebook',{channel:'Instagram',format:'Carosello'}));
  assert.deepEqual(p.files,['Solo-Facebook_instagram.ai','Solo-Facebook_instagram.md']);
  // errore prima del salvataggio: nessun file e piano invariato
  const before=await fs.readFile(book);
- await assert.rejects(addChannel(root,input(list,'Facebook',{channel:'Instagram'}),{failBeforeCommit:true}),/Errore di prova/);
+ await assert.rejects(addChannel(root,input(list,'Facebook',{channel:'Instagram',format:'Carosello'}),{failBeforeCommit:true}),/Errore di prova/);
  assert.equal(await exists(path.join(folder,'Solo-Facebook_instagram.ai')),false);
  assert.deepEqual(await fs.readFile(book),before);
- const r=await addChannel(root,input(list,'Facebook',{channel:'Instagram'}));
+ const r=await addChannel(root,input(list,'Facebook',{channel:'Instagram',format:'Carosello'}));
  assert.deepEqual(r.created,['Solo-Facebook_instagram.ai','Solo-Facebook_instagram.md']);
  list=await rows(root,'Solo Facebook');
  const ig=row(list,'Instagram');
  assert.equal(ig.id,plan.id);assert.equal(ig.sourcesRelative,row(list,'Facebook').sourcesRelative);
- assert.equal(ig.date,null);assert.equal(ig.status,'testi da creare');assert.equal(ig.format,'');
+ assert.equal(ig.date,null);assert.equal(ig.status,'testi da creare');assert.equal(ig.format,'Carosello');
  assert.equal((await postDetails(root,input(list,'Instagram'))).editableText.name,'Solo-Facebook_instagram.md');
  await assert.rejects(addChannel(root,input(list,'Facebook',{channel:'Instagram'})),/esiste già per Instagram/);
+ // formato da definire: solo il testo; video: .mp4 vuoto; formato non della piattaforma rifiutato
+ const li=await addChannel(root,input(list,'Facebook',{channel:'LinkedIn'}));assert.deepEqual(li.created,['Solo-Facebook_linkedin.md']);
+ list=await rows(root,'Solo Facebook');
+ await assert.rejects(planAddChannel(root,input(list,'Facebook',{channel:'TikTok',format:'Immagine singola'})),/formato valido per TikTok/);
+ const tt=await addChannel(root,input(list,'Facebook',{channel:'TikTok',format:'Video'}));assert.deepEqual(tt.created,['Solo-Facebook_tiktok.mp4','Solo-Facebook_tiktok.md']);
+ assert.equal((await fs.stat(path.join(folder,'Solo-Facebook_tiktok.mp4'))).size,0);
  assert.equal(await exists(path.join(root,'.social-create.lock')),false);
 });
 

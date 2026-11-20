@@ -40,21 +40,24 @@ test('clienti: Social con il piano direttamente dentro (vecchia struttura) non h
  assert.deepEqual(await clients.listClients(social),[]);
 });
 
-test('crea cliente: piano vuoto, cartelle fisse, template copiati in 03_Template; poi si crea un post',async t=>{
+test('crea cliente: piano vuoto e cartelle fisse, 03_Template vuota; poi si crea un post (e si carica un template)',async t=>{
  const social=await seed(t),from=path.join(social,'progetto_il_seme');
- const created=await clients.createClient(social,'  Nuovo   Cliente ',{templatesFrom:from});
- assert.deepEqual(created,{folder:'Nuovo_Cliente',name:'Nuovo Cliente',missingTemplates:[],templatesFrom:'cliente'});
+ const created=await clients.createClient(social,'  Nuovo   Cliente ');
+ assert.deepEqual(created,{folder:'Nuovo_Cliente',name:'Nuovo Cliente'});
  const root=path.join(social,'Nuovo_Cliente');
  await rootInfo(root);
- assert.deepEqual((await fs.readdir(path.join(root,'03_Template'))).sort(),['base Facebook.ai','base Instagram.ai','base Linkedin.ai']);
- assert.ok((await fs.stat(path.join(root,'01_Posts'))).isDirectory());
  for(const name of ['00_Cestino','01_Posts','02_Settings','03_Template'])assert.ok((await fs.stat(path.join(root,name))).isDirectory(),name);
+ assert.deepEqual(await fs.readdir(path.join(root,'03_Template')),[],'nessun template copiato da altri');
  const book=new Book(await fs.readFile(path.join(root,'Piano editoriale.xlsx')));
  assert.equal(book.posts().length,0,'nessun post degli altri clienti');
  assert.deepEqual((await clients.listClients(social)).map(c=>c.folder),['Nuovo_Cliente','progetto_il_seme','social_economy']);
- // il nuovo cliente funziona: creazione di un post su due social con ID 0, nella cartella unica 01_Posts
+ // il nuovo cliente funziona: senza template un Carosello non si crea, con il template caricato sì
  const year=new Date().getFullYear();
  const post={title:'Primo post',topic:'',format:'Carosello',channels:['Facebook','Instagram'],date:`${year}-05-11`,undefinedDate:false};
+ await assert.rejects(planPost(root,post),/Manca il template Facebook – Carosello/);
+ const {setTemplate}=require('../lib/templates.cjs');
+ const ai=path.join(from,'00_template','base Facebook.ai');
+ await setTemplate(root,'Facebook','Carosello',ai);await setTemplate(root,'Instagram','Carosello',ai);
  const plan=await planPost(root,post);
  await createPost(root,post,plan.fingerprint);
  const after=new Book(await fs.readFile(path.join(root,'Piano editoriale.xlsx'))).posts();
@@ -66,10 +69,8 @@ test('crea cliente: piano vuoto, cartelle fisse, template copiati in 03_Template
  assert.equal((await listIdeas(from)).ideas.length,0);
 });
 
-test('crea cliente: template mancanti segnalati, nomi non validi o già usati rifiutati senza lasciare cartelle',async t=>{
+test('crea cliente: nomi non validi o già usati rifiutati senza lasciare cartelle',async t=>{
  const social=await seed(t);
- const empty=await clients.createClient(social,'senza template',{templatesFrom:path.join(social,'senza_piano')});
- assert.deepEqual(empty.missingTemplates,['Facebook','Instagram','LinkedIn']);
  await assert.rejects(clients.createClient(social,'Social Economy'),/già una cartella/,'stesso nome con maiuscole diverse');
  await assert.rejects(clients.createClient(social,'senza_piano'),/già una cartella/);
  await assert.rejects(clients.createClient(social,'   '),/Scrivi il nome/);
@@ -80,19 +81,4 @@ test('crea cliente: template mancanti segnalati, nomi non validi o già usati ri
  const before=(await fs.readdir(social)).sort();
  await assert.rejects(clients.createClient(path.join(social,'manca'),'Altro'),/non è raggiungibile/);
  assert.deepEqual((await fs.readdir(social)).sort(),before);
-});
-
-test('crea cliente: con Social/00_Template_base si copia tutto il suo contenuto in 03_Template (non è un cliente)',async t=>{
- const social=await seed(t),base=path.join(social,'00_Template_base');
- await fs.mkdir(path.join(base,'Video'),{recursive:true});
- for(const name of ['base Facebook.ai','base Instagram.ai','base Linkedin.ai'])await fs.writeFile(path.join(base,name),'AI '+name);
- await fs.writeFile(path.join(base,'Video','intro.aep'),'video');await fs.writeFile(path.join(base,'.DS_Store'),'x');
- await fs.writeFile(path.join(base,'Piano editoriale.xlsx'),'non è un cliente');
- assert.ok(!(await clients.listClients(social)).some(c=>c.folder==='00_Template_base'));
- const created=await clients.createClient(social,'Con base',{templatesFrom:path.join(social,'progetto_il_seme')});
- assert.equal(created.templatesFrom,'00_Template_base');assert.deepEqual(created.missingTemplates,[]);
- const dir=path.join(social,'Con_base','03_Template');
- assert.deepEqual((await fs.readdir(dir)).sort(),['Piano editoriale.xlsx','Video','base Facebook.ai','base Instagram.ai','base Linkedin.ai']);
- assert.equal(await fs.readFile(path.join(dir,'Video','intro.aep'),'utf8'),'video');
- assert.equal(await fs.readFile(path.join(dir,'base Facebook.ai'),'utf8'),'AI base Facebook.ai');
 });

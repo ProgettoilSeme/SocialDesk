@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld('socialAPI',{
  settings:()=>ipcRenderer.invoke('social:settings'),
  chooseLogo:()=>ipcRenderer.invoke('social:choose-logo'),
  removeLogo:()=>ipcRenderer.invoke('social:remove-logo'),
+ chooseTemplate:input=>ipcRenderer.invoke('social:choose-template',input),
+ removeTemplate:input=>ipcRenderer.invoke('social:remove-template',input),
  saveSettings:input=>ipcRenderer.invoke('social:save-settings',input),
  drafts:()=>ipcRenderer.invoke('social:drafts'),
  posts:()=>ipcRenderer.invoke('social:posts'),

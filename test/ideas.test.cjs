@@ -50,7 +50,7 @@ test('idee: testo vuoto, troppo lungo, social non valido e idea già eliminata',
  const root=await seed(t);
  await assert.rejects(changeIdea(root,{action:'add',text:'   '}),/Scrivi il testo/);
  await assert.rejects(changeIdea(root,{action:'add',text:'x'.repeat(501)}),/troppo lunga/);
- await assert.rejects(changeIdea(root,{action:'add',text:'ok',channels:['TikTok']}),/Social non valido/);
+ await assert.rejects(changeIdea(root,{action:'add',text:'ok',channels:['MySpace']}),/Social non valido/);
  await assert.rejects(changeIdea(root,{action:'update',id:'nessuna',done:true}),/non c’è più/);
  await assert.rejects(changeIdea(root,{action:'boh'}),/Richiesta non valida/);
 });
