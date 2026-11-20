@@ -332,4 +332,4 @@ header[pgs~="header"]:not([pgs-state~="compact"]) [pgs~="header-element"]{paddin
 .app-footer [pgs~="footer-legal"]{padding-block:0}
 .app-footer [pgs~="footer-legal-content"]{padding-block:var(--padding-paragraphs)}
 /* Sfumatura in alto alla pagina nel colore del cliente (Impostazioni del cliente); senza colore non si vede */
-body::before{content:"";width:100%;height:100px;background:linear-gradient(180deg,var(--client-color,transparent),transparent);position:absolute;top:0;left:0;z-index:-1;pointer-events:none}
+body::before{content:"";width:100%;height:100px;background:linear-gradient(180deg,color-mix(in srgb,var(--client-color,transparent) 50%,transparent),transparent);position:absolute;top:0;left:0;z-index:-1;pointer-events:none}
