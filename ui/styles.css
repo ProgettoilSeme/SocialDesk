@@ -192,7 +192,7 @@ header,main{--page-width:960px}
    (i controlli restano cliccabili) e il logo lascia spazio ai tre pulsanti della finestra. */
 [data-platform="mac"] header{-webkit-app-region:drag}
 [data-platform="mac"] header :is(a,button,input,select,dialog){-webkit-app-region:no-drag}
-[data-platform="mac"] .app-brand{margin-left:78px}
+[data-platform="mac"] .brand-row{margin-left:78px}
 
 /* niente scorrimento inutile: il piè di pagina vuoto (home) non aggiunge la distanza della sezione
    e sotto il contenuto resta solo lo spazio tra elementi, non il 7% dell'altezza della finestra */
@@ -306,14 +306,28 @@ main{--page-bottom:var(--gap-elements)}
 /* Header: logo (home) e, al posto della scritta SocialDesk, il nome del cliente con la freccia */
 .brand-row{gap:var(--gap-details);min-width:0;max-width:100%}
 .client-slot{min-width:0;display:flex}
-.client-switch{max-width:min(22rem,45vw);font-size:1.15em;font-weight:600;color:inherit}
-.client-switch-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .client-dropdown{display:inline-flex;max-width:100%;--dropdown-inline-size:max-content;--dropdown-maxInlineSize:min(26rem,calc(100vw - 32px))}
 .client-menu{min-width:14rem;font-size:var(--font-size-text,1rem);font-weight:400;text-align:left;-webkit-app-region:no-drag}
-.client-menu [data-client],.client-menu #client-create{justify-content:flex-start;width:100%;white-space:nowrap}
+.client-menu [data-client],.client-menu #client-create,.client-menu #client-settings{justify-content:flex-start;width:100%;white-space:nowrap}
 .client-menu [data-client]>span:last-child{overflow:hidden;text-overflow:ellipsis}
 .client-check-space{display:inline-block;width:1em;flex:none}
 /* Header pieno: a destra di "Crea nuovo post" lo stesso spazio che c'è sopra, fino al bordo della finestra.
    --header-gutter (misurato dal renderer) è la striscia vuota tenuta per la barra di scorrimento: l'header la copre. */
 header[pgs~="header"]{width:calc(100% + var(--header-gutter,0px))}
 header[pgs~="header"]:not([pgs-state~="compact"]) [pgs~="header-element"]{padding-inline-end:calc(var(--header-paddingBlock) + 1.5px)}
+/* Logo del cliente: accanto al nome nell'header e nell'elenco dei clienti; anteprima nelle Impostazioni */
+.client-logo{width:1.6em;height:1.6em;object-fit:contain;flex:none;border-radius:var(--borderRadius-details,6px)}
+.client-menu .client-logo{width:1.4em;height:1.4em}
+.client-logo-preview{width:96px;height:96px;object-fit:contain;border-radius:var(--borderRadius-paragraphs,12px);background:var(--color-background-soft,rgba(127,127,127,.08));padding:8px;box-sizing:border-box;flex:none}
+.client-logo-empty{display:inline-flex;align-items:center;justify-content:center;font-size:2rem;opacity:.45}
+.client-color-row input[type=color]{inline-size:3rem;block-size:2.5rem;padding:0;border:0;background:none;cursor:pointer}
+/* Header: logo e nome del cliente (link alla home), poi la freccia del menu dei clienti */
+.client-brand{min-width:0;gap:var(--gap-details)}
+.client-brand-logo{height:3.2rem;width:auto;max-width:9rem;object-fit:contain;flex:none}
+.client-brand-name{min-width:0;max-width:min(40rem,40vw);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.client-switch{flex:none}
+.title-muted{color:var(--color-gray,#626d7b)}
+/* Footer dell'app: logo SocialDesk, impostazioni dell'app, versione, aggiornamenti */
+.app-footer .logo-image,.app-footer [pgs~="logo-image"]{height:2.4rem;width:auto}
+.app-footer [pgs~="footer-legal"]{padding-block:0}
+.app-footer [pgs~="footer-legal-content"]{padding-block:var(--padding-paragraphs)}

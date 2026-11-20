@@ -5,7 +5,7 @@ const api=window.socialAPI;
 document.documentElement.dataset.platform=/Mac/i.test(navigator.platform)?'mac':'other';
 const localToday=()=>{const d=new Date();return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
 const initialPost=()=>({channels:[],title:'',topic:'',channelFormats:{},channelDates:{},year:String(new Date().getFullYear())});
-const state={route:'home',step:0,visited:0,root:'',rootValid:false,baseValid:false,clients:[],client:'',post:initialPost(),plan:null,result:null,error:'',loading:false,drafts:[],revision:'',selected:null,notice:'',filterYear:String(new Date().getFullYear()),filterChannels:['Facebook','LinkedIn','Instagram'],filterStatus:'',filterMonth:'',filterSearch:'',groupById:true,hidePublished:true,expandedGroups:new Set(),years:[],listMode:'drafts',editValues:null,editOriginal:null,settings:null,highlight:null,editModal:null,ideas:null,ideaDraft:{text:'',notes:'',channels:[]},ideasLoading:false};
+const state={route:'home',step:0,visited:0,root:'',rootValid:false,baseValid:false,clients:[],client:'',post:initialPost(),plan:null,result:null,error:'',loading:false,drafts:[],revision:'',selected:null,notice:'',filterYear:String(new Date().getFullYear()),filterChannels:['Facebook','LinkedIn','Instagram'],filterStatus:'',filterMonth:'',filterSearch:'',groupById:true,hidePublished:true,expandedGroups:new Set(),years:[],listMode:'drafts',editValues:null,editOriginal:null,settings:null,settingsTab:'app',logoBusy:false,highlight:null,editModal:null,ideas:null,ideaDraft:{text:'',notes:'',channels:[]},ideasLoading:false};
 const main=document.getElementById('main'),footer=document.getElementById('footer'),progress=document.getElementById('progress');
 const CHANNELS=['Facebook','Instagram','LinkedIn'];
 // Tema: myPgs lo salva e lo applica; le finestre di sistema (conferme, dialoghi) lo seguono.
@@ -18,15 +18,20 @@ const disabled=flag=>flag?'disabled':'';
 
 //# myPgs
 // pgs è pubblicato su globalThis dal bundle della libreria; ogni markup inserito dopo il caricamento va inizializzato.
-// Striscia a destra tenuta vuota per la barra di scorrimento (scrollbar-gutter): l'header la copre, così lo spazio a destra
-// di "Crea nuovo post" fino al bordo della finestra è uguale a quello sopra (vedi --header-gutter in styles.css).
+// Striscia a destra tenuta vuota per la barra di scorrimento (scrollbar-gutter): quando è vuota (la pagina non scorre)
+// l'header la copre, così lo spazio a destra di "Crea nuovo post" fino al bordo della finestra è uguale a quello sopra.
+// Quando la pagina scorre la barra c'è davvero (clientWidth < innerWidth) e l'header si ferma prima, accanto alla barra.
 function syncHeaderGutter(){
  const header=document.querySelector('header');if(!header)return;
- const root=document.documentElement;root.style.setProperty('--header-gutter','0px');
- const gap=Math.max(0,Math.round(window.innerWidth-header.getBoundingClientRect().right));
+ const root=document.documentElement;
+ const scrollbar=window.innerWidth-root.clientWidth>0;
+ root.style.setProperty('--header-gutter','0px');
+ const gap=scrollbar?0:Math.max(0,Math.round(window.innerWidth-header.getBoundingClientRect().right));
  root.style.setProperty('--header-gutter',gap+'px');
 }
 window.addEventListener('resize',syncHeaderGutter);
+// la barra compare e sparisce quando cambia l'altezza della pagina (elenchi, gruppi aperti, schede…)
+try{new ResizeObserver(()=>syncHeaderGutter()).observe(document.body);}catch{}
 function enhance(root){try{globalThis.pgs?.helper.init(root);}catch(e){console.error(e);}}
 const icon=(name,size='')=>`<i pgs="icon['icon-${name}'${size?` '${size}'`:''}]" aria-hidden="true"></i>`;
 function socialIcon(channel){return CHANNELS.includes(channel)?`<i pgs="icon" class="social-icon social-${channel.toLowerCase()}" aria-hidden="true"></i>`:'';}
@@ -131,6 +136,7 @@ function applyStatus(result){
  state.error=!result.valid?result.message||'':result.client&&!result.clientValid?result.message||'':'';
 }
 const clientName=()=>state.clients.find(c=>c.folder===state.client)?.name||'';
+const clientLogo=(c=state.clients.find(x=>x.folder===state.client))=>c?.logo?`<img class="client-logo" src="${escape(c.logo)}" alt="">`:'';
 async function call(method,...args){if(!api)throw new Error('Apri SocialDesk dall’applicazione per accedere ai file.');const response=await api[method](...args);if(!response.ok){const e=new Error(response.error.message);e.code=response.error.code;throw e;}return response.value;}
 const CAPS_HINT='Non scrivere il titolo tutto in maiuscolo: va bene solo la prima lettera (es. «Buone feste»).';
 function allCaps(title){const letters=String(title||'').match(/\p{L}/gu)||[];return letters.length>1&&!/\p{Ll}/u.test(title)&&/\p{Lu}/u.test(title);}
@@ -164,10 +170,10 @@ function render(){
   if(!state.loading){const home=document.createElement('button');home.type='button';home.setAttribute('pgs',"button['btnTransparent']");home.className='home-link';home.innerHTML=`${icon('arrowLeft')}<span>Torna alla home</span>`;home.addEventListener('click',goHome);footer.prepend(home);}
  }
  enhance(main);enhance(footer);enhance(progress);
+ renderAppFooter();
 }
 function renderHeader(){
  const active=state.route==='home'||state.route==='settings'?'':state.route==='create'?'create':state.route==='ideas'?'ideas':state.listMode;
- const brand=document.getElementById('brand-home');brand.setAttribute('aria-disabled',String(state.loading));
  renderClientSlot();
  document.querySelectorAll('[data-nav]').forEach(link=>{
   if(link.dataset.nav===active)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');
@@ -207,7 +213,7 @@ function renderWizard(){
 function error(message){state.error=message;setAlert(document.getElementById('error'),message);}
 function wire(){
  document.querySelectorAll('[name=social]').forEach(input=>input.addEventListener('change',()=>{state.post.channels=Array.from(document.querySelectorAll('[name=social]:checked')).map(x=>x.value);for(const channel of state.post.channels){state.post.channelDates[channel]??={date:localToday(),undefinedDate:true};state.post.channelFormats[channel]??='';}state.plan=null;error('');updateContinue();}));
- document.getElementById('create-open-settings')?.addEventListener('click',async()=>{if(await confirmLeave())openSettings();});
+ document.getElementById('create-open-settings')?.addEventListener('click',async()=>{if(await confirmLeave())openSettings('app');});
  for(const id of ['title','topic','year'])document.getElementById(id)?.addEventListener('input',event=>{state.post[id]=event.target.value;state.plan=null;error('');if(id==='title')showCapsHint('title-caps',allCaps(event.target.value.trim()));updateContinue();});
  document.querySelectorAll('[data-channel-format]').forEach(input=>input.addEventListener('change',event=>{state.post.channelFormats[event.target.dataset.channelFormat]=event.target.value;state.plan=null;error('');updateContinue();}));
  document.querySelectorAll('[data-channel-date]').forEach(input=>input.addEventListener('input',event=>{state.post.channelDates[event.target.dataset.channelDate].date=event.target.value;state.plan=null;error('');updateContinue();}));
@@ -260,19 +266,20 @@ let lastUpdateCheck=0;
 async function refreshUpdate(force=false){
  if(!state.baseValid||!api?.checkUpdate||(!force&&Date.now()-lastUpdateCheck<60000))return;
  lastUpdateCheck=Date.now();
- try{const result=await call('checkUpdate');const changed=!!result.available!==!!state.update?.available||result.version!==state.update?.version;state.update=result;if(changed&&state.route==='home'&&!state.loading)render();}catch{}
+ try{const result=await call('checkUpdate');const changed=!!result.available!==!!state.update?.available||result.version!==state.update?.version;state.update=result;if(changed&&!state.loading)renderAppFooter();}catch{}
 }
 // Cerca aggiornamenti: controllo esplicito, con risposta anche quando non c'è nulla da installare
 async function checkUpdateNow(){
  if(state.loading||state.checkingUpdate)return;
- state.checkingUpdate=true;state.notice='';state.error='';render();
+ state.checkingUpdate=true;renderAppFooter();
  try{
   const result=await call('checkUpdate');lastUpdateCheck=Date.now();state.update=result;
   if(result.available){state.checkingUpdate=false;render();openUpdateModal();return;}
-  if(result.reason)state.error=`Non riesco a controllare gli aggiornamenti: ${result.reason}`;
-  else state.notice=`Hai già l’ultima versione (${state.version}).`;
- }catch(e){state.error=e.message;}
- finally{state.checkingUpdate=false;if(state.route==='home')render();document.getElementById('check-update')?.focus({preventScroll:true});}
+  if(result.reason)globalThis.pgs?.toast.error({title:'Aggiornamenti non controllati',description:result.reason,timeout:6000,closeTitle:'Chiudi'});
+  else globalThis.pgs?.toast.success({title:'Hai già l’ultima versione',description:`SocialDesk ${state.version}`,timeout:3000,closeTitle:'Chiudi'});
+  bringToastToFront();
+ }catch(e){globalThis.pgs?.toast.error({title:'Aggiornamenti non controllati',description:e.message,timeout:6000,closeTitle:'Chiudi'});bringToastToFront();}
+ finally{state.checkingUpdate=false;renderAppFooter();document.getElementById('check-update')?.focus({preventScroll:true});}
 }
 function openUpdateModal(){
  if(anyModalOpen()||!state.update?.available)return;
@@ -294,11 +301,8 @@ function renderHome(){
  const card=(id,tone,image,label)=>`<button pgs="box${tone?` background['${tone}']`:''} flex['column' 'itemCenter' 'gapParagraphs']" class="home-action" id="${id}" type="button" ${disabled(state.loading||!state.rootValid)}><img src="assets/${image}" alt="" width="240" height="240"><span pgs="h4">${label}</span></button>`;
  // Home: a sinistra Tutti i post e Post in bozza nello stesso riquadro, a destra Crea nuovo post, sotto Idee
  const row=(id,image,label)=>`<button pgs="flex['row' 'itemCenter' 'gapParagraphs']" class="home-action home-row" id="${id}" type="button" ${disabled(state.loading||!state.rootValid)}><img src="assets/${image}" alt="" width="120" height="120"><span pgs="h4">${label}</span></button>`;
- main.innerHTML=`<div pgs="flex['row' 'itemCenter' 'justifyCenter' 'gapParagraphs']" class="home-heading"><h1 pgs="h2" class="home-title">Cosa vuoi fare oggi?</h1><button pgs="button['btnIconOnly']" id="home-recheck" class="${state.checkingRoot?'is-checking':''}" type="button" aria-label="Ricontrolla la cartella Social" title="Ricontrolla la cartella Social (es. dopo aver collegato il disco o la VPN)" ${disabled(state.loading||state.checkingRoot)}>${icon('refresh')}</button></div><div pgs="grid['column-2' 'gapElements']" class="home-actions"><div pgs="box flex['column']" class="home-pair">${row('all-posts','calendar.png','Tutti i post')}<hr class="home-divider">${row('drafts','draft.png','Post in bozza')}</div>${card('create-new','bgSuccessSoft','megaphone.png','Crea nuovo post')}<button pgs="box flex['row' 'itemCenter' 'gapParagraphs']" class="home-action home-ideas" id="home-ideas" type="button" ${disabled(state.loading||!state.rootValid)}><img src="assets/idea.png" alt="" width="120" height="120"><span pgs="flex['column' 'gapDetails']"><span pgs="h4">Idee</span><span class="hint">Le idee per i prossimi post, condivise con tutti.</span></span></button></div><hr><div pgs="flex['row' 'wrap' 'itemCenter' 'gapParagraphs']" class="home-settings"><button pgs="button" id="open-settings" type="button" ${disabled(state.loading)}>${icon('gear')}<span>Impostazioni</span></button><button pgs="button" id="sync-assets" type="button" ${disabled(state.loading||!state.rootValid)} title="Copia le immagini di tutti i post in 00_template/Archivio asset, divise per social e anno">${icon('images')}<span>${state.assetSyncing?'Aggiornamento…':'Aggiorna archivio asset'}</span></button>${state.version?`<span pgs="flex['row' 'itemCenter' 'gapParagraphs']" class="app-version">${state.update?.available?`<button pgs="button['btnStrong' 'btnMini']" id="install-update" type="button" ${disabled(state.loading)} title="Installa la versione ${escape(state.update.version)} da App Social">${icon('refresh')}<span>Aggiorna alla ${escape(state.update.version)}</span></button>`:`<button pgs="button['btnMini']" id="check-update" type="button" ${disabled(state.loading||state.checkingUpdate)} title="Controlla se in App Social c'è una versione più recente">${icon('refresh')}<span>${state.checkingUpdate?'Controllo…':'Cerca aggiornamenti'}</span></button>`}<span pgs="badge['badgeNeutral']">Versione ${escape(state.version)}</span></span>`:''}</div>${noticeBox()}${homeErrorBox()}`;
+ main.innerHTML=`<div pgs="flex['row' 'itemCenter' 'justifyCenter' 'gapParagraphs']" class="home-heading"><h1 pgs="h2" class="home-title">Cosa vuoi fare oggi?</h1><button pgs="button['btnIconOnly']" id="home-recheck" class="${state.checkingRoot?'is-checking':''}" type="button" aria-label="Ricontrolla la cartella Social" title="Ricontrolla la cartella Social (es. dopo aver collegato il disco o la VPN)" ${disabled(state.loading||state.checkingRoot)}>${icon('refresh')}</button></div><div pgs="grid['column-2' 'gapElements']" class="home-actions"><div pgs="box flex['column']" class="home-pair">${row('all-posts','calendar.png','Tutti i post')}<hr class="home-divider">${row('drafts','draft.png','Post in bozza')}</div>${card('create-new','bgSuccessSoft','megaphone.png','Crea nuovo post')}<button pgs="box flex['row' 'itemCenter' 'gapParagraphs']" class="home-action home-ideas" id="home-ideas" type="button" ${disabled(state.loading||!state.rootValid)}><img src="assets/idea.png" alt="" width="120" height="120"><span pgs="flex['column' 'gapDetails']"><span pgs="h4">Idee</span><span class="hint">Le idee per i prossimi post, condivise con tutti.</span></span></button></div><hr><div pgs="flex['row' 'wrap' 'itemCenter' 'gapParagraphs']" class="home-settings"><button pgs="button" id="sync-assets" type="button" ${disabled(state.loading||!state.rootValid)} title="Copia le immagini di tutti i post in 03_Template/Archivio asset, divise per social e anno">${icon('images')}<span>${state.assetSyncing?'Aggiornamento…':'Aggiorna archivio asset'}</span></button></div>${noticeBox()}${homeErrorBox()}`;
  footer.innerHTML='';
- document.getElementById('open-settings').addEventListener('click',openSettings);
- document.getElementById('install-update')?.addEventListener('click',openUpdateModal);
- document.getElementById('check-update')?.addEventListener('click',checkUpdateNow);
  document.getElementById('choose-root')?.addEventListener('click',chooseRootFromHome);
  document.getElementById('sync-assets').addEventListener('click',syncAssets);
  document.getElementById('drafts').addEventListener('click',loadDrafts);
@@ -307,24 +311,39 @@ function renderHome(){
  document.getElementById('home-ideas').addEventListener('click',openIdeas);
  document.getElementById('home-recheck').addEventListener('click',recheckRoot);
 }
-// Header: accanto al logo, al posto della scritta SocialDesk, il nome del cliente in uso con la freccia che apre
-// l'elenco dei clienti (dropdown di myPgs con menu buttonGroup verticale); l'ultima voce è Crea cliente.
+// Header: a sinistra il logo e il nome del cliente (link alla home) e la freccia che apre l'elenco dei clienti
+// (dropdown di myPgs con menu buttonGroup verticale): clienti, Impostazioni del cliente, Crea cliente.
 // Senza clienti in Social c'è direttamente Crea cliente. Si ridisegna solo quando cambia qualcosa.
 let clientSlotKey='';
 function renderClientSlot(){
  const slot=document.getElementById('client-slot');if(!slot)return;
  const off=state.loading||!state.baseValid;
- const key=JSON.stringify([state.clients,state.client,off,state.root]);
+ const key=JSON.stringify([state.clients,state.client,off,state.loading,state.root]);
  if(key===clientSlotKey)return;clientSlotKey=key;
- if(!state.root){slot.innerHTML='';return;}
- if(!state.clients.length)slot.innerHTML=`<button pgs="button['btnTransparent']" id="client-create" class="client-switch" type="button" ${disabled(off)}>${icon('circlePlus')}<span class="client-switch-name">Crea cliente</span></button>`;
+ const current=state.clients.find(c=>c.folder===state.client);
+ if(!state.root)slot.innerHTML=`<a pgs="logo" class="app-brand" id="brand-home" href="#home" aria-label="SocialDesk — Home"><span pgs="logo-text">SocialDesk</span></a>`;
+ else if(!state.clients.length)slot.innerHTML=`<button pgs="button['btnTransparent']" id="client-create" class="client-create-first" type="button" ${disabled(off)}>${icon('circlePlus')}<span>Crea cliente</span></button>`;
  else{
-  const items=state.clients.map(c=>{const current=c.folder===state.client;return `<li><button pgs="button['btnTransparent'${current?" 'btnCurrent'":''}]" type="button" data-client="${escape(c.folder)}" ${current?'aria-current="true"':''}>${current?icon('check'):'<span class="client-check-space" aria-hidden="true"></span>'}<span>${escape(c.name)}</span></button></li>`;}).join('');
-  slot.innerHTML=`<span pgs="dropdown" pgs-data="dropdownPosition[bottom left]" class="client-dropdown"><button pgs="dropdown-button button['btnTransparent' 'btnReverse']" id="client-switch" class="client-switch" type="button" aria-haspopup="true" aria-label="Cliente: ${escape(clientName()||'nessuno')}. Cambia cliente" title="Cambia cliente" ${disabled(off)}><span class="client-switch-name">${escape(clientName()||'Scegli un cliente')}</span>${icon('chevronDown')}</button><div pgs="dropdown-content" class="client-menu"><nav pgs="menu" aria-label="Clienti"><ul pgs="buttonGroup['btgVertical' 'btgFill']">${items}<li><button pgs="button['btnTransparent']" id="client-create" type="button">${icon('circlePlus')}<span>Crea cliente</span></button></li></ul></nav></div></span>`;
+  const items=state.clients.map(c=>{const here=c.folder===state.client;return `<li><button pgs="button['btnTransparent'${here?" 'btnCurrent'":''}]" type="button" data-client="${escape(c.folder)}" ${here?'aria-current="true"':''}>${here?icon('check'):'<span class="client-check-space" aria-hidden="true"></span>'}${clientLogo(c)}<span>${escape(c.name)}</span></button></li>`;}).join('');
+  const name=current?.name||'Scegli un cliente';
+  slot.innerHTML=`<a pgs="logo" class="app-brand client-brand" id="brand-home" href="#home" aria-label="${escape(name)} — Home" title="Torna alla home" aria-disabled="${state.loading}">${current?.logo?`<img pgs="logo-image" class="client-brand-logo" src="${escape(current.logo)}" alt="">`:''}<span pgs="logo-text" class="client-brand-name">${escape(name)}</span></a><span pgs="dropdown" pgs-data="dropdownPosition[bottom left]" class="client-dropdown"><button pgs="dropdown-button button['btnIconOnly' 'btnTransparent']" id="client-switch" class="client-switch" type="button" aria-haspopup="true" aria-label="Cambia cliente" title="Cambia cliente" ${disabled(off)}>${icon('chevronDown')}</button><div pgs="dropdown-content" class="client-menu"><nav pgs="menu" aria-label="Clienti"><ul pgs="buttonGroup['btgVertical' 'btgFill']">${items}<li><button pgs="button['btnTransparent']" id="client-settings" type="button" ${disabled(!current)}>${icon('gear')}<span>Impostazioni del cliente</span></button></li><li><button pgs="button['btnTransparent']" id="client-create" type="button">${icon('circlePlus')}<span>Crea cliente</span></button></li></ul></nav></div></span>`;
  }
  enhance(slot);
+ slot.querySelector('#brand-home')?.addEventListener('click',event=>{event.preventDefault();closeCompactMenu();goHome();});
  slot.querySelectorAll('[data-client]').forEach(button=>button.addEventListener('click',()=>selectClient(button.dataset.client)));
+ slot.querySelector('#client-settings')?.addEventListener('click',async()=>{closeClientMenu();if(state.loading||!await confirmLeave())return;openSettings('client');});
  slot.querySelector('#client-create')?.addEventListener('click',()=>openClientModal(document.getElementById('client-switch')||document.getElementById('client-create')));
+}
+// Footer dell'app, su tutte le pagine: logo SocialDesk, impostazioni dell'app, versione e aggiornamenti
+function renderAppFooter(){
+ const host=document.getElementById('app-footer');if(!host)return;
+ const update=state.update?.available?`<button pgs="button['btnStrong' 'btnMini']" id="install-update" type="button" ${disabled(state.loading)} title="Installa la versione ${escape(state.update.version)} da App Social">${icon('refresh')}<span>Aggiorna alla ${escape(state.update.version)}</span></button>`:`<button pgs="button['btnMini']" id="check-update" type="button" ${disabled(state.loading||state.checkingUpdate)} title="Controlla se in App Social c'è una versione più recente">${icon('refresh')}<span>${state.checkingUpdate?'Controllo…':'Cerca aggiornamenti'}</span></button>`;
+ host.innerHTML=`<section pgs="footer-legal section"><div pgs="footer-legal-content"><a pgs="logo" href="#home" id="footer-home" class="footer-brand-link" aria-label="SocialDesk — Home"><img pgs="logo-image" src="assets/socialdesk-logo.svg" alt=""><span pgs="logo-text">SocialDesk</span></a><button pgs="button['btnMini']" id="open-settings" type="button" ${disabled(state.loading)} ${state.route==='settings'&&state.settingsTab==='app'?'aria-current="page"':''}>${icon('gear')}<span>Impostazioni</span></button>${state.version?`<span pgs="badge['badgeNeutral']" class="app-version">Versione ${escape(state.version)}</span>${update}`:''}</div></section>`;
+ enhance(host);
+ host.querySelector('#footer-home').addEventListener('click',event=>{event.preventDefault();goHome();});
+ host.querySelector('#open-settings').addEventListener('click',async()=>{if(state.loading||!await confirmLeave())return;openSettings('app');});
+ host.querySelector('#install-update')?.addEventListener('click',openUpdateModal);
+ host.querySelector('#check-update')?.addEventListener('click',checkUpdateNow);
 }
 async function selectClient(folder){
  closeClientMenu();
@@ -453,22 +472,38 @@ async function reloadEditAfterRelink(){
  }catch(e){state.editError=e.message;}
  renderPostEdit();
 }
-async function openSettings(){
- state.route='settings';state.error='';state.notice='';state.settings=null;render();
- if(!state.rootValid)return;
+// Due pagine di impostazioni: dell'App (dal footer; solo su questo computer: cartella Social, aspetto) e del Cliente
+// (dalla freccia dell'header; salvate in 02_Settings/settings.json del cliente, valgono per tutti: logo, colore, cartelle).
+async function openSettings(tab){
+ state.route='settings';state.error='';state.notice='';state.settings=null;if(tab)state.settingsTab=tab;render();window.scrollTo({top:0});
+ if(state.settingsTab!=='client'||!state.rootValid)return;
  try{state.settings=await call('settings');render();}catch(e){error(e.message);}
 }
+// dopo una modifica del logo si rilegge lo stato, così l'header mostra subito il logo nuovo
+async function refreshClients(){try{const result=await call('initial');applyStatus(result);}catch{}}
 function renderSettings(){
- const s=state.settings;
- const row=(label,key,value)=>`<div pgs="flex['column']"><label pgs="label" for="setting-${key}">${label}</label><div pgs="flex['row' 'itemCenter' 'gapParagraphs' 'nowrap']" class="settings-control"><input pgs="input" id="setting-${key}" placeholder=" " value="${escape(value||'')}" ${disabled(!s)}><button pgs="button" type="button" data-pick="${key}" ${disabled(!s)}>${icon('folderOpen')}<span>Sfoglia</span></button></div></div>`;
- main.innerHTML=`<h1 pgs="h2">Impostazioni</h1><p class="lead">La cartella Social contiene una cartella per cliente. Template, cestino e cartelle dei post valgono per il cliente in uso${clientName()?` (<strong>${escape(clientName())}</strong>)`:''} e sono salvati nel suo 00_Settings/settings.json; Mac e Windows mantengono impostazioni separate.</p><section pgs="box flex['column' 'gapParagraphs']" aria-labelledby="settings-root-title"><h2 pgs="h4" id="settings-root-title">Cartella Social</h2><div pgs="flex['row' 'itemCenter' 'gapParagraphs' 'nowrap']" class="settings-control"><p class="path folder-path" title="${escape(state.root)}">${escape(state.root||'Nessuna cartella selezionata')}</p><button pgs="button" id="settings-root" type="button">${icon('folderOpen')}<span>${state.root?'Cambia cartella':'Scegli cartella'}</span></button></div></section><section pgs="box flex['column' 'gapParagraphs']" aria-labelledby="settings-theme-title"><h2 pgs="h4" id="settings-theme-title">Aspetto</h2><p class="hint">Tema chiaro o scuro dell'app. La scelta resta salvata su questo computer.</p><div><button pgs="button darkmodeToggle['tglLabeled']" class="theme-toggle" type="button" aria-label="Cambia tema"><i pgs="darkmodeToggle-light icon['icon-moon']" aria-hidden="true"></i><i pgs="darkmodeToggle-dark icon['icon-sun']" aria-hidden="true"></i></button></div></section>${s?`<section pgs="box form flex['column' 'gapParagraphs']" aria-labelledby="settings-templates-title"><h2 pgs="h4" id="settings-templates-title">Template Illustrator</h2><p class="hint">Scegli un file .ai per ogni social. I percorsi relativi partono dalla cartella del cliente.</p>${row('Facebook','Facebook',s.templates.Facebook)}${row('Instagram','Instagram',s.templates.Instagram)}${row('LinkedIn','LinkedIn',s.templates.LinkedIn)}</section><section pgs="box form flex['column' 'gapParagraphs']" aria-labelledby="settings-trash-title"><h2 pgs="h4" id="settings-trash-title">Cestino</h2><p class="hint">La cartella deve trovarsi dentro la cartella del cliente. Se non esiste, verrà creata quando elimini un post.</p>${row('Cartella cestino','trash',s.trash)}</section><section pgs="box flex['column' 'gapParagraphs']" aria-labelledby="settings-folders-title"><h2 pgs="h4" id="settings-folders-title">Cartelle dei post</h2><p class="hint">Trova i post la cui cartella è stata rinominata o spostata a mano e ricollegali.</p><div><button pgs="button" id="check-folders" type="button" ${disabled(state.checkingFolders)}>${icon('magnifyingGlass')}<span>${state.checkingFolders?'Controllo…':'Controlla cartelle'}</span></button></div>${folderReport()}</section><p class="hint">Piano editoriale: Piano editoriale.xlsx nella cartella del cliente.</p><div><button pgs="button['btnStrong']" id="save-settings" type="button">${icon('save')}<span>Salva impostazioni</span></button></div>`:''}${errorBox()}${noticeBox()}`;
+ const s=state.settings,tab=state.settingsTab==='client'?1:0;
+ const appPanel=`<p class="hint">Valgono solo su questo computer, per chi usa l'app.</p><section pgs="box flex['column' 'gapParagraphs']" aria-labelledby="settings-root-title"><h2 pgs="h4" id="settings-root-title">Percorso</h2><p class="hint">La cartella Social che contiene le cartelle dei clienti.</p><div pgs="flex['row' 'itemCenter' 'gapParagraphs' 'nowrap']" class="settings-control"><p class="path folder-path" title="${escape(state.root)}">${escape(state.root||'Nessuna cartella selezionata')}</p><button pgs="button" id="settings-root" type="button">${icon('folderOpen')}<span>${state.root?'Cambia cartella':'Scegli cartella'}</span></button></div></section><section pgs="box flex['column' 'gapParagraphs']" aria-labelledby="settings-theme-title"><h2 pgs="h4" id="settings-theme-title">Aspetto</h2><p class="hint">Tema chiaro o scuro dell'app.</p><div><button pgs="button darkmodeToggle['tglLabeled']" class="theme-toggle" type="button" aria-label="Cambia tema"><i pgs="darkmodeToggle-light icon['icon-moon']" aria-hidden="true"></i><i pgs="darkmodeToggle-dark icon['icon-sun']" aria-hidden="true"></i></button></div></section>`;
+ const clientPanel=!state.rootValid?alertHtml('info',state.baseValid?'Scegli o crea un cliente con la freccia in alto, accanto al nome.':'Scegli prima la cartella Social nelle impostazioni dell’app, in fondo alla pagina.'):!s?`<p class="hint">Caricamento…</p>`:`<p class="hint">Salvate nella cartella del cliente (02_Settings/settings.json): valgono per tutti quelli che lavorano su ${escape(s.name)}.</p><section pgs="box flex['column' 'gapParagraphs']" aria-labelledby="settings-logo-title"><h2 pgs="h4" id="settings-logo-title">Logo del cliente</h2><p class="hint">Compare accanto al nome del cliente in alto. PNG, JPG, WEBP, GIF o SVG, massimo 2 MB: viene copiato in 02_Settings.</p><div pgs="flex['row' 'wrap' 'itemCenter' 'gapParagraphs']" class="client-logo-row">${s.logo?`<img class="client-logo-preview" src="${escape(s.logo)}" alt="Logo di ${escape(s.name)}">`:`<span class="client-logo-preview client-logo-empty" aria-hidden="true">${icon('image')}</span>`}<button pgs="button" id="logo-choose" type="button" ${disabled(state.logoBusy)}>${icon('upload')}<span>${s.logo?'Cambia logo':'Carica logo'}</span></button>${s.logo?`<button pgs="button['btnTransparent']" id="logo-remove" type="button" ${disabled(state.logoBusy)}>${icon('trash')}<span>Rimuovi</span></button>`:''}</div></section><section pgs="box flex['column' 'gapParagraphs']" aria-labelledby="settings-color-title"><h2 pgs="h4" id="settings-color-title">Colore del cliente</h2><div pgs="flex['row' 'itemCenter' 'gapParagraphs']" class="client-color-row"><input type="color" id="client-color" value="${escape(s.color||'#23765a')}" aria-label="Colore del cliente"><span class="hint" id="client-color-value">${s.color?escape(s.color):'Nessun colore scelto'}</span></div></section><section pgs="box flex['column' 'gapParagraphs']" aria-labelledby="settings-folders-title"><h2 pgs="h4" id="settings-folders-title">Cartelle dei post</h2><p class="hint">Trova i post la cui cartella è stata rinominata o spostata a mano e ricollegali.</p><div><button pgs="button" id="check-folders" type="button" ${disabled(state.checkingFolders)}>${icon('magnifyingGlass')}<span>${state.checkingFolders?'Controllo…':'Controlla cartelle'}</span></button></div>${folderReport()}</section>`;
+ main.innerHTML=tab===0?`<h1 pgs="h2">Impostazioni dell’app</h1>${appPanel}${errorBox()}${noticeBox()}`:`<h1 pgs="h2">Impostazioni del cliente${clientName()?` <span class="title-muted">${escape(clientName())}</span>`:''}</h1>${clientPanel}${errorBox()}${noticeBox()}`;
  footer.innerHTML=`<button pgs="button['btnTransparent']" id="settings-home" type="button">${icon('arrowLeft')}<span>Torna alla home</span></button>`;
  document.getElementById('settings-home').addEventListener('click',goHome);
- document.getElementById('settings-root').addEventListener('click',async()=>{try{const result=await call('chooseRoot');if(result){applyStatus(result);state.settings=state.rootValid?await call('settings'):null;state.notice='';render();}}catch(e){error(e.message);}});
- document.querySelectorAll('[data-pick]').forEach(button=>button.addEventListener('click',async()=>{try{const value=await call('chooseSetting',button.dataset.pick);if(value!==null)document.getElementById('setting-'+button.dataset.pick).value=value;}catch(e){error(e.message);}}));
+ document.getElementById('settings-root')?.addEventListener('click',async()=>{try{const result=await call('chooseRoot');if(result){applyStatus(result);state.settings=state.rootValid?await call('settings'):null;state.notice='';render();}}catch(e){error(e.message);}});
  document.getElementById('check-folders')?.addEventListener('click',checkFolders);
  main.querySelectorAll('[data-relink-key]').forEach(button=>button.addEventListener('click',()=>{const post=state.drafts.find(d=>d.key===button.dataset.relinkKey);if(post)openRelinkModal(post,checkFolders);}));
- document.getElementById('save-settings')?.addEventListener('click',async()=>{const input={socialRoot:state.root,templates:{},trash:document.getElementById('setting-trash').value};for(const channel of CHANNELS)input.templates[channel]=document.getElementById('setting-'+channel).value;try{state.settings=await call('saveSettings',input);state.notice='Impostazioni salvate.';state.error='';render();}catch(e){error(e.message);}});
+ const logoAction=async(method,message)=>{
+  if(state.logoBusy)return;state.logoBusy=true;state.error='';state.notice='';render();
+  try{const result=await call(method);if(result){state.settings=result;await refreshClients();state.notice=message;}}
+  catch(e){state.error=e.message;}
+  finally{state.logoBusy=false;render();}
+ };
+ document.getElementById('logo-choose')?.addEventListener('click',()=>logoAction('chooseLogo','Logo salvato.'));
+ document.getElementById('logo-remove')?.addEventListener('click',()=>logoAction('removeLogo','Logo rimosso.'));
+ document.getElementById('client-color')?.addEventListener('change',async event=>{
+  try{state.settings=await call('saveSettings',{color:event.target.value});state.notice='Colore salvato.';state.error='';}
+  catch(e){state.error=e.message;}
+  render();
+ });
 }
 async function syncAssets(){
  if(state.loading)return;
@@ -1061,7 +1096,6 @@ function createFromIdea(idea){
  render();
 }
 
-document.getElementById('brand-home').addEventListener('click',event=>{event.preventDefault();closeCompactMenu();goHome();});
 document.querySelectorAll('[data-nav]').forEach(link=>link.addEventListener('click',async event=>{
  event.preventDefault();if(state.loading||!state.rootValid||anyModalOpen())return;
  closeCompactMenu();

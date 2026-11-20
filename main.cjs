@@ -44,7 +44,6 @@ async function preferences(){
  const files=[config(),...['Social','social-post-assistant'].map(name=>path.join(app.getPath('appData'),name,'social-preferences.json'))];
  for(const file of files){try{const data=JSON.parse(await fs.readFile(file,'utf8'));if(typeof data.root==='string'&&data.root){root=data.root;if(typeof data.client==='string')client=data.client;break;}}catch{}}
  if(process.env.SOCIAL_TEST_ROOT)root=process.env.SOCIAL_TEST_ROOT;
- else if(root){try{const doc=await settings.read(root),configured=doc[settings.platform()]?.socialRoot;if(typeof configured==='string'&&configured)root=configured;}catch{}}
 }
 async function remember(){await fs.mkdir(path.dirname(config()),{recursive:true});const temp=config()+'.tmp';await fs.writeFile(temp,JSON.stringify({root,client}));await fs.rename(temp,config());}
 function errorMessage(e){
@@ -61,7 +60,7 @@ async function status(){
  const version=app.getVersion();
  if(!root)return{root:'',valid:false,version,clients:[],client:'',clientValid:false};
  let list;
- try{await clients.baseInfo(root);list=await clients.listClients(root);}
+ try{await clients.baseInfo(root);list=await clients.listClients(root);list=await Promise.all(list.map(async c=>({...c,logo:await settings.logoData(path.join(root,c.folder))})));}
  catch(e){return{root,valid:false,version,clients:[],client:'',clientValid:false,message:errorMessage(e).message};}
  if(!list.some(c=>c.folder===client)){const next=list[0]?.folder||'';if(next!==client){client=next;lastResult=null;await remember().catch(()=>{});}}
  if(!client)return{root,valid:true,version,clients:list,client:'',clientValid:false};
@@ -143,24 +142,25 @@ else{
    if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');
    busy=true;
    try{
-    // i template del nuovo cliente partono da quelli del cliente in uso (o, la prima volta, da Social/00_template)
+    // i template del nuovo cliente vengono da Social/00_Template_base; se non c'è, da quelli del cliente in uso
     const from=client&&(await clients.listClients(root)).some(c=>c.folder===client)?path.join(root,client):root;
     const created=await clients.createClient(root,name,{templatesFrom:from});
     client=created.folder;lastResult=null;await remember();log(`nuovo cliente: ${client}`);
     return{...(await status()),created};
    }finally{busy=false;}
   });
-  endpoint('social:settings',async()=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');await rootInfo(clientDir());return{...(await settings.current(clientDir())),socialRoot:root,clientRoot:clientDir(),clientName:clients.displayName(client)};});
-  endpoint('social:choose-setting',async(kind)=>{
+  // Impostazioni del cliente (02_Settings/settings.json): logo e colore. Quelle dell'app (cartella Social, tema) sono del computer.
+  const clientSettings=async()=>({...(await settings.current(clientDir())),logo:await settings.logoData(clientDir()),name:clients.displayName(client),folder:client});
+  endpoint('social:settings',async()=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');await rootInfo(clientDir());return clientSettings();});
+  endpoint('social:save-settings',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');await rootInfo(clientDir());await settings.save(clientDir(),{color:input?.color});return clientSettings();});
+  endpoint('social:choose-logo',async()=>{
    if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');
-   const current=await settings.current(clientDir());
-   if(!['Facebook','Instagram','LinkedIn','trash'].includes(kind))throw new PostError('INPUT','Percorso non valido.');
-   const isTrash=kind==='trash',previous=isTrash?current.trash:current.templates[kind];
-   const location=path.isAbsolute(previous)?previous:path.join(clientDir(),previous);
-   const result=await dialog.showOpenDialog(window,{title:isTrash?'Scegli la cartella cestino':`Scegli il template ${kind}`,properties:[isTrash?'openDirectory':'openFile'],defaultPath:location,filters:isTrash?undefined:[{name:'Adobe Illustrator',extensions:['ai']}]});
-   return result.canceled?null:settings.relativeOrAbsolute(clientDir(),result.filePaths[0]);
+   await rootInfo(clientDir());
+   const result=await dialog.showOpenDialog(window,{title:`Logo di ${clients.displayName(client)}`,buttonLabel:'Usa come logo',properties:['openFile'],filters:[{name:'Immagini',extensions:Object.keys(settings.LOGO_TYPES).map(e=>e.slice(1))}]});
+   if(result.canceled)return null;
+   await settings.setLogo(clientDir(),result.filePaths[0]);return clientSettings();
   });
-  endpoint('social:save-settings',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');await rootInfo(clientDir());const saved=await settings.save(clientDir(),{...input,socialRoot:clientDir()});return{...saved,socialRoot:root,clientRoot:clientDir(),clientName:clients.displayName(client)};});
+  endpoint('social:remove-logo',async()=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');await rootInfo(clientDir());await settings.removeLogo(clientDir());return clientSettings();});
   endpoint('social:plan',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine della creazione.');return planPost(clientDir(),input);});
   endpoint('social:drafts',async()=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return listDrafts(clientDir());});
   endpoint('social:posts',async()=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return listPosts(clientDir());});

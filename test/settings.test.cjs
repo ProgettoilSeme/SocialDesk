@@ -1,50 +1,57 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os');
-const {current,save,fileFor,legacyFileFor,templatePath,trashPath}=require('../lib/settings.cjs');
-const {planPost,createPost}=require('../lib/posts.cjs');
-const {listPosts}=require('../lib/editor.cjs');
-const {planDeletePost,deletePost}=require('../lib/delete.cjs');
+const settings=require('../lib/settings.cjs');
+const folders=require('../lib/folders.cjs');
+const {templateFor}=require('../lib/posts.cjs');
 const fixture=process.env.SOCIAL_TEST_FIXTURE;if(!fixture)throw Error('Impostare SOCIAL_TEST_FIXTURE.');
-test('impostazioni: JSON per piattaforma, template personalizzato e cestino usato dall’eliminazione',async t=>{
- const base=await fs.mkdtemp(path.join(os.tmpdir(),'social-settings-'));t.after(()=>fs.rm(base,{recursive:true,force:true}));
- const root=path.join(base,'Social');await fs.cp(fixture,root,{recursive:true});
- const custom=path.join(root,'00_template','speciale Facebook.ai');await fs.writeFile(custom,'AI speciale');
- const initial=await current(root);assert.equal(initial.socialRoot,root);
- const settings=await save(root,{socialRoot:root,templates:{...initial.templates,Facebook:'00_template/speciale Facebook.ai'},trash:'00_cestino_personalizzato'});
- assert.equal(settings.templates.Facebook,'00_template/speciale Facebook.ai');
- const doc=JSON.parse(await fs.readFile(fileFor(root),'utf8'));
- assert.equal(doc.version,1);assert.equal(doc[process.platform==='win32'?'mac':'windows'].socialRoot,'');
- assert.equal(await templatePath(root,'Facebook'),custom);assert.equal(await trashPath(root),path.join(root,'00_cestino_personalizzato'));
- const input={title:'Post impostazioni',topic:'',format:'Carosello',channels:['Facebook'],date:'2026-11-21',undefinedDate:false};
- const plan=await planPost(root,input);await createPost(root,input,plan.fingerprint);
- const source=path.join(root,'01_Facebook/2026/11-21_Post-impostazioni/01_Sorgenti/Post-impostazioni_facebook.ai');
- assert.equal(await fs.readFile(source,'utf8'),'AI speciale');
- const list=await listPosts(root),post=list.posts.find(p=>p.title===input.title),deletion=await planDeletePost(root,{key:post.key,revision:list.revision});
- assert.match(deletion.trashRelative,/^00_cestino_personalizzato\//);
- await deletePost(root,{key:post.key,revision:list.revision},deletion.fingerprint);
- assert.equal((await fs.stat(path.join(root,deletion.trashRelative))).isDirectory(),true);
+async function seed(t){
+ const base=await fs.mkdtemp(path.join(process.env.SOCIAL_TEST_TEMP||os.tmpdir(),'social-settings-'));t.after(()=>fs.rm(base,{recursive:true,force:true}));
+ const root=path.join(base,'Social');await fs.cp(fixture,root,{recursive:true});return{base,root};
+}
+test('cartelle fisse: nomi nuovi, oppure quelli di prima se ci sono ancora (senza badare alle maiuscole)',async t=>{
+ const {root}=await seed(t);
+ assert.equal(await folders.folder(root,'trash'),path.join(root,'00_Cestino'));
+ assert.equal(await folders.folder(root,'settings'),path.join(root,'02_Settings'));
+ assert.equal(await folders.folder(root,'template'),path.join(root,'00_template'),'la fixture ha ancora 00_template');
+ await fs.mkdir(path.join(root,'00_cestino'));await fs.mkdir(path.join(root,'00_Settings'));
+ assert.equal(await folders.folder(root,'trash'),path.join(root,'00_cestino'));
+ assert.equal(await folders.folder(root,'settings'),path.join(root,'00_Settings'));
+ await fs.rename(path.join(root,'00_template'),path.join(root,'03_Template'));
+ assert.equal(await folders.folder(root,'template'),path.join(root,'03_Template'));
+ assert.equal(await templateFor(root,'Facebook'),path.join(root,'03_Template','base Facebook.ai'));
+ await fs.rm(path.join(root,'03_Template','base Instagram.ai'));
+ await assert.rejects(templateFor(root,'Instagram'),/base Instagram\.ai\) in 03_Template/);
 });
-test('impostazioni: rifiuta file mancanti, percorsi fuori Social e JSON non valido',async t=>{
- const base=await fs.mkdtemp(path.join(os.tmpdir(),'social-settings-invalid-'));t.after(()=>fs.rm(base,{recursive:true,force:true}));
- const root=path.join(base,'Social');await fs.cp(fixture,root,{recursive:true});const original=await current(root);
- await assert.rejects(()=>save(root,{...original,templates:{...original.templates,Facebook:'../esterno.ai'}}),e=>e.code==='PATH');
- await assert.rejects(()=>save(root,{...original,templates:{...original.templates,Facebook:'00_template/manca.ai'}}),e=>e.code==='TEMPLATE');
- await fs.mkdir(path.dirname(fileFor(root)),{recursive:true});await fs.writeFile(fileFor(root),'{non json');await assert.rejects(()=>current(root),e=>e.code==='SETTINGS');
+test('impostazioni del cliente: colore e logo in 02_Settings, JSON senza i vecchi percorsi',async t=>{
+ const {base,root}=await seed(t);
+ assert.deepEqual(await settings.current(root),{logo:'',color:''});
+ assert.deepEqual(await settings.save(root,{color:'#AA00cc'}),{logo:'',color:'#aa00cc'});
+ await assert.rejects(settings.save(root,{color:'rosso'}),/colore valido/);
+ const png=path.join(base,'logo cliente.PNG');await fs.writeFile(png,Buffer.from('89504e470d0a1a0a','hex'));
+ assert.deepEqual(await settings.setLogo(root,png),{logo:'logo.png',color:'#aa00cc'});
+ assert.ok((await fs.stat(path.join(root,'02_Settings','logo.png'))).isFile());
+ assert.match(await settings.logoData(root),/^data:image\/png;base64,iVBORw0KGgo/);
+ // un logo nuovo con un'altra estensione sostituisce il vecchio
+ const svg=path.join(base,'logo.svg');await fs.writeFile(svg,'<svg xmlns="http://www.w3.org/2000/svg"/>');
+ await settings.setLogo(root,svg);
+ assert.deepEqual((await fs.readdir(path.join(root,'02_Settings'))).sort(),['logo.svg','settings.json']);
+ assert.match(await settings.logoData(root),/^data:image\/svg\+xml;base64,/);
+ await assert.rejects(settings.setLogo(root,path.join(base,'testo.txt')),/PNG, JPG/);
+ const big=path.join(base,'grande.png');await fs.writeFile(big,Buffer.alloc(settings.MAX_LOGO+1));
+ await assert.rejects(settings.setLogo(root,big),/troppo grande/);
+ assert.deepEqual(await settings.removeLogo(root),{logo:'',color:'#aa00cc'});
+ assert.deepEqual((await fs.readdir(path.join(root,'02_Settings'))),['settings.json']);
+ assert.deepEqual(JSON.parse(await fs.readFile(path.join(root,'02_Settings','settings.json'),'utf8')),{version:2,logo:'',color:'#aa00cc'});
 });
-
-test('impostazioni: in 00_Settings/settings.json; il vecchio 00_template/socialdesk-settings.json vale finché non si salva',async t=>{
- const base=await fs.mkdtemp(path.join(os.tmpdir(),'social-settings-legacy-'));t.after(()=>fs.rm(base,{recursive:true,force:true}));
- const root=path.join(base,'Social');await fs.cp(fixture,root,{recursive:true});
- assert.equal(fileFor(root),path.join(root,'00_Settings','settings.json'));
- const custom=path.join(root,'00_template','vecchio Facebook.ai');await fs.writeFile(custom,'AI');
- const original=await current(root);
- const doc={version:1,mac:{socialRoot:root,templates:{...original.templates,Facebook:'00_template/vecchio Facebook.ai'},trash:'00_cestino'},windows:{socialRoot:root,templates:{...original.templates,Facebook:'00_template/vecchio Facebook.ai'},trash:'00_cestino'}};
- await fs.writeFile(legacyFileFor(root),JSON.stringify(doc));
- assert.equal((await current(root)).templates.Facebook,'00_template/vecchio Facebook.ai');
- assert.equal(await templatePath(root,'Facebook'),custom);
- const saved=await save(root,{...(await current(root)),templates:{...(await current(root)).templates,Facebook:'00_template/base Facebook.ai'}});
- assert.equal(saved.templates.Facebook,'00_template/base Facebook.ai');
- assert.ok(JSON.parse(await fs.readFile(fileFor(root),'utf8')).mac,'salvato in 00_Settings');
- assert.equal(JSON.parse(await fs.readFile(legacyFileFor(root),'utf8')).mac.templates.Facebook,'00_template/vecchio Facebook.ai','il vecchio file non viene toccato');
- assert.equal((await current(root)).templates.Facebook,'00_template/base Facebook.ai','vale il nuovo file');
+test('impostazioni del cliente: il vecchio 00_template/socialdesk-settings.json si legge (senza i percorsi) e non si tocca',async t=>{
+ const {root}=await seed(t);
+ const old=JSON.stringify({version:1,mac:{socialRoot:root,templates:{},trash:'00_cestino'},windows:{},color:'#123456'});
+ await fs.writeFile(path.join(root,'00_template','socialdesk-settings.json'),old);
+ assert.deepEqual(await settings.current(root),{logo:'',color:'#123456'});
+ await settings.save(root,{color:'#654321'});
+ assert.equal(await fs.readFile(path.join(root,'00_template','socialdesk-settings.json'),'utf8'),old);
+ assert.deepEqual(await settings.current(root),{logo:'',color:'#654321'});
+ await fs.writeFile(path.join(root,'02_Settings','settings.json'),'{non json');
+ await assert.rejects(settings.current(root),e=>e.code==='SETTINGS');
+ assert.equal(await settings.logoData(root),'');
 });

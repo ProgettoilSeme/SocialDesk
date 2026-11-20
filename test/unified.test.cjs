@@ -140,7 +140,7 @@ test('Modifica: titolo in cartella condivisa rinomina solo i file del social; ca
  const delPlan=await planDeletePost(root,del);
  assert.equal(delPlan.partial,true);assert.deepEqual(delPlan.movedFiles.sort(),['01_Sorgenti/Festa-unica_instagram.ai','01_Sorgenti/Festa-unica_instagram.md']);
  const deleted=await deletePost(root,del,delPlan.fingerprint);
- assert.equal(deleted.trashRelative,`00_cestino/01_Posts/2026/${F(plan.id)}_Festa-unica_instagram`);
+ assert.equal(deleted.trashRelative,`00_Cestino/01_Posts/2026/${F(plan.id)}_Festa-unica_instagram`);
  assert.ok(await exists(path.join(root,deleted.trashRelative,'01_Sorgenti','Festa-unica_instagram.ai')));
  assert.deepEqual((await fs.readdir(sources)).sort(),['Festa-nuova_facebook.ai','Festa-nuova_facebook.md']);
  // ora la cartella è solo di Facebook: cambiare titolo rinomina anche la cartella (ID conservato)
@@ -159,7 +159,7 @@ test('Modifica: titolo in cartella condivisa rinomina solo i file del social; ca
  assert.equal(last.partial,false);
  await deletePost(root,del,last.fingerprint);
  assert.equal(await exists(finalFolder),false);
- assert.ok(await exists(path.join(root,'00_cestino','01_Posts','2026',`${F(plan.id)}_Festa-finale`,'02_Asset','foto comune.png')));
+ assert.ok(await exists(path.join(root,'00_Cestino','01_Posts','2026',`${F(plan.id)}_Festa-finale`,'02_Asset','foto comune.png')));
 });
 
 test('Elimina: errore dopo lo spostamento dei file → file e piano ripristinati',async t=>{
@@ -170,7 +170,7 @@ test('Elimina: errore dopo lo spostamento dei file → file e piano ripristinati
  await assert.rejects(deletePost(root,del,p.fingerprint,{failAfterMove:true}),/Errore di prova/);
  assert.equal((await fs.readdir(sources)).length,4);
  assert.deepEqual(await fs.readFile(book),before);
- assert.equal(await exists(path.join(root,'00_cestino','01_Posts','2026',`${F(plan.id)}_Festa-unica_instagram`)),false);
+ assert.equal(await exists(path.join(root,'00_Cestino','01_Posts','2026',`${F(plan.id)}_Festa-unica_instagram`)),false);
 });
 
 test('Rigenera nella cartella condivisa: il file di un altro social non blocca',async t=>{
