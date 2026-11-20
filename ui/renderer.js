@@ -137,11 +137,12 @@ function applyStatus(result){
  state.error=!result.valid?result.message||'':result.client&&!result.clientValid?result.message||'':'';
 }
 const clientName=()=>state.clients.find(c=>c.folder===state.client)?.name||'';
-// Colore del cliente (Impostazioni del cliente) → --client-color, usato dalla sfumatura in alto alla pagina
+// Colore del cliente (Impostazioni del cliente) → --client-color, usato dalla sfumatura in alto e da Crea nuovo post in home
 function applyClientColor(){
- const color=state.clients.find(c=>c.folder===state.client)?.color||'';
- if(/^#[0-9a-f]{6}$/i.test(color))document.documentElement.style.setProperty('--client-color',color);
- else document.documentElement.style.removeProperty('--client-color');
+ const color=state.clients.find(c=>c.folder===state.client)?.color||'',root=document.documentElement;
+ // data-client-color dice al CSS che c'è un colore: senza, Crea nuovo post resta verde
+ if(/^#[0-9a-f]{6}$/i.test(color)){root.style.setProperty('--client-color',color);root.dataset.clientColor='';}
+ else{root.style.removeProperty('--client-color');delete root.dataset.clientColor;}
 }
 const clientLogo=(c=state.clients.find(x=>x.folder===state.client))=>c?.logo?`<img class="client-logo" src="${escape(c.logo)}" alt="">`:'';
 async function call(method,...args){if(!api)throw new Error('Apri SocialDesk dall’applicazione per accedere ai file.');const response=await api[method](...args);if(!response.ok){const e=new Error(response.error.message);e.code=response.error.code;throw e;}return response.value;}

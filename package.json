@@ -1,7 +1,7 @@
 {
   "name": "socialdesk",
   "productName": "SocialDesk",
-  "version": "1.9.3",
+  "version": "1.9.4",
   "description": "Creazione guidata di post, sorgenti e righe del piano editoriale.",
   "main": "main.cjs",
   "private": true,

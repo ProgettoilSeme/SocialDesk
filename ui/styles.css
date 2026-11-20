@@ -333,3 +333,6 @@ header[pgs~="header"]:not([pgs-state~="compact"]) [pgs~="header-element"]{paddin
 .app-footer [pgs~="footer-legal-content"]{padding-block:var(--padding-paragraphs)}
 /* Sfumatura in alto alla pagina nel colore del cliente (Impostazioni del cliente); senza colore non si vede */
 body::before{content:"";width:100%;height:100px;background:linear-gradient(180deg,color-mix(in srgb,var(--client-color,transparent) 50%,transparent),transparent);position:absolute;top:0;left:0;z-index:-1;pointer-events:none}
+/* Home: Crea nuovo post nel colore del cliente, schiarito come il verde di prima (in tema scuro resta scuro);
+   l'hover (velo in background-image) resta uguale. Senza colore del cliente resta bgSuccessSoft. */
+:root[data-client-color] .home-actions>#create-new{background-color:color-mix(in srgb,var(--client-color) 22%,transparent)}
