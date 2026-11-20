@@ -1,6 +1,6 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os');
-const {current,save,fileFor,templatePath,trashPath}=require('../lib/settings.cjs');
+const {current,save,fileFor,legacyFileFor,templatePath,trashPath}=require('../lib/settings.cjs');
 const {planPost,createPost}=require('../lib/posts.cjs');
 const {listPosts}=require('../lib/editor.cjs');
 const {planDeletePost,deletePost}=require('../lib/delete.cjs');
@@ -29,5 +29,22 @@ test('impostazioni: rifiuta file mancanti, percorsi fuori Social e JSON non vali
  const root=path.join(base,'Social');await fs.cp(fixture,root,{recursive:true});const original=await current(root);
  await assert.rejects(()=>save(root,{...original,templates:{...original.templates,Facebook:'../esterno.ai'}}),e=>e.code==='PATH');
  await assert.rejects(()=>save(root,{...original,templates:{...original.templates,Facebook:'00_template/manca.ai'}}),e=>e.code==='TEMPLATE');
- await fs.writeFile(fileFor(root),'{non json');await assert.rejects(()=>current(root),e=>e.code==='SETTINGS');
+ await fs.mkdir(path.dirname(fileFor(root)),{recursive:true});await fs.writeFile(fileFor(root),'{non json');await assert.rejects(()=>current(root),e=>e.code==='SETTINGS');
+});
+
+test('impostazioni: in 00_Settings/settings.json; il vecchio 00_template/socialdesk-settings.json vale finché non si salva',async t=>{
+ const base=await fs.mkdtemp(path.join(os.tmpdir(),'social-settings-legacy-'));t.after(()=>fs.rm(base,{recursive:true,force:true}));
+ const root=path.join(base,'Social');await fs.cp(fixture,root,{recursive:true});
+ assert.equal(fileFor(root),path.join(root,'00_Settings','settings.json'));
+ const custom=path.join(root,'00_template','vecchio Facebook.ai');await fs.writeFile(custom,'AI');
+ const original=await current(root);
+ const doc={version:1,mac:{socialRoot:root,templates:{...original.templates,Facebook:'00_template/vecchio Facebook.ai'},trash:'00_cestino'},windows:{socialRoot:root,templates:{...original.templates,Facebook:'00_template/vecchio Facebook.ai'},trash:'00_cestino'}};
+ await fs.writeFile(legacyFileFor(root),JSON.stringify(doc));
+ assert.equal((await current(root)).templates.Facebook,'00_template/vecchio Facebook.ai');
+ assert.equal(await templatePath(root,'Facebook'),custom);
+ const saved=await save(root,{...(await current(root)),templates:{...(await current(root)).templates,Facebook:'00_template/base Facebook.ai'}});
+ assert.equal(saved.templates.Facebook,'00_template/base Facebook.ai');
+ assert.ok(JSON.parse(await fs.readFile(fileFor(root),'utf8')).mac,'salvato in 00_Settings');
+ assert.equal(JSON.parse(await fs.readFile(legacyFileFor(root),'utf8')).mac.templates.Facebook,'00_template/vecchio Facebook.ai','il vecchio file non viene toccato');
+ assert.equal((await current(root)).templates.Facebook,'00_template/base Facebook.ai','vale il nuovo file');
 });

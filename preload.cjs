@@ -2,6 +2,8 @@ const {contextBridge,ipcRenderer}=require('electron');
 contextBridge.exposeInMainWorld('socialAPI',{
  initial:()=>ipcRenderer.invoke('social:initial'),
  chooseRoot:()=>ipcRenderer.invoke('social:choose'),
+ selectClient:folder=>ipcRenderer.invoke('social:select-client',folder),
+ createClient:name=>ipcRenderer.invoke('social:create-client',name),
  settings:()=>ipcRenderer.invoke('social:settings'),
  chooseSetting:kind=>ipcRenderer.invoke('social:choose-setting',kind),
  saveSettings:input=>ipcRenderer.invoke('social:save-settings',input),

@@ -1,0 +1,83 @@
+'use strict';
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs/promises');
+const path=require('node:path');
+const os=require('node:os');
+const clients=require('../lib/clients.cjs');
+const {planPost,createPost,rootInfo}=require('../lib/posts.cjs');
+const {Book}=require('../lib/workbook.cjs');
+const {listIdeas,changeIdea}=require('../lib/ideas.cjs');
+const fixture=process.env.SOCIAL_TEST_FIXTURE;
+if(!fixture)throw new Error('Impostare SOCIAL_TEST_FIXTURE su una copia.');
+
+// Social con dentro due clienti (copie della fixture) e le cartelle che non sono clienti
+async function seed(t){
+ const base=await fs.mkdtemp(path.join(process.env.SOCIAL_TEST_TEMP||os.tmpdir(),'social-clients-'));t.after(()=>fs.rm(base,{recursive:true,force:true}));
+ const social=path.join(base,'Social');await fs.mkdir(social);
+ await fs.cp(fixture,path.join(social,'progetto_il_seme'),{recursive:true});
+ await fs.cp(fixture,path.join(social,'social_economy'),{recursive:true});
+ await fs.mkdir(path.join(social,'App Social'));await fs.writeFile(path.join(social,'App Social','Piano editoriale.xlsx'),'');
+ await fs.mkdir(path.join(social,'.nascosta'));await fs.writeFile(path.join(social,'.nascosta','Piano editoriale.xlsx'),'');
+ await fs.mkdir(path.join(social,'senza_piano'));
+ await fs.mkdir(path.join(social,'@Recycle'));
+ return social;
+}
+
+test('clienti: solo le sottocartelle con il piano, nome con spazi al posto di _ , in ordine',async t=>{
+ const social=await seed(t);
+ assert.deepEqual(await clients.listClients(social),[{folder:'progetto_il_seme',name:'progetto il seme'},{folder:'social_economy',name:'social economy'}]);
+ assert.equal(clients.displayName('Social_Economy'),'Social Economy');
+ assert.equal(await clients.clientPath(social,'social_economy'),path.join(social,'social_economy'));
+ await assert.rejects(clients.clientPath(social,'senza_piano'),/non c’è più/);
+ await assert.rejects(clients.clientPath(social,'../fuori'),/non c’è più/);
+ await assert.rejects(clients.listClients(path.join(social,'manca')),/non è raggiungibile/);
+});
+
+test('clienti: Social con il piano direttamente dentro (vecchia struttura) non ha clienti',async t=>{
+ const base=await fs.mkdtemp(path.join(process.env.SOCIAL_TEST_TEMP||os.tmpdir(),'social-legacy-'));t.after(()=>fs.rm(base,{recursive:true,force:true}));
+ const social=path.join(base,'Social');await fs.cp(fixture,social,{recursive:true});
+ assert.deepEqual(await clients.listClients(social),[]);
+});
+
+test('crea cliente: piano vuoto, 00_template con i template copiati, 01_Posts; poi si crea un post',async t=>{
+ const social=await seed(t),from=path.join(social,'progetto_il_seme');
+ const created=await clients.createClient(social,'  Nuovo   Cliente ',{templatesFrom:from});
+ assert.deepEqual(created,{folder:'Nuovo_Cliente',name:'Nuovo Cliente',missingTemplates:[]});
+ const root=path.join(social,'Nuovo_Cliente');
+ await rootInfo(root);
+ assert.deepEqual((await fs.readdir(path.join(root,'00_template'))).sort(),['base Facebook.ai','base Instagram.ai','base Linkedin.ai']);
+ assert.ok((await fs.stat(path.join(root,'01_Posts'))).isDirectory());
+ assert.ok((await fs.stat(path.join(root,'00_Settings'))).isDirectory());
+ const book=new Book(await fs.readFile(path.join(root,'Piano editoriale.xlsx')));
+ assert.equal(book.posts().length,0,'nessun post degli altri clienti');
+ assert.deepEqual((await clients.listClients(social)).map(c=>c.folder),['Nuovo_Cliente','progetto_il_seme','social_economy']);
+ // il nuovo cliente funziona: creazione di un post su due social con ID 0, nella cartella unica 01_Posts
+ const year=new Date().getFullYear();
+ const post={title:'Primo post',topic:'',format:'Carosello',channels:['Facebook','Instagram'],date:`${year}-05-11`,undefinedDate:false};
+ const plan=await planPost(root,post);
+ await createPost(root,post,plan.fingerprint);
+ const after=new Book(await fs.readFile(path.join(root,'Piano editoriale.xlsx'))).posts();
+ assert.deepEqual(after.map(p=>[p.id,p.channel,p.title]),[[0,'Facebook','Primo post'],[0,'Instagram','Primo post']]);
+ assert.ok(after[0].sourcesRelative.startsWith(`01_Posts/${year}/`));
+ // le idee sono del cliente: quelle del nuovo cliente non compaiono negli altri
+ await changeIdea(root,{action:'add',text:'Idea del nuovo cliente'});
+ assert.equal((await listIdeas(root)).ideas.length,1);
+ assert.equal((await listIdeas(from)).ideas.length,0);
+});
+
+test('crea cliente: template mancanti segnalati, nomi non validi o già usati rifiutati senza lasciare cartelle',async t=>{
+ const social=await seed(t);
+ const empty=await clients.createClient(social,'senza template',{templatesFrom:path.join(social,'senza_piano')});
+ assert.deepEqual(empty.missingTemplates,['Facebook','Instagram','LinkedIn']);
+ await assert.rejects(clients.createClient(social,'Social Economy'),/già una cartella/,'stesso nome con maiuscole diverse');
+ await assert.rejects(clients.createClient(social,'senza_piano'),/già una cartella/);
+ await assert.rejects(clients.createClient(social,'   '),/Scrivi il nome/);
+ await assert.rejects(clients.createClient(social,'a/b'),/non può contenere/);
+ await assert.rejects(clients.createClient(social,'..'),/non può iniziare/);
+ await assert.rejects(clients.createClient(social,'App Social'),/riservato/);
+ await assert.rejects(clients.createClient(social,'x'.repeat(61)),/troppo lungo/);
+ const before=(await fs.readdir(social)).sort();
+ await assert.rejects(clients.createClient(path.join(social,'manca'),'Altro'),/non è raggiungibile/);
+ assert.deepEqual((await fs.readdir(social)).sort(),before);
+});

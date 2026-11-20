@@ -111,3 +111,17 @@ test('Mac: consegna solo zip (senza SocialDesk.app sul NAS)',{skip:process.platf
  const staged=await update.stageMacApp(plan,7);
  assert.ok((await fs.readFile(path.join(staged,'Contents','Info.plist'),'utf8')).includes('1.3.0'));
 });
+
+test('App Social accanto alla cartella Social (es. Comunicazione/App Social): trovata; dentro Social ha la precedenza',async()=>{
+ const base=await fs.mkdtemp(path.join(process.env.SOCIAL_TEST_TEMP||os.tmpdir(),'social-update-fuori-'));
+ const root=path.join(base,'Social'),outside=path.join(base,'App Social');
+ await fs.mkdir(path.join(root,'progetto_il_seme'),{recursive:true});await fs.mkdir(path.join(outside,'Windows'),{recursive:true});
+ await fs.writeFile(path.join(outside,'Windows','SocialDesk-Setup-1.8.0.exe'),'MZ');
+ await fs.writeFile(path.join(outside,'versione.json'),JSON.stringify({version:'1.8.0',windows:'Windows/SocialDesk-Setup-1.8.0.exe'}));
+ const found=await update.checkUpdate(root,'1.7.5','win32');
+ assert.equal(found.available,true);assert.equal(found.version,'1.8.0');
+ assert.equal((await update.readManifest(root)).folder,outside);
+ const inside=path.join(root,'App Social');await fs.mkdir(inside);await fs.writeFile(path.join(inside,'versione.json'),JSON.stringify({version:'1.7.9'}));
+ assert.equal((await update.readManifest(root)).folder,inside);
+ await fs.rm(base,{recursive:true,force:true});
+});

@@ -5,7 +5,7 @@ const api=window.socialAPI;
 document.documentElement.dataset.platform=/Mac/i.test(navigator.platform)?'mac':'other';
 const localToday=()=>{const d=new Date();return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
 const initialPost=()=>({channels:[],title:'',topic:'',channelFormats:{},channelDates:{},year:String(new Date().getFullYear())});
-const state={route:'home',step:0,visited:0,root:'',rootValid:false,post:initialPost(),plan:null,result:null,error:'',loading:false,drafts:[],revision:'',selected:null,notice:'',filterYear:String(new Date().getFullYear()),filterChannels:['Facebook','LinkedIn','Instagram'],filterStatus:'',filterMonth:'',filterSearch:'',groupById:true,hidePublished:true,expandedGroups:new Set(),years:[],listMode:'drafts',editValues:null,editOriginal:null,settings:null,highlight:null,editModal:null,ideas:null,ideaDraft:{text:'',notes:'',channels:[]},ideasLoading:false};
+const state={route:'home',step:0,visited:0,root:'',rootValid:false,baseValid:false,clients:[],client:'',post:initialPost(),plan:null,result:null,error:'',loading:false,drafts:[],revision:'',selected:null,notice:'',filterYear:String(new Date().getFullYear()),filterChannels:['Facebook','LinkedIn','Instagram'],filterStatus:'',filterMonth:'',filterSearch:'',groupById:true,hidePublished:true,expandedGroups:new Set(),years:[],listMode:'drafts',editValues:null,editOriginal:null,settings:null,highlight:null,editModal:null,ideas:null,ideaDraft:{text:'',notes:'',channels:[]},ideasLoading:false};
 const main=document.getElementById('main'),footer=document.getElementById('footer'),progress=document.getElementById('progress');
 const CHANNELS=['Facebook','Instagram','LinkedIn'];
 // Tema: myPgs lo salva e lo applica; le finestre di sistema (conferme, dialoghi) lo seguono.
@@ -115,6 +115,13 @@ function progressToast(title,{lazy=false,segments=1}={}){
  return job;
 }
 
+// Stato dal main: cartella Social (baseValid), clienti e cliente in uso. rootValid = si può lavorare sui post.
+function applyStatus(result){
+ state.root=result.root||'';state.baseValid=!!result.valid;state.clients=result.clients||[];state.client=result.client||'';
+ state.rootValid=!!(result.valid&&result.clientValid);
+ state.error=!result.valid?result.message||'':result.client&&!result.clientValid?result.message||'':'';
+}
+const clientName=()=>state.clients.find(c=>c.folder===state.client)?.name||'';
 async function call(method,...args){if(!api)throw new Error('Apri SocialDesk dall’applicazione per accedere ai file.');const response=await api[method](...args);if(!response.ok){const e=new Error(response.error.message);e.code=response.error.code;throw e;}return response.value;}
 const CAPS_HINT='Non scrivere il titolo tutto in maiuscolo: va bene solo la prima lettera (es. «Buone feste»).';
 function allCaps(title){const letters=String(title||'').match(/\p{L}/gu)||[];return letters.length>1&&!/\p{Ll}/u.test(title)&&/\p{Lu}/u.test(title);}
@@ -137,7 +144,8 @@ function render(){
  progress.hidden=state.route!=='create';
  document.body.dataset.screen=state.route;
  const section=state.listMode==='posts'?'Tutti i post':'Post in bozza';
- document.title=state.route==='home'?'SocialDesk':state.route==='create'?'SocialDesk — Nuovo post':state.route==='settings'?'SocialDesk — Impostazioni':state.route==='ideas'?'SocialDesk — Idee':'SocialDesk — '+section;
+ const who=clientName()?` — ${clientName()}`:'';
+ document.title=(state.route==='home'?'SocialDesk':state.route==='create'?'SocialDesk — Nuovo post':state.route==='settings'?'SocialDesk — Impostazioni':state.route==='ideas'?'SocialDesk — Idee':'SocialDesk — '+section)+who;
  if(state.route==='home')renderHome();
  else if(state.route==='settings')renderSettings();
  else if(state.route==='drafts'||state.route==='posts')renderDrafts();
@@ -151,6 +159,7 @@ function render(){
 function renderHeader(){
  const active=state.route==='home'||state.route==='settings'?'':state.route==='create'?'create':state.route==='ideas'?'ideas':state.listMode;
  const brand=document.getElementById('brand-home');brand.setAttribute('aria-disabled',String(state.loading));
+ renderClientSlot();
  document.querySelectorAll('[data-nav]').forEach(link=>{
   if(link.dataset.nav===active)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');
   // senza cartella Social raggiungibile i collegamenti sono spenti (resta il logo per la home)
@@ -240,7 +249,7 @@ async function goHome(){if(state.loading||!await confirmLeave())return;state.rou
 // Aggiornamento: App Social/versione.json nella cartella Social. Controllato all'avvio e tornando in home (al massimo ogni minuto).
 let lastUpdateCheck=0;
 async function refreshUpdate(force=false){
- if(!state.rootValid||!api?.checkUpdate||(!force&&Date.now()-lastUpdateCheck<60000))return;
+ if(!state.baseValid||!api?.checkUpdate||(!force&&Date.now()-lastUpdateCheck<60000))return;
  lastUpdateCheck=Date.now();
  try{const result=await call('checkUpdate');const changed=!!result.available!==!!state.update?.available||result.version!==state.update?.version;state.update=result;if(changed&&state.route==='home'&&!state.loading)render();}catch{}
 }
@@ -289,25 +298,87 @@ function renderHome(){
  document.getElementById('home-ideas').addEventListener('click',openIdeas);
  document.getElementById('home-recheck').addEventListener('click',recheckRoot);
 }
+// Header: accanto al logo, al posto della scritta SocialDesk, il nome del cliente in uso con la freccia che apre
+// l'elenco dei clienti (dropdown di myPgs con menu buttonGroup verticale); l'ultima voce è Crea cliente.
+// Senza clienti in Social c'è direttamente Crea cliente. Si ridisegna solo quando cambia qualcosa.
+let clientSlotKey='';
+function renderClientSlot(){
+ const slot=document.getElementById('client-slot');if(!slot)return;
+ const off=state.loading||!state.baseValid;
+ const key=JSON.stringify([state.clients,state.client,off,state.root]);
+ if(key===clientSlotKey)return;clientSlotKey=key;
+ if(!state.root){slot.innerHTML='';return;}
+ if(!state.clients.length)slot.innerHTML=`<button pgs="button['btnTransparent']" id="client-create" class="client-switch" type="button" ${disabled(off)}>${icon('circlePlus')}<span class="client-switch-name">Crea cliente</span></button>`;
+ else{
+  const items=state.clients.map(c=>{const current=c.folder===state.client;return `<li><button pgs="button['btnTransparent'${current?" 'btnCurrent'":''}]" type="button" data-client="${escape(c.folder)}" ${current?'aria-current="true"':''}>${current?icon('check'):'<span class="client-check-space" aria-hidden="true"></span>'}<span>${escape(c.name)}</span></button></li>`;}).join('');
+  slot.innerHTML=`<span pgs="dropdown" pgs-data="dropdownPosition[bottom left]" class="client-dropdown"><button pgs="dropdown-button button['btnTransparent' 'btnReverse']" id="client-switch" class="client-switch" type="button" aria-haspopup="true" aria-label="Cliente: ${escape(clientName()||'nessuno')}. Cambia cliente" title="Cambia cliente" ${disabled(off)}><span class="client-switch-name">${escape(clientName()||'Scegli un cliente')}</span>${icon('chevronDown')}</button><div pgs="dropdown-content" class="client-menu"><nav pgs="menu" aria-label="Clienti"><ul pgs="buttonGroup['btgVertical' 'btgFill']">${items}<li><button pgs="button['btnTransparent']" id="client-create" type="button">${icon('circlePlus')}<span>Crea cliente</span></button></li></ul></nav></div></span>`;
+ }
+ enhance(slot);
+ slot.querySelectorAll('[data-client]').forEach(button=>button.addEventListener('click',()=>selectClient(button.dataset.client)));
+ slot.querySelector('#client-create')?.addEventListener('click',()=>openClientModal(document.getElementById('client-switch')||document.getElementById('client-create')));
+}
+async function selectClient(folder){
+ closeClientMenu();
+ if(state.loading||folder===state.client)return;
+ // una creazione iniziata appartiene al cliente di prima: si chiede prima di perderla
+ if(state.route==='create'&&!(await confirmLeave()))return;
+ state.loading=true;state.error='';state.notice='';render();
+ let ok=false;
+ try{applyStatus(await call('selectClient',folder));state.drafts=[];state.ideas=null;state.highlight=null;state.expandedGroups=new Set();ok=true;}
+ catch(e){state.error=e.message;}
+ finally{state.loading=false;}
+ // la pagina aperta si ricarica con i dati del nuovo cliente (elenco con i filtri di partenza)
+ const route=state.route;
+ if(ok&&state.rootValid&&(route==='posts'||route==='drafts')){state.route='home';await loadList(state.listMode);}
+ else if(ok&&state.rootValid&&route==='ideas')await openIdeas();
+ else if(ok&&route==='settings')await openSettings();
+ else if(ok&&route==='create'){state.route='home';render();startCreate();}
+ else{if(ok&&!state.rootValid)state.route='home';render();}
+ document.getElementById('client-switch')?.focus({preventScroll:true});
+}
+function closeClientMenu(){try{const root=document.querySelector('#client-slot .client-dropdown');if(root)globalThis.pgs?.dropdown.api(root)?.close();}catch{}}
+// Crea cliente: nome → cartella Social/<nome con _ al posto degli spazi> con piano vuoto, 00_template e 01_Posts
+async function openClientModal(opener){
+ closeClientMenu();
+ if(state.loading||anyModalOpen())return;
+ if(state.route==='create'&&!(await confirmLeave()))return;
+ const body=`<p class="hint">Verrà creata in Social una cartella con questo nome (gli spazi diventano “_”) con il piano editoriale vuoto, 00_template e 01_Posts. I template Illustrator vengono copiati da ${state.client?`<strong>${escape(clientName())}</strong>`:'quelli già presenti in Social'}: poi puoi cambiarli in Impostazioni.</p><div pgs="form flex['column' 'gapParagraphs']">${field('Nome del cliente',`<input pgs="input" id="client-name" maxlength="60" autocomplete="off" required placeholder=" ">`)}<p class="hint" id="client-folder-preview" aria-live="polite"></p></div><div id="client-error" role="alert" hidden></div><div pgs="flex['row' 'justifyEnd' 'gapParagraphs']"><button pgs="button" type="button" id="client-cancel">Annulla</button><button pgs="button['btnStrong']" type="submit" id="client-save" disabled>${icon('circlePlus')}<span>Crea cliente</span></button></div>`;
+ const modal=createModal({title:'Crea cliente',titleId:'client-modal-title',body,form:true,onClose:()=>{if(opener?.isConnected)opener.focus({preventScroll:true});}});
+ const dialog=modal.dialog,input=dialog.querySelector('#client-name'),save=dialog.querySelector('#client-save'),preview=dialog.querySelector('#client-folder-preview'),message=dialog.querySelector('#client-error');
+ input.addEventListener('input',()=>{const folder=input.value.trim().replace(/\s+/g,'_');save.disabled=!folder;preview.textContent=folder?`Cartella: Social/${folder}`:'';});
+ dialog.querySelector('#client-cancel').addEventListener('click',()=>modal.close());
+ dialog.querySelector('form').addEventListener('submit',async event=>{
+  event.preventDefault();if(modal.busy||!input.value.trim())return;
+  modal.busy=true;save.disabled=true;setAlert(message,'');
+  try{
+   const result=await call('createClient',input.value);
+   applyStatus(result);state.drafts=[];state.ideas=null;state.highlight=null;state.expandedGroups=new Set();
+   modal.busy=false;modal.close();state.route='home';render();
+   const missing=result.created?.missingTemplates||[];
+   globalThis.pgs?.toast.success({title:'Cliente creato',description:`${result.created?.name||''}${missing.length?` · mancano i template ${missing.join(', ')}: sceglili in Impostazioni`:''}`,timeout:missing.length?8000:4000,closeTitle:'Chiudi'});bringToastToFront();
+  }catch(e){modal.busy=false;save.disabled=false;setAlert(message,e.message);}
+ });
+ modal.open();input.focus();
+}
 // Ricontrolla la cartella Social senza riavviare l'app (disco non collegato, VPN spenta…)
 async function recheckRoot(){
  if(state.loading||state.checkingRoot)return;
  state.checkingRoot=true;state.notice='';render();
  try{
   const result=await call('initial');
-  state.root=result.root;state.rootValid=result.valid;state.error=result.valid?'':result.message||'';
+  applyStatus(result);
   if(result.valid){globalThis.pgs?.toast.success({title:'Cartella Social raggiungibile',timeout:3000,closeTitle:'Chiudi'});bringToastToFront();refreshUpdate(true);}
  }catch(e){state.error=e.message;}
  finally{state.checkingRoot=false;render();document.getElementById('home-recheck')?.focus({preventScroll:true});}
 }
 // Home: se la cartella Social non è valida, l'avviso offre subito la scelta della cartella
 function homeErrorBox(){
- if(state.rootValid||!state.error)return errorBox();
+ if(state.baseValid||!state.error)return errorBox();
  return `<div id="error" role="alert"><div pgs="alert['alertError']"><i pgs="icon['icon-circleXmark'] alert-icon" aria-hidden="true"></i><div pgs="alert-content flex['column' 'gapParagraphs']"><p>${escape(state.error)}</p><div><button pgs="button" id="choose-root" type="button" ${disabled(state.loading)}>${icon('folderOpen')}<span>Scegli la cartella</span></button></div></div></div></div>`;
 }
 async function chooseRootFromHome(){
  if(state.loading)return;
- try{const result=await call('chooseRoot');if(!result)return;state.root=result.root;state.rootValid=result.valid;state.error='';state.notice='';render();refreshUpdate(true);}
+ try{const result=await call('chooseRoot');if(!result)return;applyStatus(result);state.notice='';render();refreshUpdate(true);}
  catch(e){state.error=e.message;render();}
 }
 // Impostazioni → Controlla cartelle: elenco dei post scollegati con Ricollega
@@ -374,17 +445,17 @@ async function reloadEditAfterRelink(){
  renderPostEdit();
 }
 async function openSettings(){
- state.route='settings';state.error='';state.notice='';render();
+ state.route='settings';state.error='';state.notice='';state.settings=null;render();
  if(!state.rootValid)return;
  try{state.settings=await call('settings');render();}catch(e){error(e.message);}
 }
 function renderSettings(){
  const s=state.settings;
  const row=(label,key,value)=>`<div pgs="flex['column']"><label pgs="label" for="setting-${key}">${label}</label><div pgs="flex['row' 'itemCenter' 'gapParagraphs' 'nowrap']" class="settings-control"><input pgs="input" id="setting-${key}" placeholder=" " value="${escape(value||'')}" ${disabled(!s)}><button pgs="button" type="button" data-pick="${key}" ${disabled(!s)}>${icon('folderOpen')}<span>Sfoglia</span></button></div></div>`;
- main.innerHTML=`<h1 pgs="h2">Impostazioni</h1><p class="lead">I percorsi vengono salvati in <strong>00_template/socialdesk-settings.json</strong>. Mac e Windows mantengono impostazioni separate.</p><section pgs="box flex['column' 'gapParagraphs']" aria-labelledby="settings-root-title"><h2 pgs="h4" id="settings-root-title">Cartella Social</h2><div pgs="flex['row' 'itemCenter' 'gapParagraphs' 'nowrap']" class="settings-control"><p class="path folder-path" title="${escape(state.root)}">${escape(state.root||'Nessuna cartella selezionata')}</p><button pgs="button" id="settings-root" type="button">${icon('folderOpen')}<span>${state.root?'Cambia cartella':'Scegli cartella'}</span></button></div></section><section pgs="box flex['column' 'gapParagraphs']" aria-labelledby="settings-theme-title"><h2 pgs="h4" id="settings-theme-title">Aspetto</h2><p class="hint">Tema chiaro o scuro dell'app. La scelta resta salvata su questo computer.</p><div><button pgs="button toggleDarkmode['tglLabeled']" class="theme-toggle" type="button" aria-label="Cambia tema"><i pgs="toggleDarkmode-light icon['icon-moon']" aria-hidden="true"></i><i pgs="toggleDarkmode-dark icon['icon-sun']" aria-hidden="true"></i></button></div></section>${s?`<section pgs="box form flex['column' 'gapParagraphs']" aria-labelledby="settings-templates-title"><h2 pgs="h4" id="settings-templates-title">Template Illustrator</h2><p class="hint">Scegli un file .ai per ogni social. I percorsi relativi partono dalla cartella Social.</p>${row('Facebook','Facebook',s.templates.Facebook)}${row('Instagram','Instagram',s.templates.Instagram)}${row('LinkedIn','LinkedIn',s.templates.LinkedIn)}</section><section pgs="box form flex['column' 'gapParagraphs']" aria-labelledby="settings-trash-title"><h2 pgs="h4" id="settings-trash-title">Cestino</h2><p class="hint">La cartella deve trovarsi dentro Social. Se non esiste, verrà creata quando elimini un post.</p>${row('Cartella cestino','trash',s.trash)}</section><section pgs="box flex['column' 'gapParagraphs']" aria-labelledby="settings-folders-title"><h2 pgs="h4" id="settings-folders-title">Cartelle dei post</h2><p class="hint">Trova i post la cui cartella è stata rinominata o spostata a mano e ricollegali.</p><div><button pgs="button" id="check-folders" type="button" ${disabled(state.checkingFolders)}>${icon('magnifyingGlass')}<span>${state.checkingFolders?'Controllo…':'Controlla cartelle'}</span></button></div>${folderReport()}</section><p class="hint">Piano editoriale: Piano editoriale.xlsx nella cartella Social.</p><div><button pgs="button['btnStrong']" id="save-settings" type="button">${icon('save')}<span>Salva impostazioni</span></button></div>`:''}${errorBox()}${noticeBox()}`;
+ main.innerHTML=`<h1 pgs="h2">Impostazioni</h1><p class="lead">La cartella Social contiene una cartella per cliente. Template, cestino e cartelle dei post valgono per il cliente in uso${clientName()?` (<strong>${escape(clientName())}</strong>)`:''} e sono salvati nel suo 00_Settings/settings.json; Mac e Windows mantengono impostazioni separate.</p><section pgs="box flex['column' 'gapParagraphs']" aria-labelledby="settings-root-title"><h2 pgs="h4" id="settings-root-title">Cartella Social</h2><div pgs="flex['row' 'itemCenter' 'gapParagraphs' 'nowrap']" class="settings-control"><p class="path folder-path" title="${escape(state.root)}">${escape(state.root||'Nessuna cartella selezionata')}</p><button pgs="button" id="settings-root" type="button">${icon('folderOpen')}<span>${state.root?'Cambia cartella':'Scegli cartella'}</span></button></div></section><section pgs="box flex['column' 'gapParagraphs']" aria-labelledby="settings-theme-title"><h2 pgs="h4" id="settings-theme-title">Aspetto</h2><p class="hint">Tema chiaro o scuro dell'app. La scelta resta salvata su questo computer.</p><div><button pgs="button toggleDarkmode['tglLabeled']" class="theme-toggle" type="button" aria-label="Cambia tema"><i pgs="toggleDarkmode-light icon['icon-moon']" aria-hidden="true"></i><i pgs="toggleDarkmode-dark icon['icon-sun']" aria-hidden="true"></i></button></div></section>${s?`<section pgs="box form flex['column' 'gapParagraphs']" aria-labelledby="settings-templates-title"><h2 pgs="h4" id="settings-templates-title">Template Illustrator</h2><p class="hint">Scegli un file .ai per ogni social. I percorsi relativi partono dalla cartella del cliente.</p>${row('Facebook','Facebook',s.templates.Facebook)}${row('Instagram','Instagram',s.templates.Instagram)}${row('LinkedIn','LinkedIn',s.templates.LinkedIn)}</section><section pgs="box form flex['column' 'gapParagraphs']" aria-labelledby="settings-trash-title"><h2 pgs="h4" id="settings-trash-title">Cestino</h2><p class="hint">La cartella deve trovarsi dentro la cartella del cliente. Se non esiste, verrà creata quando elimini un post.</p>${row('Cartella cestino','trash',s.trash)}</section><section pgs="box flex['column' 'gapParagraphs']" aria-labelledby="settings-folders-title"><h2 pgs="h4" id="settings-folders-title">Cartelle dei post</h2><p class="hint">Trova i post la cui cartella è stata rinominata o spostata a mano e ricollegali.</p><div><button pgs="button" id="check-folders" type="button" ${disabled(state.checkingFolders)}>${icon('magnifyingGlass')}<span>${state.checkingFolders?'Controllo…':'Controlla cartelle'}</span></button></div>${folderReport()}</section><p class="hint">Piano editoriale: Piano editoriale.xlsx nella cartella del cliente.</p><div><button pgs="button['btnStrong']" id="save-settings" type="button">${icon('save')}<span>Salva impostazioni</span></button></div>`:''}${errorBox()}${noticeBox()}`;
  footer.innerHTML=`<button pgs="button['btnTransparent']" id="settings-home" type="button">${icon('arrowLeft')}<span>Torna alla home</span></button>`;
  document.getElementById('settings-home').addEventListener('click',goHome);
- document.getElementById('settings-root').addEventListener('click',async()=>{try{const result=await call('chooseRoot');if(result){state.root=result.root;state.rootValid=result.valid;state.settings=await call('settings');state.error='';state.notice='';render();}}catch(e){error(e.message);}});
+ document.getElementById('settings-root').addEventListener('click',async()=>{try{const result=await call('chooseRoot');if(result){applyStatus(result);state.settings=state.rootValid?await call('settings'):null;state.notice='';render();}}catch(e){error(e.message);}});
  document.querySelectorAll('[data-pick]').forEach(button=>button.addEventListener('click',async()=>{try{const value=await call('chooseSetting',button.dataset.pick);if(value!==null)document.getElementById('setting-'+button.dataset.pick).value=value;}catch(e){error(e.message);}}));
  document.getElementById('check-folders')?.addEventListener('click',checkFolders);
  main.querySelectorAll('[data-relink-key]').forEach(button=>button.addEventListener('click',()=>{const post=state.drafts.find(d=>d.key===button.dataset.relinkKey);if(post)openRelinkModal(post,checkFolders);}));
@@ -406,7 +477,7 @@ async function loadDrafts(){return loadList('drafts');}
 async function loadPosts(){return loadList('posts');}
 async function loadList(kind){
  if(state.loading)return;
- if(!state.rootValid){error('Configura prima la cartella Social in Impostazioni.');return;}
+ if(!state.rootValid){error(state.baseValid?'Scegli o crea un cliente.':'Configura prima la cartella Social in Impostazioni.');return;}
  const reset=state.route==='home'||state.listMode!==kind;
  state.loading=true;state.error='';render();
  try{const result=await call('posts');state.drafts=result.posts;state.hidePublished=kind==='drafts';state.revision=result.revision;state.years=result.years||[];state.route=kind;state.listMode=kind;state.selected=null;if(reset){state.highlight=null;state.filterYear=String(new Date().getFullYear());state.filterChannels=['Facebook','LinkedIn','Instagram'];state.filterStatus='';state.filterMonth='';state.filterSearch='';}}
@@ -882,11 +953,11 @@ function renderPostEdit(){
 }
 
 //# Idee
-// To do list condivisa: 00_template/idee.json nella cartella Social. Ogni idea ha titolo, appunti (testo semplice), social e spunta "sviluppata";
+// To do list condivisa: 00_Settings/idee.json nella cartella del cliente. Ogni idea ha titolo, appunti (testo semplice), social e spunta "sviluppata";
 // "Crea post" apre la creazione con titolo e social già compilati.
 async function openIdeas(){
  if(state.loading)return;
- if(!state.rootValid){state.route='home';error('Configura prima la cartella Social in Impostazioni.');return;}
+ if(!state.rootValid){state.route='home';error(state.baseValid?'Scegli o crea un cliente.':'Configura prima la cartella Social in Impostazioni.');return;}
  state.route='ideas';state.error='';state.notice='';state.highlight=null;render();window.scrollTo({top:0});
  await loadIdeas();
 }
@@ -908,7 +979,7 @@ function renderIdeas(){
  const list=state.ideas||[],draft=state.ideaDraft;
  const todo=list.filter(i=>!i.done).reverse(),done=list.filter(i=>i.done).sort((a,b)=>String(b.doneAt).localeCompare(String(a.doneAt)));
  const section=(title,items,emptyText)=>`<section pgs="flex['column' 'gapParagraphs']" class="idea-section"><h2 pgs="h4">${title} <span pgs="badge['badgeNeutral']">${items.length}</span></h2>${items.length?`<ul pgs="flex['column']" class="draft-list idea-list">${items.map(ideaRow).join('')}</ul>`:`<p class="hint">${emptyText}</p>`}</section>`;
- main.innerHTML=`<div pgs="flex['row' 'itemCenter' 'gapParagraphs']" class="list-heading"><h1 pgs="h2">Idee</h1><button pgs="button['btnIconOnly']" id="ideas-refresh" type="button" aria-label="Aggiorna idee" title="Aggiorna idee" ${disabled(state.loading||state.ideasLoading)}>${icon('refresh')}</button></div><p class="lead">Le idee per i prossimi post, da spuntare quando sono sviluppate. Le vedono tutti: sono salvate nella cartella Social.</p><form pgs="box form flex['column' 'gapParagraphs']" id="idea-form" novalidate>${field('Nuova idea',`<input pgs="input" id="idea-text" maxlength="500" autocomplete="off" placeholder=" " value="${escape(draft.text)}" ${disabled(state.loading)}>`)}${field('Appunti <span class="optional">(facoltativo)</span>',`<textarea pgs="textarea" id="idea-notes" rows="2" maxlength="10000" placeholder=" " ${disabled(state.loading)}>${escape(draft.notes||'')}</textarea>`,'Spunti e promemoria per chi svilupperà l’idea: non finiscono nel post.')}<div pgs="flex['row' 'wrap' 'itemCenter' 'justifyBetween' 'gapParagraphs']">${ideaChips('idea-channel',draft.channels)}<button pgs="button['btnStrong']" type="submit" id="idea-add" ${disabled(state.loading||!draft.text.trim())}>${icon('plus')}<span>Aggiungi</span></button></div></form>${errorBox()}${state.ideas===null?`<p class="hint">${state.ideasLoading?'Caricamento delle idee…':''}</p>`:`${section('Da sviluppare',todo,'Nessuna idea da sviluppare. Scrivine una qui sopra.')}${done.length?section('Sviluppate',done,''):''}`}`;
+ main.innerHTML=`<div pgs="flex['row' 'itemCenter' 'gapParagraphs']" class="list-heading"><h1 pgs="h2">Idee</h1><button pgs="button['btnIconOnly']" id="ideas-refresh" type="button" aria-label="Aggiorna idee" title="Aggiorna idee" ${disabled(state.loading||state.ideasLoading)}>${icon('refresh')}</button></div><p class="lead">Le idee per i prossimi post, da spuntare quando sono sviluppate. Le vedono tutti: sono salvate nella cartella del cliente.</p><form pgs="box form flex['column' 'gapParagraphs']" id="idea-form" novalidate>${field('Nuova idea',`<input pgs="input" id="idea-text" maxlength="500" autocomplete="off" placeholder=" " value="${escape(draft.text)}" ${disabled(state.loading)}>`)}${field('Appunti <span class="optional">(facoltativo)</span>',`<textarea pgs="textarea" id="idea-notes" rows="2" maxlength="10000" placeholder=" " ${disabled(state.loading)}>${escape(draft.notes||'')}</textarea>`,'Spunti e promemoria per chi svilupperà l’idea: non finiscono nel post.')}<div pgs="flex['row' 'wrap' 'itemCenter' 'justifyBetween' 'gapParagraphs']">${ideaChips('idea-channel',draft.channels)}<button pgs="button['btnStrong']" type="submit" id="idea-add" ${disabled(state.loading||!draft.text.trim())}>${icon('plus')}<span>Aggiungi</span></button></div></form>${errorBox()}${state.ideas===null?`<p class="hint">${state.ideasLoading?'Caricamento delle idee…':''}</p>`:`${section('Da sviluppare',todo,'Nessuna idea da sviluppare. Scrivine una qui sopra.')}${done.length?section('Sviluppate',done,''):''}`}`;
  footer.innerHTML=`<button pgs="button['btnTransparent']" id="ideas-home" type="button" ${disabled(state.loading)}>${icon('arrowLeft')}<span>Torna alla home</span></button>`;
  document.getElementById('ideas-home').addEventListener('click',goHome);
  document.getElementById('ideas-refresh').addEventListener('click',loadIdeas);
@@ -992,4 +1063,4 @@ document.querySelectorAll('[data-nav]').forEach(link=>link.addEventListener('cli
 }));
 
 render();
-call('initial').then(result=>{state.version=result.version||'';state.root=result.root;state.rootValid=result.valid;state.error=result.valid?'':result.message||'';render();refreshUpdate(true);}).catch(e=>error(e.message));
+call('initial').then(result=>{state.version=result.version||'';applyStatus(result);render();refreshUpdate(true);}).catch(e=>error(e.message));
