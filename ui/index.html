@@ -14,7 +14,8 @@
  <header pgs="header">
   <div pgs="header-element blur">
    <div pgs="header-element-alwaysOn">
-    <a pgs="logo" class="app-brand" id="brand-home" href="#home" aria-label="SocialDesk — Home"><img pgs="logo-image" src="assets/socialdesk-logo.svg" alt=""><span pgs="logo-text">SocialDesk</span></a>
+    <!-- logo e nome del cliente (home) e freccia con l'elenco dei clienti: disegnati da renderClientSlot() -->
+    <div pgs="flex['row' 'itemCenter' 'nowrap']" class="brand-row" id="client-slot"></div>
    </div>
    <div pgs="header-element-onlyFull">
     <nav pgs="menu['menuHorizontal']" aria-label="Navigazione principale">
@@ -54,6 +55,8 @@
    <div pgs="flex['row' 'wrap' 'gapParagraphs' 'itemCenter' 'justifyBetween']" class="footer" id="footer"></div>
   </section>
  </main>
+ <!-- footer dell'app: logo SocialDesk, impostazioni dell'app, versione e aggiornamenti (renderAppFooter) -->
+ <footer pgs="footer" class="app-footer" id="app-footer"></footer>
  <!-- toast di myPgs: popover, così resta sopra anche alle modali aperte -->
  <div pgs="toast" id="toast-host" popover="manual" aria-live="polite"></div>
  <script src="post-filters.js"></script>

@@ -37,3 +37,6 @@ Thumbs.db
 .social-backups/
 .social-stage-*/
 .social-create.lock
+
+# Piano vuoto per i nuovi clienti (fa parte dell'app)
+!/lib/templates/piano-vuoto.xlsx

@@ -32,7 +32,8 @@ test('idee: elenco vuoto senza file, aggiunta, modifica, fatta e eliminazione',a
  const saved=JSON.parse(await fs.readFile(ideasPath(root),'utf8'));
  assert.equal(saved.ideas.length,1);
  assert.deepEqual(await fs.readFile(book),before,'il piano non cambia');
- assert.deepEqual((await fs.readdir(path.join(root,'00_template'))).filter(n=>n.includes('.tmp')||n.includes('.lock')),[]);
+ assert.equal(ideasPath(root),path.join(root,'02_Settings','idee.json'));
+ assert.deepEqual((await fs.readdir(path.join(root,'02_Settings'))).filter(n=>n.includes('.tmp')||n.includes('.lock')),[]);
 });
 
 test('idee: appunti in testo semplice, a capo conservati, modificabili e svuotabili',async t=>{
@@ -49,7 +50,7 @@ test('idee: testo vuoto, troppo lungo, social non valido e idea già eliminata',
  const root=await seed(t);
  await assert.rejects(changeIdea(root,{action:'add',text:'   '}),/Scrivi il testo/);
  await assert.rejects(changeIdea(root,{action:'add',text:'x'.repeat(501)}),/troppo lunga/);
- await assert.rejects(changeIdea(root,{action:'add',text:'ok',channels:['TikTok']}),/Social non valido/);
+ await assert.rejects(changeIdea(root,{action:'add',text:'ok',channels:['MySpace']}),/Social non valido/);
  await assert.rejects(changeIdea(root,{action:'update',id:'nessuna',done:true}),/non c’è più/);
  await assert.rejects(changeIdea(root,{action:'boh'}),/Richiesta non valida/);
 });
@@ -62,7 +63,7 @@ test('idee: due salvataggi contemporanei non si cancellano a vicenda',async t=>{
 
 test('idee: file illeggibile non viene sovrascritto',async t=>{
  const root=await seed(t);
- await fs.writeFile(ideasPath(root),'{non json');
+ await fs.mkdir(path.dirname(ideasPath(root)),{recursive:true});await fs.writeFile(ideasPath(root),'{non json');
  await assert.rejects(listIdeas(root),/non è leggibile/);
  await assert.rejects(changeIdea(root,{action:'add',text:'nuova'}),/non è leggibile/);
  assert.equal(await fs.readFile(ideasPath(root),'utf8'),'{non json');
@@ -75,4 +76,22 @@ test('avanzamento: la creazione riporta i passi in ordine fino al salvataggio de
  await createPost(root,post,p.fingerprint,{progress:(n,total,label)=>steps.push([n,total,label])});
  assert.deepEqual(steps.map(s=>s[0]),[0,1,2,3,4]);
  assert.ok(steps.every(s=>s[1]===5&&typeof s[2]==='string'&&s[2]));
+});
+
+test('idee: il vecchio 00_template/idee.json si legge finché non esiste 02_Settings/idee.json, poi si scrive nel nuovo',async t=>{
+ const root=await seed(t),legacy=path.join(root,'00_template','idee.json');
+ const old={version:1,ideas:[{id:'a',text:'Idea vecchia',notes:'',channels:['Facebook'],done:false,createdAt:'2026-11-01T10:00:00.000Z',updatedAt:'2026-11-01T10:00:00.000Z',doneAt:''}]};
+ await fs.writeFile(legacy,JSON.stringify(old));
+ assert.deepEqual((await listIdeas(root)).ideas.map(i=>i.text),['Idea vecchia']);
+ await changeIdea(root,{action:'add',text:'Idea nuova'});
+ assert.deepEqual(JSON.parse(await fs.readFile(ideasPath(root),'utf8')).ideas.map(i=>i.text),['Idea vecchia','Idea nuova']);
+ assert.deepEqual(JSON.parse(await fs.readFile(legacy,'utf8')),old,'il vecchio file resta com’era');
+ assert.equal((await listIdeas(root)).ideas.length,2);
+});
+
+test('idee: con la cartella 00_Settings di prima (non ancora rinominata) si usa quella',async t=>{
+ const root=await seed(t);await fs.mkdir(path.join(root,'00_Settings'));
+ await changeIdea(root,{action:'add',text:'Nella cartella vecchia'});
+ assert.deepEqual(JSON.parse(await fs.readFile(path.join(root,'00_Settings','idee.json'),'utf8')).ideas.map(i=>i.text),['Nella cartella vecchia']);
+ assert.equal(await fs.stat(path.join(root,'02_Settings')).then(()=>true,()=>false),false);
 });

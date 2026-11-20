@@ -18,11 +18,16 @@ const {planDeletePost,deletePost}=require('./lib/delete.cjs');
 const settings=require('./lib/settings.cjs');
 const update=require('./lib/update.cjs');
 const relink=require('./lib/relink.cjs');
-const {regenerateSource}=require('./lib/regenerate.cjs');
+const {regenerateSource,ensureFormatFile}=require('./lib/regenerate.cjs');
 const {planAddChannel,addChannel}=require('./lib/addchannel.cjs');
 const ideas=require('./lib/ideas.cjs');
+const clients=require('./lib/clients.cjs');
+const templates=require('./lib/templates.cjs');
+const {CHANNELS,FORMAT_KINDS}=require('./lib/posts.cjs');
+// piattaforme e formati dell'app, per il renderer (che non legge i moduli)
+const CATALOG={platforms:Object.fromEntries(Object.entries(CHANNELS).map(([name,c])=>[name,{formats:c.formats}])),kinds:FORMAT_KINDS};
 if(process.env.SOCIAL_TEST_USER_DATA)app.setPath('userData',process.env.SOCIAL_TEST_USER_DATA);
-let window,root='',busy=false,lastResult=null,startupFailed=false;
+let window,root='',client='',pendingLogo=null,busy=false,lastResult=null,startupFailed=false;
 // Registro di avvio: aiuta a capire perché l'app non si apre (es. su Windows/NAS).
 const startupLog=()=>path.join(app.getPath('userData'),'socialdesk-avvio.log');
 function log(message){
@@ -41,17 +46,30 @@ const page=pathToFileURL(path.join(__dirname,'ui/index.html')).href;
 const config=()=>path.join(app.getPath('userData'),'social-preferences.json');
 async function preferences(){
  const files=[config(),...['Social','social-post-assistant'].map(name=>path.join(app.getPath('appData'),name,'social-preferences.json'))];
- for(const file of files){try{const data=JSON.parse(await fs.readFile(file,'utf8'));if(typeof data.root==='string'&&data.root){root=data.root;break;}}catch{}}
+ for(const file of files){try{const data=JSON.parse(await fs.readFile(file,'utf8'));if(typeof data.root==='string'&&data.root){root=data.root;if(typeof data.client==='string')client=data.client;break;}}catch{}}
  if(process.env.SOCIAL_TEST_ROOT)root=process.env.SOCIAL_TEST_ROOT;
- else if(root){try{const doc=await settings.read(root),configured=doc[settings.platform()]?.socialRoot;if(typeof configured==='string'&&configured)root=configured;}catch{}}
 }
-async function remember(){await fs.mkdir(path.dirname(config()),{recursive:true});const temp=config()+'.tmp';await fs.writeFile(temp,JSON.stringify({root}));await fs.rename(temp,config());}
+async function remember(){await fs.mkdir(path.dirname(config()),{recursive:true});const temp=config()+'.tmp';await fs.writeFile(temp,JSON.stringify({root,client}));await fs.rename(temp,config());}
 function errorMessage(e){
  if(e instanceof PostError)return{code:e.code,message:e.message};
  if(['EACCES','EPERM','EROFS'].includes(e.code))return{code:'PERMISSION',message:'Non ho il permesso di scrivere nella cartella scelta. Controlla i permessi o scegli una cartella di test.'};
  if(e.code==='ENOSPC')return{code:'SPACE',message:'Spazio insufficiente sul disco o sul NAS.'};
  if(e.code==='ENOENT')return{code:'MISSING',message:'Un file o una cartella non è più disponibile. Verifica il collegamento al NAS e riprova.'};
  return{code:'ERROR',message:e.message||'Non riesco a completare l’operazione. Nessun post è stato creato.'};
+}
+// Cartella del cliente in uso: tutte le operazioni sui post (piano, template, 01_Posts, idee, cestino) avvengono lì.
+function clientDir(){if(!root)throw new PostError('ROOT','Scegli la cartella Social.');if(!client)throw new PostError('CLIENT','Scegli o crea un cliente.');return path.join(root,client);}
+// Stato per la home: cartella Social, elenco dei clienti e cliente in uso (se il cliente salvato non c'è più si passa al primo)
+async function status(){
+ const version=app.getVersion(),catalog=CATALOG;
+ if(!root)return{root:'',valid:false,version,catalog,clients:[],client:'',clientValid:false};
+ let list;
+ try{await clients.baseInfo(root);list=await clients.listClients(root);list=await Promise.all(list.map(async c=>{const dir=path.join(root,c.folder);const s=await settings.current(dir).catch(()=>({color:'',platforms:null}));return{...c,logo:await settings.logoData(dir),color:s.color,platforms:s.platforms};}));}
+ catch(e){return{root,valid:false,version,catalog,clients:[],client:'',clientValid:false,message:errorMessage(e).message};}
+ if(!list.some(c=>c.folder===client)){const next=list[0]?.folder||'';if(next!==client){client=next;lastResult=null;await remember().catch(()=>{});}}
+ if(!client)return{root,valid:true,version,catalog,clients:list,client:'',clientValid:false};
+ try{await rootInfo(clientDir());return{root,valid:true,version,catalog,clients:list,client,clientValid:true};}
+ catch(e){return{root,valid:true,version,catalog,clients:list,client,clientValid:false,message:errorMessage(e).message};}
 }
 // Avanzamento delle operazioni lunghe (creazione, salvataggio, eliminazione…): il renderer lo mostra nel toast.
 const progress=(step,total,label)=>{if(window&&!window.isDestroyed())window.webContents.send('social:progress',{step,total,label});};
@@ -110,80 +128,132 @@ else{
   await preferences();
   // residui di un aggiornamento interrotto accanto all'app (solo app installata su Mac)
   if(app.isPackaged&&process.platform==='darwin')update.cleanupLeftovers().then(n=>{if(n)log(`rimossi ${n} residui di aggiornamento`);}).catch(()=>{});
-  log(`cartella Social: ${root||'(non scelta)'}`);
+  log(`cartella Social: ${root||'(non scelta)'}, cliente: ${client||'(nessuno)'}`);
   if(process.platform==='darwin')Menu.setApplicationMenu(Menu.buildFromTemplate([{role:'appMenu'},{role:'editMenu'},{role:'windowMenu'}]));else Menu.setApplicationMenu(null);
-  endpoint('social:initial',async()=>{
-   const version=app.getVersion();
-   if(!root)return{root:'',valid:false,version};
-   try{await rootInfo(root);return{root,valid:true,version};}catch(e){return{root,valid:false,version,message:errorMessage(e).message};}
-  });
+  endpoint('social:initial',async()=>status());
   endpoint('social:choose',async()=>{
    if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');
    const result=await dialog.showOpenDialog(window,{title:'Scegli la cartella Social',properties:['openDirectory'],defaultPath:root||app.getPath('documents')});
    if(result.canceled)return null;
-   const selected=result.filePaths[0];await rootInfo(selected);root=selected;await remember();return{root,valid:true};
+   const selected=await clients.baseInfo(result.filePaths[0]);root=selected;await remember();return status();
   });
-  endpoint('social:settings',async()=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');await rootInfo(root);return settings.current(root);});
-  endpoint('social:choose-setting',async(kind)=>{
+  // Clienti: una cartella per cliente dentro Social
+  endpoint('social:select-client',async folder=>{
    if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');
-   const current=await settings.current(root);
-   if(!['Facebook','Instagram','LinkedIn','trash'].includes(kind))throw new PostError('INPUT','Percorso non valido.');
-   const isTrash=kind==='trash',previous=isTrash?current.trash:current.templates[kind];
-   const location=path.isAbsolute(previous)?previous:path.join(root,previous);
-   const result=await dialog.showOpenDialog(window,{title:isTrash?'Scegli la cartella cestino':`Scegli il template ${kind}`,properties:[isTrash?'openDirectory':'openFile'],defaultPath:location,filters:isTrash?undefined:[{name:'Adobe Illustrator',extensions:['ai']}]});
-   return result.canceled?null:settings.relativeOrAbsolute(root,result.filePaths[0]);
+   await clients.clientPath(root,folder);client=folder;lastResult=null;await remember();log(`cliente: ${client}`);return status();
   });
-  endpoint('social:save-settings',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');await rootInfo(root);return settings.save(root,input);});
-  endpoint('social:plan',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine della creazione.');return planPost(root,input);});
-  endpoint('social:drafts',async()=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return listDrafts(root);});
-  endpoint('social:posts',async()=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return listPosts(root);});
-  endpoint('social:details',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return postDetails(root,input);});
-  endpoint('social:open-text',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');const file=await resolvePostText(root,input);const error=await shell.openPath(file);if(error)throw new Error(error);return true;});
-  endpoint('social:sync-assets',async()=>{if(busy)throw new PostError('BUSY','Un’operazione è già in corso.');busy=true;try{return await syncAssetArchive(root);}finally{busy=false;}});
-  endpoint('social:save-text-backup',async input=>{if(busy)throw new PostError('BUSY','Un’operazione è già in corso.');busy=true;try{return await saveTextBackup(root,input);}finally{busy=false;}});
-  endpoint('social:open-text-backup',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');const file=await resolveTextBackup(root,input);const error=await shell.openPath(file);if(error)throw new Error(error);return true;});
+  // Crea cliente a passi: 1) nome (controllato subito), 2) logo facoltativo (il file resta qui nel main finché il
+  // cliente non esiste: il renderer riceve solo l'anteprima), 3) social gestiti, almeno uno.
+  endpoint('social:check-client-name',async name=>{const r=await clients.checkClientName(root,name);return{folder:r.folder,name:r.name};});
+  endpoint('social:pick-client-logo',async()=>{
+   if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');
+   const result=await dialog.showOpenDialog(window,{title:'Logo del nuovo cliente',buttonLabel:'Usa come logo',properties:['openFile'],filters:[{name:'Immagini',extensions:Object.keys(settings.LOGO_TYPES).map(e=>e.slice(1))}]});
+   if(result.canceled)return null;
+   const preview=await settings.checkLogo(result.filePaths[0]);pendingLogo=result.filePaths[0];
+   return{preview,name:path.basename(pendingLogo)};
+  });
+  endpoint('social:clear-client-logo',async()=>{pendingLogo=null;return true;});
+  endpoint('social:create-client',async input=>{
+   if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');
+   const request=typeof input==='string'?{name:input}:input||{};
+   if(request.platforms!==undefined&&(!Array.isArray(request.platforms)||!request.platforms.length))throw new PostError('INPUT','Scegli almeno un social.');
+   busy=true;
+   try{
+    const created=await clients.createClient(root,request.name);
+    const dir=path.join(root,created.folder),warnings=[];
+    // social e logo dopo la creazione: se qualcosa non va il cliente resta, con un avviso
+    if(request.platforms)await settings.save(dir,{platforms:request.platforms}).catch(e=>warnings.push(`Social non salvati: ${errorMessage(e).message}`));
+    if(request.logo&&pendingLogo)await settings.setLogo(dir,pendingLogo).catch(e=>warnings.push(`Logo non salvato: ${errorMessage(e).message}`));
+    pendingLogo=null;
+    client=created.folder;lastResult=null;await remember();log(`nuovo cliente: ${client}`);
+    return{...(await status()),created:{...created,warnings}};
+   }finally{busy=false;}
+  });
+  // Nome del cliente: rinomina la cartella del cliente in uso in Social e la ricorda come cliente scelto
+  endpoint('social:rename-client',async name=>{
+   if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');
+   busy=true;
+   try{
+    const renamed=await clients.renameClient(root,client,name);
+    if(renamed.changed){log(`cliente rinominato: ${client} → ${renamed.folder}`);client=renamed.folder;lastResult=null;await remember();}
+    return{...(await status()),renamed};
+   }finally{busy=false;}
+  });
+  // Impostazioni del cliente (02_Settings/settings.json): logo e colore. Quelle dell'app (cartella Social, tema) sono del computer.
+  const clientSettings=async()=>{const current=await settings.current(clientDir());return{...current,logo:await settings.logoData(clientDir()),templates:await templates.listTemplates(clientDir(),current.platforms),name:clients.displayName(client),folder:client};};
+  endpoint('social:settings',async()=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');await rootInfo(clientDir());return clientSettings();});
+  endpoint('social:save-settings',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');await rootInfo(clientDir());await settings.save(clientDir(),{color:input?.color,platforms:input?.platforms});return clientSettings();});
+  endpoint('social:choose-logo',async()=>{
+   if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');
+   await rootInfo(clientDir());
+   const result=await dialog.showOpenDialog(window,{title:`Logo di ${clients.displayName(client)}`,buttonLabel:'Usa come logo',properties:['openFile'],filters:[{name:'Immagini',extensions:Object.keys(settings.LOGO_TYPES).map(e=>e.slice(1))}]});
+   if(result.canceled)return null;
+   await settings.setLogo(clientDir(),result.filePaths[0]);return clientSettings();
+  });
+  // Template del cliente: il file .ai scelto viene copiato in 03_Template come "<Piattaforma> - <Formato>.ai"
+  endpoint('social:choose-template',async input=>{
+   if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');
+   await rootInfo(clientDir());
+   const result=await dialog.showOpenDialog(window,{title:`Template ${input?.channel} – ${input?.format}`,buttonLabel:'Usa come template',properties:['openFile'],filters:[{name:'Adobe Illustrator',extensions:['ai']}]});
+   if(result.canceled)return null;
+   await templates.setTemplate(clientDir(),input?.channel,input?.format,result.filePaths[0]);return clientSettings();
+  });
+  endpoint('social:remove-template',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');await rootInfo(clientDir());await templates.removeTemplate(clientDir(),input?.channel,input?.format);return clientSettings();});
+  endpoint('social:remove-logo',async()=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');await rootInfo(clientDir());await settings.removeLogo(clientDir());return clientSettings();});
+  endpoint('social:plan',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine della creazione.');return planPost(clientDir(),input);});
+  endpoint('social:drafts',async()=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return listDrafts(clientDir());});
+  endpoint('social:posts',async()=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return listPosts(clientDir());});
+  endpoint('social:details',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return postDetails(clientDir(),input);});
+  endpoint('social:open-text',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');const file=await resolvePostText(clientDir(),input);const error=await shell.openPath(file);if(error)throw new Error(error);return true;});
+  endpoint('social:sync-assets',async()=>{if(busy)throw new PostError('BUSY','Un’operazione è già in corso.');busy=true;try{return await syncAssetArchive(clientDir());}finally{busy=false;}});
+  endpoint('social:save-text-backup',async input=>{if(busy)throw new PostError('BUSY','Un’operazione è già in corso.');busy=true;try{return await saveTextBackup(clientDir(),input);}finally{busy=false;}});
+  endpoint('social:open-text-backup',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');const file=await resolveTextBackup(clientDir(),input);const error=await shell.openPath(file);if(error)throw new Error(error);return true;});
   endpoint('social:copy-text',async text=>{if(typeof text!=='string'||Buffer.byteLength(text)>1024*1024)throw new PostError('INPUT','Il testo da copiare non è valido.');clipboard.writeText(text);return true;});
-  endpoint('social:open-post-folder',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');const folder=await resolvePostFolder(root,input);const error=await shell.openPath(folder);if(error)throw new Error(error);return true;});
-  endpoint('social:illustrator-files',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return illustratorFiles(root,input);});
-  endpoint('social:illustrator-data',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return illustratorData(root,input);});
-  endpoint('social:open-illustrator',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');const file=await resolveIllustrator(root,input);const error=await shell.openPath(file);if(error)throw new Error(error);return true;});
+  endpoint('social:open-post-folder',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');const folder=await resolvePostFolder(clientDir(),input);const error=await shell.openPath(folder);if(error)throw new Error(error);return true;});
+  endpoint('social:illustrator-files',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return illustratorFiles(clientDir(),input);});
+  endpoint('social:illustrator-data',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return illustratorData(clientDir(),input);});
+  endpoint('social:open-illustrator',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');const file=await resolveIllustrator(clientDir(),input);const error=await shell.openPath(file);if(error)throw new Error(error);return true;});
   endpoint('social:update-status',async input=>{
    if(busy)throw new PostError('BUSY','Un’operazione è già in corso.');
    busy=true;
-   try{const plan=await planPostStatus(root,input);if(!plan.changed)return plan;return await savePostStatus(root,input,{progress});}finally{busy=false;}
+   try{const plan=await planPostStatus(clientDir(),input);if(!plan.changed)return plan;return await savePostStatus(clientDir(),input,{progress});}finally{busy=false;}
   });
   endpoint('social:delete-post',async input=>{
    if(busy)throw new PostError('BUSY','Un’operazione è già in corso.');
    busy=true;
    try{
-    const plan=await planDeletePost(root,input);
+    const plan=await planDeletePost(clientDir(),input);
     const confirmation=await dialog.showMessageBox(window,{type:'warning',title:'Elimina post',message:`Eliminare “${plan.title}” per ${plan.channel}?`,detail:`Verrà rimossa solo questa riga dal piano editoriale. ${plan.partial?(plan.trashRelative?`La cartella è condivisa con gli altri social: solo i file di ${plan.channel} (${plan.movedFiles.length}) saranno spostati in:\n${plan.trashRelative}`:`La cartella è condivisa con gli altri social e non contiene file di ${plan.channel}: nessun file verrà spostato.`):`La cartella del post sarà spostata in:\n${plan.trashRelative}`}\n\nGli altri social dello stesso post resteranno invariati.\nLe modifiche non salvate in questa schermata verranno scartate.`,buttons:['Annulla','Elimina'],defaultId:0,cancelId:0,noLink:true});
     if(confirmation.response!==1)return{canceled:true};
-    return await deletePost(root,input,plan.fingerprint,{progress});
+    return await deletePost(clientDir(),input,plan.fingerprint,{progress});
    }finally{busy=false;}
   });
-  endpoint('social:plan-edit',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return planPostEdit(root,input);});
+  endpoint('social:plan-edit',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return planPostEdit(clientDir(),input);});
   endpoint('social:save-edit',async(input,fingerprint)=>{
    if(busy)throw new PostError('BUSY','Un’operazione è già in corso.');
    if(typeof fingerprint!=='string'||fingerprint.length!==64)throw new PostError('INPUT','Controlla di nuovo il riepilogo.');
    busy=true;
    try{
-    const plan=await planPostEdit(root,input);
+    const plan=await planPostEdit(clientDir(),input);
     if(plan.fingerprint!==fingerprint)throw new PostError('CHANGED','I dati o i file sono cambiati. Controlla di nuovo il riepilogo.');
-    
-    return await savePostEdit(root,input,fingerprint,{progress});
+    const saved=await savePostEdit(clientDir(),input,fingerprint,{progress});
+    // formato scelto (o cambiato) in Modifica: crea il file di quel formato se il post non ce l'ha ancora
+    if(saved.changes?.format&&saved.changes.format!==plan.previous.format){
+     try{saved.createdFile=await ensureFormatFile(clientDir(),saved.key);}catch(e){saved.createdFileError=errorMessage(e).message;}
+    }
+    return saved;
    }finally{busy=false;}
   });
-  endpoint('social:plan-date',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return planDraftDate(root,input);});
+  endpoint('social:plan-date',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return planDraftDate(clientDir(),input);});
   endpoint('social:update-date',async(input,fingerprint)=>{
    if(busy)throw new PostError('BUSY','Un’operazione è già in corso.');
    if(typeof fingerprint!=='string'||fingerprint.length!==64)throw new PostError('INPUT','Controlla di nuovo il riepilogo.');
-   busy=true;try{return await updateDraftDate(root,input,fingerprint,{progress});}finally{busy=false;}
+   busy=true;try{return await updateDraftDate(clientDir(),input,fingerprint,{progress});}finally{busy=false;}
   });
   endpoint('social:create',async(input,fingerprint)=>{
    if(busy)throw new PostError('BUSY','La creazione è già in corso.');
    if(typeof fingerprint!=='string'||fingerprint.length!==64)throw new PostError('INPUT','Aggiorna il riepilogo prima di creare il post.');
-   busy=true;try{lastResult=await createPost(root,input,fingerprint,{progress});return lastResult;}finally{busy=false;}
+   busy=true;try{lastResult=await createPost(clientDir(),input,fingerprint,{progress});return lastResult;}finally{busy=false;}
   });
   // Rigenera sorgente: ricrea il file Illustrator o di testo mancante (mai sovrascrivendo)
   endpoint('social:set-theme',async dark=>{nativeTheme.themeSource=dark===true?'dark':'light';return true;});
@@ -191,34 +261,34 @@ else{
    if(busy)throw new PostError('BUSY','Un’operazione è già in corso.');
    busy=true;
    try{
-    const plan=await planAddChannel(root,{key:input?.key,revision:input?.revision,channel:input?.channel,format:input?.format});
+    const plan=await planAddChannel(clientDir(),{key:input?.key,revision:input?.revision,channel:input?.channel,format:input?.format});
     const confirmation=await dialog.showMessageBox(window,{type:'question',title:'Aggiungi social',message:`Creare “${plan.title}” anche per ${plan.channel}?`,detail:`Verrà aggiunta una riga ${plan.channel} con lo stesso ID (${plan.id}) e lo stato “testi da creare”. Nella cartella del post verranno creati ${plan.files.join(' e ')}${plan.aiExists||plan.mdExists?' (i file già presenti restano come sono)':''}.`,buttons:['Annulla','Sì, crea'],defaultId:0,cancelId:0,noLink:true});
     if(confirmation.response!==1)return{canceled:true};
-    return await addChannel(root,{key:input.key,revision:input.revision,channel:input.channel,format:input.format},{progress});
+    return await addChannel(clientDir(),{key:input.key,revision:input.revision,channel:input.channel,format:input.format},{progress});
    }finally{busy=false;}
   });
-  endpoint('social:regenerate-source',async input=>{if(busy)throw new PostError('BUSY','Un’operazione è già in corso.');busy=true;try{return await regenerateSource(root,input);}finally{busy=false;}});
-  // Idee: to do list condivisa in 00_template/idee.json
-  endpoint('social:ideas',async()=>ideas.listIdeas(root));
-  endpoint('social:idea',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return ideas.changeIdea(root,input);});
+  endpoint('social:regenerate-source',async input=>{if(busy)throw new PostError('BUSY','Un’operazione è già in corso.');busy=true;try{return await regenerateSource(clientDir(),input);}finally{busy=false;}});
+  // Idee: to do list condivisa in 00_Settings/idee.json del cliente
+  endpoint('social:ideas',async()=>ideas.listIdeas(clientDir()));
+  endpoint('social:idea',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return ideas.changeIdea(clientDir(),input);});
   // Ricollega cartella: post con la cartella rinominata a mano
-  endpoint('social:missing-folders',async()=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return relink.missingFolders(root);});
-  endpoint('social:relink-candidates',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return relink.relinkCandidates(root,input);});
+  endpoint('social:missing-folders',async()=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return relink.missingFolders(clientDir());});
+  endpoint('social:relink-candidates',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return relink.relinkCandidates(clientDir(),input);});
   endpoint('social:relink',async input=>{
    if(busy)throw new PostError('BUSY','Un’operazione è già in corso.');
    busy=true;
    try{
     let chosen=null;
     if(input&&input.browse){
-     const candidates=await relink.relinkCandidates(root,input);
-     const result=await dialog.showOpenDialog(window,{title:'Scegli la cartella del post',buttonLabel:'Ricollega questa cartella',properties:['openDirectory'],defaultPath:path.join(root,...candidates.parent.split('/'))});
+     const candidates=await relink.relinkCandidates(clientDir(),input);
+     const result=await dialog.showOpenDialog(window,{title:'Scegli la cartella del post',buttonLabel:'Ricollega questa cartella',properties:['openDirectory'],defaultPath:path.join(clientDir(),...candidates.parent.split('/'))});
      if(result.canceled)return{canceled:true};
      chosen=result.filePaths[0];
     }
-    const plan=await relink.planRelink(root,input,chosen);
+    const plan=await relink.planRelink(clientDir(),input,chosen);
     const answer=await dialog.showMessageBox(window,{type:'question',title:'Ricollega cartella',message:`Ricollegare “${plan.post.title}” (${plan.post.channel})?`,detail:`La cartella\n${plan.from}\nverrà rinominata in\n${plan.to}\ncioè il nome che il piano editoriale si aspetta. Il piano Excel e il contenuto dei file non cambiano.\n\nHai chiuso i file del post (Illustrator, testi, immagini)?`,buttons:['Annulla','Sì, ricollega'],defaultId:0,cancelId:0,noLink:true});
     if(answer.response!==1)return{canceled:true};
-    return await relink.relinkFolder(root,input,chosen);
+    return await relink.relinkFolder(clientDir(),input,chosen);
    }finally{busy=false;}
   });
   // Aggiornamento da App Social/versione.json nella cartella Social (NAS)

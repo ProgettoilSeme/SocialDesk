@@ -13,6 +13,15 @@
  --social-facebook:#0866ff;
  --social-instagram:#c13584;
  --social-linkedin:#0a66c2;
+ --icon-glyph-tiktok:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill-rule='evenodd' d='M14 2h3a5 5 0 0 0 4 4v3a8 8 0 0 1-4-1.2V15a6.5 6.5 0 1 1-6.5-6.5c.3 0 .7 0 1 .1v3.2a3.3 3.3 0 1 0 2.5 3.2z'/%3E%3C/svg%3E");
+ --icon-glyph-youtube:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill-rule='evenodd' d='M3 6.5A3 3 0 0 1 5.8 4h12.4A3 3 0 0 1 21 6.5c.3 1.6.5 3.5.5 5.5s-.2 3.9-.5 5.5a3 3 0 0 1-2.8 2.5H5.8A3 3 0 0 1 3 17.5c-.3-1.6-.5-3.5-.5-5.5s.2-3.9.5-5.5z M10 8.8v6.4l5.5-3.2z'/%3E%3C/svg%3E");
+ --icon-glyph-x:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill-rule='evenodd' d='M3 3h5.2l4.1 5.7L17.4 3h2.7l-6.5 7.5L21 21h-5.2l-4.4-6.1L5.9 21H3.2l7-8.1z M6.3 4.5l10.5 15h1.8L8.1 4.5z'/%3E%3C/svg%3E");
+ --icon-glyph-reddit:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill-rule='evenodd' d='M17.5 2.5a1.7 1.7 0 1 1 0 3.4a1.7 1.7 0 0 1-1.6-1.2l-3.1-.6l-.8 3.6c3.5.2 6.2 2.3 6.2 5c0 2.9-2.9 5.3-6.2 5.3S5.8 15.6 5.8 12.7c0-2.7 2.5-4.7 5.8-5l.9-4.6l4-.1a1.7 1.7 0 0 1 1-.5z M9.2 11.2a1.1 1.1 0 1 0 0 2.2a1.1 1.1 0 1 0 0-2.2z M14.8 11.2a1.1 1.1 0 1 0 0 2.2a1.1 1.1 0 1 0 0-2.2z M9.5 15.3c.7.6 1.6.9 2.5.9s1.8-.3 2.5-.9l-.5-.6c-.6.4-1.3.7-2 .7s-1.4-.3-2-.7z M3.6 9.6a2 2 0 0 1 2.6.5c-.9.6-1.6 1.4-2 2.3a2 2 0 0 1-.6-2.8z M20.4 9.6a2 2 0 0 1-.6 2.8c-.4-.9-1.1-1.7-2-2.3a2 2 0 0 1 2.6-.5z'/%3E%3C/svg%3E");
+ --social-blog:#4d6278;
+ --social-tiktok:#111111;
+ --social-youtube:#ff0033;
+ --social-x:#111111;
+ --social-reddit:#ff4500;
  scrollbar-gutter:stable;
 }
 /* larghezza compatta dell'app: le modali restano sulla larghezza di pagina della libreria */
@@ -22,6 +31,13 @@ header,main{--page-width:960px}
 .social-icon.social-facebook{--icon:var(--icon-glyph-facebook);--icon-color:var(--social-facebook)}
 .social-icon.social-instagram{--icon:var(--icon-glyph-instagram);--icon-color:var(--social-instagram)}
 .social-icon.social-linkedin{--icon:var(--icon-glyph-linkedin);--icon-color:var(--social-linkedin)}
+.social-icon.social-blog{--icon:var(--icon-glyph-newspaper);--icon-color:var(--social-blog)}
+.social-icon.social-tiktok{--icon:var(--icon-glyph-tiktok);--icon-color:var(--social-tiktok)}
+.social-icon.social-youtube{--icon:var(--icon-glyph-youtube);--icon-color:var(--social-youtube)}
+.social-icon.social-x{--icon:var(--icon-glyph-x);--icon-color:var(--social-x)}
+.social-icon.social-reddit{--icon:var(--icon-glyph-reddit);--icon-color:var(--social-reddit)}
+/* TikTok e X sono neri: in tema scuro chiari, altrimenti non si vedono */
+:root[pgs-state~=darkmode]{--social-tiktok:#f2f2f2;--social-x:#f2f2f2}
 .social-icon::before{-webkit-mask:var(--icon) center/contain no-repeat;mask:var(--icon) center/contain no-repeat}
 
 /* header */
@@ -37,7 +53,7 @@ header,main{--page-width:960px}
 /* pulsante Ricontrolla accanto al titolo: il titolo resta al centro della pagina (il pulsante sporge a destra) */
 .home-heading{position:relative}
 #home-recheck{flex:none}
-#home-recheck.is-checking [pgs*=icon]{animation:toast-spin .8s linear infinite}
+#home-recheck.is-checking [pgs*=icon],#recheck-root.is-checking [pgs*=icon],[data-plan-refresh].is-checking [pgs*=icon]{animation:toast-spin .8s linear infinite}
 [role="alert"][hidden]{display:none}
 
 /* passi della creazione */
@@ -69,6 +85,11 @@ header,main{--page-width:960px}
 .channel-chip:has(input:checked)[data-channel="Facebook"]{--button-background-twoState:var(--social-facebook)}
 .channel-chip:has(input:checked)[data-channel="Instagram"]{--button-background-twoState:var(--social-instagram)}
 .channel-chip:has(input:checked)[data-channel="LinkedIn"]{--button-background-twoState:var(--social-linkedin)}
+.channel-chip:has(input:checked)[data-channel="Blog"]{--button-background-twoState:var(--social-blog)}
+.channel-chip:has(input:checked)[data-channel="TikTok"]{--button-background-twoState:var(--social-tiktok)}
+.channel-chip:has(input:checked)[data-channel="YouTube"]{--button-background-twoState:var(--social-youtube)}
+.channel-chip:has(input:checked)[data-channel="X"]{--button-background-twoState:var(--social-x)}
+.channel-chip:has(input:checked)[data-channel="Reddit"]{--button-background-twoState:var(--social-reddit)}
 .channel-chip:has(input:checked){--button-color-twoState:#fff;--button-borderColor-twoState:transparent}
 .channel-chip:has(input:checked) .social-icon{--icon-color:#fff}
 .toolbar-field{min-width:10rem}
@@ -166,13 +187,13 @@ header,main{--page-width:960px}
 
 /* select box di Cambia stato: pallino e riga tinti con il colore dello stato */
 .status-dot{display:inline-block;flex:none;width:.8em;height:.8em;margin-right:var(--gap-details);border-radius:50%;background:var(--tone-fg);vertical-align:middle}
-.status-select :is([pgs~="listbox-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="text-needed"]){--tone-bg:#fff3d8;--tone-fg:#854900}
-.status-select :is([pgs~="listbox-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="text-draft"]){--tone-bg:#fff0e3;--tone-fg:#995016}
-.status-select :is([pgs~="listbox-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="image-needed"]){--tone-bg:#f0e9fb;--tone-fg:#6734a5}
-.status-select :is([pgs~="listbox-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="ready"]){--tone-bg:#e8f1fc;--tone-fg:#175c9d}
-.status-select :is([pgs~="listbox-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="published"]){--tone-bg:#e8f5ed;--tone-fg:#216b48}
-.status-select :is([pgs~="listbox-option"],[pgs~="_selectBox-button"]):has(.status-dot){color:var(--tone-fg);font-weight:var(--font-weight-bold,600)}
-.status-select [pgs~="listbox-option"]:has(.status-dot):is(:hover,[aria-selected="true"],[pgs-state~="active"]){background:var(--tone-bg)}
+.status-select :is([pgs~="listbox-list-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="text-needed"]){--tone-bg:#fff3d8;--tone-fg:#854900}
+.status-select :is([pgs~="listbox-list-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="text-draft"]){--tone-bg:#fff0e3;--tone-fg:#995016}
+.status-select :is([pgs~="listbox-list-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="image-needed"]){--tone-bg:#f0e9fb;--tone-fg:#6734a5}
+.status-select :is([pgs~="listbox-list-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="ready"]){--tone-bg:#e8f1fc;--tone-fg:#175c9d}
+.status-select :is([pgs~="listbox-list-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="published"]){--tone-bg:#e8f5ed;--tone-fg:#216b48}
+.status-select :is([pgs~="listbox-list-option"],[pgs~="_selectBox-button"]):has(.status-dot){color:var(--tone-fg);font-weight:var(--font-weight-bold,600)}
+.status-select [pgs~="listbox-list-option"]:has(.status-dot):is(:hover,[aria-selected="true"],[pgs-state~="active"]){background:var(--tone-bg)}
 .status-select [pgs~="_selectBox-button"]:has(.status-dot){background:var(--tone-bg)}
 /* la lista della select box esce dal riquadro della modale invece di essere tagliata */
 #status-modal :is([pgs~="modal-dialog-content"],[pgs~="modal-dialog-content-scroll"]){overflow:visible}
@@ -192,13 +213,14 @@ header,main{--page-width:960px}
    (i controlli restano cliccabili) e il logo lascia spazio ai tre pulsanti della finestra. */
 [data-platform="mac"] header{-webkit-app-region:drag}
 [data-platform="mac"] header :is(a,button,input,select,dialog){-webkit-app-region:no-drag}
-[data-platform="mac"] .app-brand{margin-left:78px}
+[data-platform="mac"] .brand-row{margin-left:78px}
 
 /* niente scorrimento inutile: il piè di pagina vuoto (home) non aggiunge la distanza della sezione
    e sotto il contenuto resta solo lo spazio tra elementi, non il 7% dell'altezza della finestra */
 #footer:empty{display:none}
 main{--page-bottom:var(--gap-elements)}
 /* Impostazioni: i pulsanti Sfoglia / Cambia cartella non si restringono né vanno a capo */
+.client-name-control>input{flex:1 1 auto;min-width:0}
 .settings-control>button{flex:none;white-space:nowrap}
 
 /* Ricollega cartella */
@@ -219,6 +241,8 @@ main{--page-bottom:var(--gap-elements)}
 .details-switch>ul>li{flex:0 1 auto;min-width:0}
 .details-switch [data-switch-post]{white-space:nowrap;max-width:100%;min-width:0;overflow:hidden}
 .details-switch [data-switch-post]>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* finestre strette: solo icone (il nome resta per la lettura vocale), invece di una barretta di nome tagliato */
+@media(max-width:480px){.details-switch [data-switch-post]>span{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}}
 .details-switch [data-switch-post]>svg,.details-switch [data-switch-post]>i,.details-switch [data-switch-post]>.social-icon{flex:none}
 .details-layout{align-items:start}
 
@@ -245,11 +269,11 @@ main{--page-bottom:var(--gap-elements)}
 :root[pgs-state~=darkmode] [data-status="image-needed"]{--tone-bg:#2e2240;--tone-fg:#c4a2f0}
 :root[pgs-state~=darkmode] [data-status="ready"]{--tone-bg:#16293e;--tone-fg:#8cc0f5}
 :root[pgs-state~=darkmode] [data-status="published"]{--tone-bg:#163223;--tone-fg:#7fd1a4}
-:root[pgs-state~=darkmode] .status-select :is([pgs~="listbox-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="text-needed"]){--tone-bg:#3d2e0c;--tone-fg:#f3c35c}
-:root[pgs-state~=darkmode] .status-select :is([pgs~="listbox-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="text-draft"]){--tone-bg:#3d2614;--tone-fg:#f2a466}
-:root[pgs-state~=darkmode] .status-select :is([pgs~="listbox-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="image-needed"]){--tone-bg:#2e2240;--tone-fg:#c4a2f0}
-:root[pgs-state~=darkmode] .status-select :is([pgs~="listbox-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="ready"]){--tone-bg:#16293e;--tone-fg:#8cc0f5}
-:root[pgs-state~=darkmode] .status-select :is([pgs~="listbox-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="published"]){--tone-bg:#163223;--tone-fg:#7fd1a4}
+:root[pgs-state~=darkmode] .status-select :is([pgs~="listbox-list-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="text-needed"]){--tone-bg:#3d2e0c;--tone-fg:#f3c35c}
+:root[pgs-state~=darkmode] .status-select :is([pgs~="listbox-list-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="text-draft"]){--tone-bg:#3d2614;--tone-fg:#f2a466}
+:root[pgs-state~=darkmode] .status-select :is([pgs~="listbox-list-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="image-needed"]){--tone-bg:#2e2240;--tone-fg:#c4a2f0}
+:root[pgs-state~=darkmode] .status-select :is([pgs~="listbox-list-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="ready"]){--tone-bg:#16293e;--tone-fg:#8cc0f5}
+:root[pgs-state~=darkmode] .status-select :is([pgs~="listbox-list-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="published"]){--tone-bg:#163223;--tone-fg:#7fd1a4}
 /* finestre strette: i badge del gruppo vanno su una riga sotto il titolo */
 @media(max-width:760px){
  .group-summary{flex-wrap:wrap}
@@ -301,3 +325,50 @@ main{--page-bottom:var(--gap-elements)}
 .home-pair:has(.home-row:disabled){opacity:.5}
 .home-pair .home-row:disabled{opacity:1}
 @media(max-width:660px){.home-row img,.home-ideas img{width:64px;max-width:64px}}
+/* Header: logo (home) e, al posto della scritta SocialDesk, il nome del cliente con la freccia */
+.brand-row{gap:var(--gap-details);min-width:0;max-width:100%}
+.client-slot{min-width:0;display:flex}
+.client-dropdown{display:inline-flex;max-width:100%;--dropdown-inline-size:max-content;--dropdown-maxInlineSize:min(36rem,calc(100vw - 32px));--dropdown-borderRadius:calc(var(--borderRadius-elements) + var(--padding-details))}
+.client-menu{min-width:14rem;font-size:var(--font-size-text,1rem);font-weight:400;text-align:left;-webkit-app-region:no-drag}
+.client-menu [data-client],.client-menu #client-create,.client-menu #home-client-create{justify-content:flex-start;width:100%;white-space:nowrap}
+.client-menu [data-client]>span:last-child{overflow:hidden;text-overflow:ellipsis}
+.client-check-space{display:inline-block;width:1em;height:1em;flex:none;box-sizing:border-box;border:var(--border-width,1.5px) solid currentColor;border-radius:50%;opacity:.35}
+.client-logo-initial{display:inline-flex;align-items:center;justify-content:center;font-size:.8em;font-weight:var(--font-weight-bold,600);line-height:1;background:color-mix(in srgb,currentColor 12%,transparent)}
+/* l'iniziale deve essere grande quanto i loghi, altrimenti i nomi non sono in colonna (le voci hanno btnPaddingEqual) */
+.client-menu .client-logo.client-logo-initial{width:1.75em;height:1.75em}
+/* Header pieno: a destra di "Crea nuovo post" lo stesso spazio che c'è sopra, fino al bordo della finestra.
+   --header-gutter (misurato dal renderer) è la striscia vuota tenuta per la barra di scorrimento: l'header la copre. */
+header[pgs~="header"]{width:calc(100% + var(--header-gutter,0px))}
+header[pgs~="header"]:not([pgs-state~="compact"]) [pgs~="header-element"]{padding-inline-end:calc(var(--header-paddingBlock) + 1.5px)}
+/* Logo del cliente: accanto al nome nell'header e nell'elenco dei clienti; anteprima nelle Impostazioni */
+.client-logo{width:1.6em;height:1.6em;object-fit:contain;flex:none;border-radius:var(--borderRadius-details,6px)}
+.client-menu .client-logo{width:1.4em;height:1.4em}
+.client-logo-preview{width:96px;height:96px;object-fit:contain;border-radius:var(--borderRadius-paragraphs,12px);background:var(--color-background-soft,rgba(127,127,127,.08));padding:8px;box-sizing:border-box;flex:none}
+.client-logo-empty{display:inline-flex;align-items:center;justify-content:center;font-size:2rem;opacity:.45}
+.client-color-row input[type=color]{inline-size:3rem;block-size:2.5rem;padding:0;border:0;background:none;cursor:pointer}
+/* Header: logo e nome del cliente (link alla home), poi la freccia del menu dei clienti */
+.client-brand{min-width:0;gap:var(--gap-details)}
+.client-brand-logo{height:3.2rem;width:auto;max-width:9rem;object-fit:contain;flex:none}
+/* nome del cliente in testo normale (myPgs dà a logo-text il carattere dei titoli, grande e in grassetto) */
+.client-brand-name{min-width:0;max-width:min(40rem,40vw);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#brand-home.client-brand .client-brand-name{font-family:var(--font);font-size:var(--font-size-text)}
+.client-switch{flex:none}
+.title-muted{color:var(--color-gray,#626d7b)}
+/* Footer dell'app: logo SocialDesk, impostazioni dell'app, versione, aggiornamenti */
+.app-footer .logo-image,.app-footer [pgs~="logo-image"]{height:2.4rem;width:auto}
+.app-footer [pgs~="footer-legal"]{padding-block:0}
+.app-footer [pgs~="footer-legal-content"]{padding-block:var(--padding-paragraphs)}
+/* Sfumatura in alto alla pagina nel colore primario (quello del cliente, se scelto) al 50% di trasparenza */
+body::before{content:"";width:100%;height: var(--_header-heightScroll);background:linear-gradient(180deg,color-mix(in srgb,var(--color-primary) 50%,transparent),transparent);position:absolute;top:0;left:0;z-index:-1;pointer-events:none}
+/* Impostazioni del cliente: righe dei template (ognuna apre la sua modale) */
+.template-group-title{display:flex;align-items:center;gap:var(--gap-details);margin:0}
+.template-list{list-style:none;margin:0;padding:0;gap:0}
+.template-row{width:100%;justify-content:flex-start;gap:var(--gap-paragraphs);text-align:left}
+.template-row .template-format{flex:1 1 auto;min-width:0}
+.platform-choices{flex-wrap:wrap}
+/* Benvenuto (nessun cliente) */
+.welcome{text-align:center;max-width:44rem;margin-inline:auto;padding-block:var(--padding-groups,3rem)}
+.welcome-logo{width:120px;height:auto}
+/* in tema scuro TikTok e X selezionati hanno lo sfondo chiaro: testo e icona scuri */
+:root[pgs-state~=darkmode] .channel-chip:has(input:checked):is([data-channel="TikTok"],[data-channel="X"]){--button-color-twoState:#111}
+:root[pgs-state~=darkmode] .channel-chip:has(input:checked):is([data-channel="TikTok"],[data-channel="X"]) .social-icon{--icon-color:#111}
