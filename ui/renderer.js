@@ -42,9 +42,13 @@ function enhance(root){try{globalThis.pgs?.helper.init(root);}catch(e){console.e
 const icon=(name,size='')=>`<i pgs="icon['icon-${name}'${size?` '${size}'`:''}]" aria-hidden="true"></i>`;
 function socialIcon(channel){return CHANNELS.includes(channel)?`<i pgs="icon" class="social-icon social-${channel.toLowerCase()}" aria-hidden="true"></i>`:'';}
 const ALERTS={error:['alertError','circleXmark'],success:['alertSuccess','circleCheck'],info:['alertInfo','circleInfo'],warning:['alertWarning','triangleExclamation']};
+// Piano cambiato da qualcun altro (errore CHANGED): il messaggio ha il pulsante Aggiorna (refreshChangedPlan)
+const changedMessages=new Set();
+const planChanged=message=>changedMessages.has(message);
+const refreshButton=()=>`<div><button pgs="button['btnMini']" type="button" data-plan-refresh>${icon('refresh')}<span>Aggiorna</span></button></div>`;
 function alertHtml(kind,message,title=''){
- if(!message)return'';const [option,glyph]=ALERTS[kind]||ALERTS.info;
- return `<div pgs="alert['${option}']"><i pgs="icon['icon-${glyph}'] alert-icon" aria-hidden="true"></i><div pgs="alert-content">${title?`<strong pgs="alert-content-title">${escape(title)}</strong>`:''}<p>${escape(message)}</p></div></div>`;
+ if(!message)return'';const [option,glyph]=ALERTS[kind]||ALERTS.info;const refresh=kind==='error'&&planChanged(message);
+ return `<div pgs="alert['${option}']"><i pgs="icon['icon-${glyph}'] alert-icon" aria-hidden="true"></i><div pgs="alert-content${refresh?` flex['column' 'gapParagraphs']`:''}">${title?`<strong pgs="alert-content-title">${escape(title)}</strong>`:''}<p>${escape(message)}</p>${refresh?refreshButton():''}</div></div>`;
 }
 function setAlert(box,message,kind='error'){if(box){box.innerHTML=alertHtml(kind,message);box.hidden=!message;}}
 const errorBox=()=>`<div id="error" role="alert">${alertHtml('error',state.error)}</div>`;
@@ -68,7 +72,7 @@ function createModal({title,titleHtml,titleId,describedBy='',body,footer='',size
  const dialog=wrapper.querySelector('dialog'),instance=()=>globalThis.pgs?.modal.api(wrapper);
  let pressed=null;
  dialog.addEventListener('pointerdown',event=>{pressed=event.target;},{capture:true});
- const modal={wrapper,dialog,busy:false,
+ const modal={wrapper,dialog,busy:false,planRefresh:null,
   open(){const live=instance();if(live)live.open();else dialog.showModal();},
   close(value){if(modal.busy||!dialog.open)return;dialog.close(value);},
   // chiusura chiesta dall'utente (X, Esc, sfondo): passa da beforeClose, che può chiedere conferma
@@ -84,6 +88,7 @@ function createModal({title,titleHtml,titleId,describedBy='',body,footer='',size
  // la X non chiude direttamente (myPgs): passa da request, così rispetta salvataggi in corso e conferme
  dialog.addEventListener('click',event=>{const x=event.target.closest?.('[data-modal-x]');if(!x||x.closest('dialog')!==dialog)return;event.preventDefault();event.stopPropagation();modal.request();},{capture:true});
  dialog.addEventListener('close',()=>{instance()?.destroy();wrapper.remove();onClose?.(dialog.returnValue);},{once:true});
+ dialog.socialModal=modal;
  return modal;
 }
 
@@ -152,7 +157,7 @@ function applyClientColor(){
  else root.style.removeProperty('--color-primary');
 }
 const clientLogo=(c=state.clients.find(x=>x.folder===state.client))=>c?.logo?`<img class="client-logo" src="${escape(c.logo)}" alt="">`:'';
-async function call(method,...args){if(!api)throw new Error('Apri SocialDesk dall’applicazione per accedere ai file.');const response=await api[method](...args);if(!response.ok){const e=new Error(response.error.message);e.code=response.error.code;throw e;}return response.value;}
+async function call(method,...args){if(!api)throw new Error('Apri SocialDesk dall’applicazione per accedere ai file.');const response=await api[method](...args);if(!response.ok){const e=new Error(response.error.message);e.code=response.error.code;if(e.code==='CHANGED'&&/Il piano è cambiato/.test(e.message))changedMessages.add(e.message);throw e;}return response.value;}
 const CAPS_HINT='Non scrivere il titolo tutto in maiuscolo: va bene solo la prima lettera (es. «Buone feste»).';
 function allCaps(title){const letters=String(title||'').match(/\p{L}/gu)||[];return letters.length>1&&!/\p{Ll}/u.test(title)&&/\p{Lu}/u.test(title);}
 function showCapsHint(id,on){const hint=document.getElementById(id);if(hint)hint.hidden=!on;}
@@ -323,7 +328,8 @@ function renderHome(){
  const card=(id,tone,image,label)=>`<button pgs="box${tone?` background['${tone}']`:''} flex['column' 'itemCenter' 'gapParagraphs']" class="home-action" id="${id}" type="button" ${disabled(state.loading||!state.rootValid)}><img src="assets/${image}" alt="" width="240" height="240"><span pgs="h4">${label}</span></button>`;
  // Home: a sinistra Tutti i post e Post in bozza nello stesso riquadro, a destra Crea nuovo post, sotto Idee
  const row=(id,image,label)=>`<button pgs="flex['row' 'itemCenter' 'gapParagraphs']" class="home-action home-row" id="${id}" type="button" ${disabled(state.loading||!state.rootValid)}><img src="assets/${image}" alt="" width="120" height="120"><span pgs="h4">${label}</span></button>`;
- main.innerHTML=`<div pgs="flex['row' 'itemCenter' 'justifyCenter' 'gapParagraphs']" class="home-heading"><h1 pgs="h2" class="home-title">Cosa vuoi fare oggi?</h1><button pgs="button['btnIconOnly']" id="home-recheck" class="${state.checkingRoot?'is-checking':''}" type="button" aria-label="Ricontrolla la cartella Social" title="Ricontrolla la cartella Social (es. dopo aver collegato il disco o la VPN)" ${disabled(state.loading||state.checkingRoot)}>${icon('refresh')}</button></div><div pgs="grid['column-2' 'gapElements']" class="home-actions"><div pgs="box flex['column']" class="home-pair">${row('all-posts','calendar.png','Tutti i post')}<hr class="home-divider">${row('drafts','draft.png','Post in bozza')}</div>${card('create-new','bgPrimarySoft','megaphone.png','Crea nuovo post')}<button pgs="box flex['row' 'itemCenter' 'gapParagraphs']" class="home-action home-ideas" id="home-ideas" type="button" ${disabled(state.loading||!state.rootValid)}><img src="assets/idea.png" alt="" width="120" height="120"><span pgs="flex['column' 'gapDetails']"><span pgs="h4">Idee</span><span class="hint">Le idee per i prossimi post, condivise con tutti.</span></span></button></div><hr><div pgs="flex['row' 'wrap' 'itemCenter' 'gapParagraphs']" class="home-settings"><button pgs="button" id="client-settings" type="button" ${disabled(state.loading||!state.rootValid)}>${icon('gear')}<span>Impostazioni del cliente</span></button><button pgs="button" id="sync-assets" type="button" ${disabled(state.loading||!state.rootValid)} title="Copia le immagini di tutti i post in 03_Template/Archivio asset, divise per social e anno">${icon('images')}<span>${state.assetSyncing?'Aggiornamento…':'Aggiorna archivio asset'}</span></button></div>${noticeBox()}${homeErrorBox()}`;
+ const rootError=homeErrorBox();
+ main.innerHTML=`${noticeBox()}${rootError}<div pgs="flex['row' 'itemCenter' 'justifyCenter' 'gapParagraphs']" class="home-heading"><h1 pgs="h2" class="home-title">Cosa vuoi fare oggi?</h1>${state.baseValid?`<button pgs="button['btnIconOnly']" id="home-recheck" class="${state.checkingRoot?'is-checking':''}" type="button" aria-label="Ricontrolla la cartella Social" title="Ricontrolla la cartella Social (es. dopo aver collegato il disco o la VPN)" ${disabled(state.loading||state.checkingRoot)}>${icon('refresh')}</button>`:''}</div><div pgs="grid['column-2' 'gapElements']" class="home-actions"><div pgs="box flex['column']" class="home-pair">${row('all-posts','calendar.png','Tutti i post')}<hr class="home-divider">${row('drafts','draft.png','Post in bozza')}</div>${card('create-new','bgPrimarySoft','megaphone.png','Crea nuovo post')}<button pgs="box flex['row' 'itemCenter' 'gapParagraphs']" class="home-action home-ideas" id="home-ideas" type="button" ${disabled(state.loading||!state.rootValid)}><img src="assets/idea.png" alt="" width="120" height="120"><span pgs="flex['column' 'gapDetails']"><span pgs="h4">Idee</span><span class="hint">Le idee per i prossimi post, condivise con tutti.</span></span></button></div><hr><div pgs="flex['row' 'wrap' 'itemCenter' 'gapParagraphs']" class="home-settings"><button pgs="button" id="client-settings" type="button" ${disabled(state.loading||!state.rootValid)}>${icon('gear')}<span>Impostazioni del cliente</span></button><button pgs="button" id="sync-assets" type="button" ${disabled(state.loading||!state.rootValid)} title="Copia le immagini di tutti i post in 03_Template/Archivio asset, divise per social e anno">${icon('images')}<span>${state.assetSyncing?'Aggiornamento…':'Aggiorna archivio asset'}</span></button></div>`;
  footer.innerHTML='';
  document.getElementById('choose-root')?.addEventListener('click',chooseRootFromHome);
  document.getElementById('sync-assets').addEventListener('click',syncAssets);
@@ -332,7 +338,8 @@ function renderHome(){
  document.getElementById('all-posts').addEventListener('click',loadPosts);
  document.getElementById('create-new').addEventListener('click',startCreate);
  document.getElementById('home-ideas').addEventListener('click',openIdeas);
- document.getElementById('home-recheck').addEventListener('click',recheckRoot);
+ document.getElementById('home-recheck')?.addEventListener('click',recheckRoot);
+ document.getElementById('recheck-root')?.addEventListener('click',recheckRoot);
 }
 // Header: a sinistra il logo e il nome del cliente (link alla home) e la freccia che apre l'elenco dei clienti
 // (dropdown di myPgs con menu buttonGroup verticale): clienti e, per ultimo, Crea cliente.
@@ -454,12 +461,12 @@ async function recheckRoot(){
   applyStatus(result);
   if(result.valid){globalThis.pgs?.toast.success({title:'Cartella Social raggiungibile',timeout:3000,closeTitle:'Chiudi'});bringToastToFront();refreshUpdate(true);}
  }catch(e){state.error=e.message;}
- finally{state.checkingRoot=false;render();document.getElementById('home-recheck')?.focus({preventScroll:true});}
+ finally{state.checkingRoot=false;render();(document.getElementById('recheck-root')||document.getElementById('home-recheck'))?.focus({preventScroll:true});}
 }
 // Home: se la cartella Social non è valida, l'avviso offre subito la scelta della cartella
 function homeErrorBox(){
  if(state.baseValid||!state.error)return errorBox();
- return `<div id="error" role="alert"><div pgs="alert['alertError']"><i pgs="icon['icon-circleXmark'] alert-icon" aria-hidden="true"></i><div pgs="alert-content flex['column' 'gapParagraphs']"><p>${escape(state.error)}</p><div><button pgs="button" id="choose-root" type="button" ${disabled(state.loading)}>${icon('folderOpen')}<span>Scegli la cartella</span></button></div></div></div></div>`;
+ return `<div id="error" role="alert"><div pgs="alert['alertError']"><i pgs="icon['icon-circleXmark'] alert-icon" aria-hidden="true"></i><div pgs="alert-content flex['column' 'gapParagraphs']"><p>${escape(state.error)}</p><div pgs="flex['row' 'wrap' 'itemCenter' 'gapParagraphs']"><button pgs="button" id="choose-root" type="button" ${disabled(state.loading||state.checkingRoot)}>${icon('folderOpen')}<span>Scegli la cartella</span></button><button pgs="button" id="recheck-root" class="${state.checkingRoot?'is-checking':''}" type="button" title="Ricontrolla la cartella Social (es. dopo aver collegato il disco o la VPN)" ${disabled(state.loading||state.checkingRoot)}>${icon('refresh')}<span>${state.checkingRoot?'Controllo…':'Aggiorna'}</span></button></div></div></div></div>`;
 }
 async function chooseRootFromHome(){
  if(state.loading)return;
@@ -743,6 +750,37 @@ async function reloadListAt(key){
  const y=window.scrollY;await loadList(state.listMode);
  requestAnimationFrame(()=>{window.scrollTo({top:y});if(key)selectRow(key);});
 }
+// Lo stesso post nell'elenco ricaricato: la chiave (anno:riga) può puntare a un'altra riga se il piano ha righe in più o in meno
+function freshPost(post){
+ const list=state.drafts||[],same=p=>p.year===post.year&&p.channel===post.channel;
+ const byKey=list.find(p=>p.key===post.key);
+ if(byKey&&same(byKey)&&String(byKey.id??'')===String(post.id??'')&&(post.id!==null&&post.id!==''||byKey.title===post.title))return byKey;
+ if(post.id!==null&&post.id!=='')return list.find(p=>same(p)&&String(p.id)===String(post.id))||null;
+ return list.find(p=>same(p)&&p.title===post.title)||null;
+}
+// Riapre per il post aggiornato una modale (Dettagli, Cambia stato) dopo aver ricaricato l'elenco
+function reopenFresh(modal,post,open){
+ return async()=>{
+  modal.close();await reloadListAt(null);
+  const fresh=freshPost(post);
+  if(!fresh){globalThis.pgs?.toast.error({title:'Post non trovato',description:'Il post non c’è più nel piano: forse è stato eliminato.',timeout:5000,closeTitle:'Chiudi'});bringToastToFront();return;}
+  selectRow(fresh.key);setTimeout(()=>open(fresh),60);
+ };
+}
+// Pulsante Aggiorna nei messaggi «Il piano è cambiato»: ricarica il piano senza chiudere a mano la finestra
+async function refreshChangedPlan(button){
+ if(state.loading||button.disabled)return;
+ button.disabled=true;button.classList.add('is-checking');
+ try{
+  let dialog=button.closest('dialog');
+  while(dialog&&!dialog.socialModal?.planRefresh)dialog=dialog.parentElement?.closest('dialog');
+  if(dialog){await dialog.socialModal.planRefresh();return;}
+  const open=button.closest('dialog')?.socialModal;
+  if(open){open.close();await reloadListAt(state.highlight);return;}
+  if(state.listMode)await reloadListAt(state.highlight);
+ }finally{if(button.isConnected){button.disabled=false;button.classList.remove('is-checking');}}
+}
+document.addEventListener('click',event=>{const button=event.target.closest?.('[data-plan-refresh]');if(!button)return;event.preventDefault();event.stopPropagation();void refreshChangedPlan(button);},{capture:true});
 // Modifica post: modale a tutto schermo sopra l'elenco (dall'elenco, dai Dettagli o dopo la creazione).
 async function openPostEditor(post,opener){
  if(state.loading||anyModalOpen())return;
@@ -764,6 +802,17 @@ async function openPostEditor(post,opener){
  }});
  modal.dialog.id='post-edit-modal';modal.dialog.classList.add('post-edit-modal');
  document.body.classList.add('edit-modal-open');
+ // Piano cambiato: si ricarica l'elenco sotto e si aggancia la riga aggiornata, senza perdere i campi compilati
+ // (il testo non si tocca: se è cambiato anche quello, al salvataggio interviene il controllo del testo)
+ modal.planRefresh=async()=>{
+  if(modal.busy)return;
+  const before=state.selected,y=window.scrollY;
+  await loadList(state.listMode);requestAnimationFrame(()=>window.scrollTo({top:y}));
+  const fresh=freshPost(before);
+  if(!fresh){state.selected=before;state.editError='Il post non c’è più nel piano: forse è stato eliminato. Chiudi la finestra senza salvare.';renderPostEdit();return;}
+  state.selected=fresh;state.editError='';selectRow(fresh.key);renderPostEdit();
+  globalThis.pgs?.toast.success({title:'Piano aggiornato',description:'Le tue modifiche sono ancora qui: ora puoi salvarle.',timeout:4000,closeTitle:'Chiudi'});bringToastToFront();
+ };
  state.editModal=modal;renderPostEdit();modal.open();
  modal.dialog.querySelector('#edit-title')?.focus({preventScroll:true});
 }
@@ -783,7 +832,7 @@ function openStatusModal(post,opener){
  const today=localToday(),initialDate=post.date||(today.startsWith(post.year+'-')?today:'');
  const body=`${postHeading(post,'status-modal-post')}<div pgs="flex['column']"><label pgs="label" for="quick-status">Nuovo stato</label><div pgs="selectBox" class="status-select"><select pgs="select" id="quick-status" required>${initial?'':`<option value="" selected disabled hidden>${escape(post.status?'Attuale: '+post.status:'Scegli uno stato')}</option>`}${STATUSES.map(status=>`<option value="${status}" ${initial===status?'selected':''}>${statusDot(status)}${status}</option>`).join('')}</select></div></div><div id="status-date-block" pgs="flex['column' 'gapParagraphs']" ${withDate(initial)?'':'hidden'}>${field('Data di pubblicazione',`<input pgs="input" id="status-date" type="date" min="${post.year}-01-01" max="${post.year}-12-31" value="${escape(initialDate)}" ${post.date||initial==='pubblicato'?'required':'disabled'}>`,`Deve essere nel ${post.year}.`)}<label pgs="checkbox" id="status-undefined-label" ${initial==='pubblicato'?'hidden':''}><input type="checkbox" id="status-undefined" ${post.date?'':'checked'}><span>Data da definire</span></label></div><p class="hint">La modifica riguarda solo ${escape(post.channel)}.</p><div id="status-error" role="alert" hidden></div><div pgs="flex['row' 'justifyEnd' 'gapParagraphs']"><button pgs="button" id="status-cancel" type="button">Annulla</button><button pgs="button['btnStrong']" id="status-save" type="submit" disabled>Salva</button></div>`;
   const modal=createModal({title:'Cambia stato',titleId:'status-modal-title',describedBy:'status-modal-post',body,form:true,onClose:()=>{document.body.classList.remove('status-modal-open');if(opener.isConnected)opener.focus({preventScroll:true});}});
- modal.dialog.id='status-modal';
+ modal.dialog.id='status-modal';modal.planRefresh=reopenFresh(modal,post,p=>openStatusModal(p,opener));
  document.body.classList.add('status-modal-open');
  const dateBlock=modal.dialog.querySelector('#status-date-block'),dateInput=modal.dialog.querySelector('#status-date'),undefinedBox=modal.dialog.querySelector('#status-undefined'),undefinedLabel=modal.dialog.querySelector('#status-undefined-label'),select=modal.dialog.querySelector('#quick-status'),save=modal.dialog.querySelector('#status-save'),message=modal.dialog.querySelector('#status-error');
  // Con pubblicato la data è obbligatoria: Data da definire non c'è.
@@ -882,6 +931,7 @@ function openPostDetails(post,opener){
  modal.open();dialog.querySelector('[data-modal-x]').focus();
  // dopo una rigenerazione i Dettagli si riaprono con il file nuovo
  const reopen=()=>{modal.close();setTimeout(()=>openPostDetails(post,opener),60);};
+ modal.planRefresh=reopenFresh(modal,post,p=>openPostDetails(p,opener));
  // per i formati video il post non ha un file Illustrator: niente Rigenera
  // se il formato viene scelto ora, il piano cambia: si ricarica l'elenco e si riaprono i Dettagli aggiornati
  const afterArtwork=async result=>{
@@ -890,7 +940,7 @@ function openPostDetails(post,opener){
   const updated=(state.drafts||[]).find(p=>p.key===post.key);if(updated)setTimeout(()=>openPostDetails(updated,opener),60);
   globalThis.pgs?.toast.success({title:'File Illustrator creato',description:`${result.name} · formato ${result.format}`,timeout:4000,closeTitle:'Chiudi'});bringToastToFront();
  };
- disposeArtwork=SocialIllustratorPreview.mount(dialog.querySelector('#details-artwork'),{key:post.key,revision:state.revision},call,formatKind(post.format)==='video'?{}:{onRegenerated:afterArtwork,chooseFormat:()=>chooseArtworkFormat(post)});
+ disposeArtwork=SocialIllustratorPreview.mount(dialog.querySelector('#details-artwork'),{key:post.key,revision:state.revision},call,formatKind(post.format)==='video'?{}:{onRegenerated:afterArtwork,chooseFormat:()=>chooseArtworkFormat(post),onPlanChanged:()=>modal.planRefresh()});
  call('details',{key:post.key,revision:state.revision}).then(result=>{
   if(!dialog.isConnected)return;
   dialog.querySelector('#details-metadata').innerHTML=detailsMetadata(result.post);

@@ -53,7 +53,7 @@ header,main{--page-width:960px}
 /* pulsante Ricontrolla accanto al titolo: il titolo resta al centro della pagina (il pulsante sporge a destra) */
 .home-heading{position:relative}
 #home-recheck{flex:none}
-#home-recheck.is-checking [pgs*=icon]{animation:toast-spin .8s linear infinite}
+#home-recheck.is-checking [pgs*=icon],#recheck-root.is-checking [pgs*=icon],[data-plan-refresh].is-checking [pgs*=icon]{animation:toast-spin .8s linear infinite}
 [role="alert"][hidden]{display:none}
 
 /* passi della creazione */

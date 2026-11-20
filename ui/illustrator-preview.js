@@ -11,7 +11,16 @@ window.SocialIllustratorPreview=(()=>{
   const alive=token=>!closed&&host.isConnected&&generation===token;
   function clearDocument(){renderTask?.cancel();renderTask=null;documentPdf=null;const task=loadingTask;loadingTask=null;if(task)void task.destroy().catch(()=>{});}
   function updateControls(){if(!controls)return;const pages=documentPdf?.numPages||0;controls.hidden=pages<2;previous.disabled=rendering||pageNumber<=1;next.disabled=rendering||pageNumber>=pages;counter.textContent=`Tavola ${pageNumber} di ${pages}`;}
-  function message(text){note.textContent=text;note.hidden=!text;}
+  function message(text){note.textContent=text;note.hidden=!text;host.querySelector('.artwork-plan-refresh')?.remove();}
+  // piano cambiato da qualcun altro: messaggio con il pulsante Aggiorna (ricarica e riapre i Dettagli)
+  function failed(error){
+   message(error.message);
+   if(error.code!=='CHANGED'||!options.onPlanChanged)return;
+   const wrap=document.createElement('div');wrap.className='artwork-plan-refresh';
+   const button=document.createElement('button');button.type='button';button.setAttribute('pgs',"button['btnMini']");button.innerHTML='<i pgs="icon[\'icon-refresh\']" aria-hidden="true"></i><span>Aggiorna</span>';
+   button.addEventListener('click',()=>{button.disabled=true;options.onPlanChanged();});
+   wrap.appendChild(button);note.after(wrap);
+  }
   // Altezza disponibile per la tavola: l'area visibile della modale meno link al file, scelta del file,
   // pulsanti delle tavole e margini, così grafica e pulsanti stanno insieme nello schermo.
   function availableHeight(){
@@ -49,7 +58,7 @@ window.SocialIllustratorPreview=(()=>{
     loadingTask.onPassword=()=>{if(alive(token)){message('Anteprima non disponibile: il file è protetto da password. Puoi aprire l’originale dal link.');host.dataset.preview='unavailable';clearDocument();}};
     documentPdf=await loadingTask.promise;if(!alive(token))return;
     await renderPage(token);
-   }catch(error){if(alive(token)){clearDocument();message(error.code?error.message:'Anteprima non disponibile. Puoi aprire il file originale dal link.');host.dataset.preview='unavailable';}}
+   }catch(error){if(alive(token)){clearDocument();if(error.code)failed(error);else message('Anteprima non disponibile. Puoi aprire il file originale dal link.');host.dataset.preview='unavailable';}}
   }
   call('illustratorFiles',request).then(result=>{
    if(closed||!host.isConnected)return;
@@ -66,7 +75,7 @@ window.SocialIllustratorPreview=(()=>{
       if(options.chooseFormat){try{format=await options.chooseFormat();}catch{format=null;}if(format===null){if(!closed)button.disabled=false;return;}}
       if(closed)return;
       message('Creo il file Illustrator dal template…');
-      try{const result=await call('regenerateSource',{...request,kind:'ai',...(format?{format}:{})});if(!closed)options.onRegenerated(result);}catch(error){if(!closed){button.disabled=false;message(error.message);}}
+      try{const result=await call('regenerateSource',{...request,kind:'ai',...(format?{format}:{})});if(!closed)options.onRegenerated(result);}catch(error){if(!closed){button.disabled=false;failed(error);}}
      });
     }
     return;
@@ -80,7 +89,7 @@ window.SocialIllustratorPreview=(()=>{
    controls=document.createElement('div');controls.className='artwork-controls';controls.setAttribute('pgs',"flex['row' 'itemCenter' 'justifyCenter' 'gapParagraphs']");controls.hidden=true;previous=document.createElement('button');previous.type='button';previous.setAttribute('pgs',"button['btnIconOnly' 'btnMini']");previous.innerHTML='<i pgs="icon[\'icon-arrowLeft\']" aria-hidden="true"></i>';previous.setAttribute('aria-label','Tavola precedente');counter=document.createElement('span');counter.className='artwork-page-count';counter.setAttribute('aria-live','polite');next=document.createElement('button');next.type='button';next.setAttribute('pgs',"button['btnIconOnly' 'btnMini']");next.innerHTML='<i pgs="icon[\'icon-arrowRight\']" aria-hidden="true"></i>';next.setAttribute('aria-label','Tavola successiva');
    previous.addEventListener('click',()=>{if(!rendering&&pageNumber>1){pageNumber--;void renderPage(generation);}});next.addEventListener('click',()=>{if(!rendering&&pageNumber<documentPdf.numPages){pageNumber++;void renderPage(generation);}});controls.append(previous,counter,next);host.appendChild(controls);host.append(link,openError);
    void loadFile(result.files[0].name);
-  }).catch(error=>{if(!closed){message(error.message);host.dataset.preview='unavailable';}});
+  }).catch(error=>{if(!closed){failed(error);host.dataset.preview='unavailable';}});
   const resize=()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{if(!closed&&documentPdf&&!rendering)void renderPage(generation,true);},160);};window.addEventListener('resize',resize);
   return()=>{closed=true;generation++;clearTimeout(resizeTimer);window.removeEventListener('resize',resize);clearDocument();if(canvas){canvas.width=0;canvas.height=0;}};
  }
