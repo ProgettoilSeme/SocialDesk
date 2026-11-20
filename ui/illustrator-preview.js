@@ -59,7 +59,15 @@ window.SocialIllustratorPreview=(()=>{
     if(result.empty&&options.onRegenerated){
      const button=document.createElement('button');button.type='button';button.setAttribute('pgs','button');button.dataset.regenerate='ai';button.innerHTML='<i pgs="icon[\'icon-refresh\']" aria-hidden="true"></i><span>Rigenera file Illustrator</span>';
      const wrap=document.createElement('div');wrap.appendChild(button);host.appendChild(wrap);
-     button.addEventListener('click',async()=>{button.disabled=true;message('Creo il file Illustrator dal template…');try{await call('regenerateSource',{...request,kind:'ai'});if(!closed)options.onRegenerated();}catch(error){if(!closed){button.disabled=false;message(error.message);}}});
+     button.addEventListener('click',async()=>{
+      button.disabled=true;
+      // senza formato da immagine si sceglie prima il formato (null = annullato)
+      let format='';
+      if(options.chooseFormat){try{format=await options.chooseFormat();}catch{format=null;}if(format===null){if(!closed)button.disabled=false;return;}}
+      if(closed)return;
+      message('Creo il file Illustrator dal template…');
+      try{const result=await call('regenerateSource',{...request,kind:'ai',...(format?{format}:{})});if(!closed)options.onRegenerated(result);}catch(error){if(!closed){button.disabled=false;message(error.message);}}
+     });
     }
     return;
    }

@@ -387,24 +387,60 @@ async function selectClient(folder){
  document.getElementById('client-switch')?.focus({preventScroll:true});
 }
 function closeClientMenu(){try{const root=document.querySelector('#client-slot .client-dropdown');if(root)globalThis.pgs?.dropdown.api(root)?.close();}catch{}}
-// Crea cliente: nome → cartella Social/<nome con _ al posto degli spazi> con piano vuoto, 00_template e 01_Posts
+// Crea cliente a passi (stepTabs di myPgs): 1) nome, controllato subito (valido e non già usato); 2) logo facoltativo
+// (il file lo tiene il main, qui solo l'anteprima); 3) social gestiti, almeno uno. Poi Social/<nome> con piano vuoto e cartelle fisse.
 async function openClientModal(opener){
  closeClientMenu();
  if(state.loading||anyModalOpen())return;
  if(state.route==='create'&&!(await confirmLeave()))return;
- const body=`<p class="hint">Verrà creata in Social una cartella con questo nome (gli spazi diventano “_”) con il piano editoriale vuoto e le cartelle 00_Cestino, 01_Posts, 02_Settings e 03_Template. Piattaforme, template, logo e colore si impostano poi in Impostazioni del cliente.</p><div pgs="form flex['column' 'gapParagraphs']">${field('Nome del cliente',`<input pgs="input" id="client-name" maxlength="60" autocomplete="off" required placeholder=" ">`)}<p class="hint" id="client-folder-preview" aria-live="polite"></p></div><div id="client-error" role="alert" hidden></div><div pgs="flex['row' 'justifyEnd' 'gapParagraphs']"><button pgs="button" type="button" id="client-cancel">Annulla</button><button pgs="button['btnStrong']" type="submit" id="client-save" disabled>${icon('circlePlus')}<span>Crea cliente</span></button></div>`;
- const modal=createModal({title:'Crea cliente',titleId:'client-modal-title',body,form:true,onClose:()=>{if(opener?.isConnected)opener.focus({preventScroll:true});}});
- const dialog=modal.dialog,input=dialog.querySelector('#client-name'),save=dialog.querySelector('#client-save'),preview=dialog.querySelector('#client-folder-preview'),message=dialog.querySelector('#client-error');
- input.addEventListener('input',()=>{const folder=input.value.trim().replace(/\s+/g,'_');save.disabled=!folder;preview.textContent=folder?`Cartella: Social/${folder}`:'';});
+ // il flex sta dentro il passo: su stepTabs-container-tab vincerebbe sul display:none dei passi non attivi
+ const tab=(iconName,content,locked=false)=>`<section pgs="stepTabs-container-tab" pgs-data="stepTabsIcon[icon-${iconName}]" tabindex="-1" ${locked?'pgs-state="locked"':''}><div pgs="flex['column' 'gapParagraphs']">${content}</div></section>`;
+ const step1=tab('pencil',`<h3 pgs="h5">Come si chiama il cliente?</h3><div pgs="form flex['column' 'gapParagraphs']">${field('Nome del cliente',`<input pgs="input" id="client-name" maxlength="60" autocomplete="off" required placeholder=" ">`)}<p class="hint" id="client-folder-preview" aria-live="polite">Verrà creata in Social una cartella con questo nome (gli spazi diventano “_”).</p></div>`,true);
+ const step2=tab('image',`<h3 pgs="h5">Logo <span class="optional">(facoltativo)</span></h3><p class="hint">Compare accanto al nome del cliente in alto. PNG, JPG, WEBP, GIF o SVG, massimo 2 MB. Puoi aggiungerlo anche dopo in Impostazioni del cliente.</p><div pgs="flex['row' 'wrap' 'itemCenter' 'gapParagraphs']" class="client-logo-row"><span id="new-client-logo" class="client-logo-preview client-logo-empty" aria-hidden="true">${icon('image')}</span><button pgs="button" type="button" id="new-client-logo-pick">${icon('upload')}<span>Scegli immagine</span></button><button pgs="button['btnTransparent']" type="button" id="new-client-logo-clear" hidden>${icon('trash')}<span>Togli</span></button></div>`);
+ const step3=tab('globe',`<h3 pgs="h5">Su quali social pubblica?</h3><p class="hint">Scegline almeno uno. Potrai cambiarli in Impostazioni del cliente.</p><fieldset pgs="chips" class="channel-chips platform-choices"><legend pgs="visuallyHidden">Social del cliente</legend>${CHANNELS.map(c=>`<label pgs="button['btnMini' 'btnTwoState']" class="channel-chip" data-channel="${c}"><input type="checkbox" data-new-platform="${c}">${socialIcon(c)}<span>${c}</span></label>`).join('')}</fieldset>`);
+ const body=`<div pgs="stepTabs flex['column' 'gapElements']" class="client-wizard"><div pgs="stepTabs-dots" role="group" aria-label="Passi"></div><div pgs="stepTabs-container">${step1}${step2}${step3}</div><div id="client-error" role="alert" hidden></div><div pgs="flex['row' 'wrap' 'justifyBetween' 'gapParagraphs']" class="client-wizard-actions"><button pgs="stepTabs-prev button" type="button">${icon('arrowLeft')}<span>Indietro</span></button><span pgs="flex['row' 'gapParagraphs']"><button pgs="button" type="button" id="client-cancel">Annulla</button><button pgs="stepTabs-next button['btnReverse']" type="button" id="client-next"><span>Avanti</span>${icon('arrowRight')}</button><button pgs="button['btnStrong']" type="button" id="client-save" hidden disabled>${icon('circlePlus')}<span>Crea cliente</span></button></span></div></div>`;
+ let created=false;
+ const modal=createModal({title:'Crea cliente',titleId:'client-modal-title',body,size:'dialogMedium',onClose:()=>{if(!created)call('clearClientLogo').catch(()=>{});if(opener?.isConnected)opener.focus({preventScroll:true});}});
+ const dialog=modal.dialog,root=dialog.querySelector('.client-wizard');
+ const input=dialog.querySelector('#client-name'),preview=dialog.querySelector('#client-folder-preview'),message=dialog.querySelector('#client-error');
+ const next=dialog.querySelector('#client-next'),save=dialog.querySelector('#client-save');
+ try{globalThis.pgs?.stepTabs.init(dialog);}catch(e){console.error(e);}
+ const wizard=()=>{try{return globalThis.pgs?.stepTabs.api(root);}catch{return null;}};
+ let checked='',checkTimer=null,valid=false;
+ // passo 1: il nome si controlla mentre si scrive; finché non va bene Avanti resta bloccato
+ const lock=on=>{valid=!on;try{wizard()?.toggleLock(0,on);}catch{}};
+ const checkName=async()=>{
+  const value=input.value;
+  if(!value.trim()){lock(true);preview.textContent='Verrà creata in Social una cartella con questo nome (gli spazi diventano “_”).';preview.classList.remove('field-error');return;}
+  try{const r=await call('checkClientName',value);if(input.value!==value)return;checked=value;preview.textContent=`Cartella: Social/${r.folder}`;preview.classList.remove('field-error');lock(false);}
+  catch(e){if(input.value!==value)return;preview.textContent=e.message;preview.classList.add('field-error');lock(true);}
+ };
+ input.addEventListener('input',()=>{lock(true);clearTimeout(checkTimer);checkTimer=setTimeout(checkName,250);});
+ input.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();if(valid&&checked===input.value)wizard()?.next();}});
+ // passo 2: logo facoltativo
+ const logoBox=dialog.querySelector('#new-client-logo'),clear=dialog.querySelector('#new-client-logo-clear');let hasLogo=false;
+ dialog.querySelector('#new-client-logo-pick').addEventListener('click',async()=>{
+  setAlert(message,'');
+  try{const r=await call('pickClientLogo');if(!r)return;hasLogo=true;logoBox.outerHTML=`<img id="new-client-logo" class="client-logo-preview" src="${escape(r.preview)}" alt="Logo scelto: ${escape(r.name)}">`;clear.hidden=false;}
+  catch(e){setAlert(message,e.message);}
+ });
+ clear.addEventListener('click',async()=>{await call('clearClientLogo').catch(()=>{});hasLogo=false;dialog.querySelector('#new-client-logo').outerHTML=`<span id="new-client-logo" class="client-logo-preview client-logo-empty" aria-hidden="true">${icon('image')}</span>`;clear.hidden=true;});
+ // passo 3: almeno un social
+ const chosen=()=>[...dialog.querySelectorAll('[data-new-platform]:checked')].map(x=>x.dataset.newPlatform);
+ dialog.querySelectorAll('[data-new-platform]').forEach(x=>x.addEventListener('change',()=>{save.disabled=!chosen().length;}));
+ // sull'ultimo passo Avanti diventa Crea cliente
+ root.addEventListener('pgs:stepTabs:change',event=>{const last=event.detail?.current===event.detail?.total-1;next.hidden=last;save.hidden=!last;setAlert(message,'');if(event.detail?.current===0)input.focus();});
  dialog.querySelector('#client-cancel').addEventListener('click',()=>modal.close());
- dialog.querySelector('form').addEventListener('submit',async event=>{
-  event.preventDefault();if(modal.busy||!input.value.trim())return;
+ save.addEventListener('click',async()=>{
+  if(modal.busy||!chosen().length)return;
   modal.busy=true;save.disabled=true;setAlert(message,'');
   try{
-   const result=await call('createClient',input.value);
+   const result=await call('createClient',{name:input.value,platforms:chosen(),logo:hasLogo});
+   created=true;
    applyStatus(result);state.drafts=[];state.ideas=null;state.highlight=null;state.expandedGroups=new Set();
    modal.busy=false;modal.close();state.route='home';render();
-   globalThis.pgs?.toast.success({title:'Cliente creato',description:`${result.created?.name||''}: imposta piattaforme e template in Impostazioni del cliente.`,timeout:5000,closeTitle:'Chiudi'});bringToastToFront();
+   const warnings=result.created?.warnings||[];
+   globalThis.pgs?.toast[warnings.length?'warning':'success']({title:'Cliente creato',description:`${result.created?.name||''}${warnings.length?': '+warnings.join(' '):': carica i template in Impostazioni del cliente.'}`,timeout:6000,closeTitle:'Chiudi'});bringToastToFront();
   }catch(e){modal.busy=false;save.disabled=false;setAlert(message,e.message);}
  });
  modal.open();input.focus();
@@ -797,6 +833,27 @@ function detailsSwitch(post){
  const items=siblingPosts(post).map(p=>{const current=p.key===post.key;return `<li><button pgs="button['btnTransparent'${current?" 'btnCurrent'":''}]" type="button" data-switch-post="${escape(p.key)}" ${current?'aria-selected="true" aria-current="page"':''} data-channel="${escape(p.channel)}">${socialIcon(p.channel)}<span>${escape(p.channel)}</span></button></li>`;}).join('');
  return `<div pgs="flex['row' 'justifyCenter']" class="details-switch-wrap"><nav pgs="menu['menuHorizontal']" class="details-switch" aria-label="Social del post"><ul pgs="buttonGroup">${items}</ul></nav></div>`;
 }
+// Rigenera file Illustrator su un post senza formato da immagine: si sceglie il formato (che va anche nel piano).
+// Restituisce il formato scelto, '' se il post ne ha già uno da immagine, null se si annulla.
+async function chooseArtworkFormat(post){
+ if(formatKind(post.format)==='ai')return '';
+ const formats=platformFormats(post.channel).filter(f=>formatKind(f)==='ai');
+ let templates=[];try{templates=(await call('settings')).templates||[];}catch{}
+ const rows=formats.map(format=>{
+  const t=templates.find(x=>x.channel===post.channel&&x.format===format);
+  const missing=t&&!t.present&&!t.fallback,st=t?templateStatus(t):null;
+  return `<li><button pgs="button['btnTransparent']" class="template-row" type="button" data-pick-format="${escape(format)}" ${missing?'disabled':''}><span class="template-format">${escape(format)}</span>${st?`<span pgs="badge['${st.tone}']">${escape(missing?'Template mancante':st.text)}</span>`:''}${icon('chevronRight')}</button></li>`;
+ }).join('');
+ const anyMissing=formats.some(format=>{const t=templates.find(x=>x.channel===post.channel&&x.format===format);return t&&!t.present&&!t.fallback;});
+ return new Promise(resolve=>{
+  let picked=null;
+  const body=`<p>${post.format?`Il formato “${escape(post.format)}” non ha un file Illustrator.`:'Questo post non ha ancora un formato.'} Scegli il formato di ${escape(post.channel)}: verrà salvato nel piano e il file Illustrator verrà creato dal suo template.</p><ul pgs="flex['column']" class="template-list">${rows}</ul>${anyMissing?'<p class="hint">I formati senza template si attivano dopo averlo caricato in Impostazioni del cliente.</p>':''}<div pgs="flex['row' 'justifyEnd']"><button pgs="button" type="button" data-format-cancel>Annulla</button></div>`;
+  const modal=createModal({title:'Scegli il formato',titleId:'format-pick-title',body,onClose:()=>resolve(picked)});
+  modal.dialog.querySelectorAll('[data-pick-format]').forEach(button=>button.addEventListener('click',()=>{picked=button.dataset.pickFormat;modal.close();}));
+  modal.dialog.querySelector('[data-format-cancel]').addEventListener('click',()=>modal.close());
+  modal.open();(modal.dialog.querySelector('[data-pick-format]:not(:disabled)')||modal.dialog.querySelector('[data-format-cancel]')).focus();
+ });
+}
 function openPostDetails(post,opener){
  if(anyModalOpen())return;
  selectRow(post.key);
@@ -826,7 +883,14 @@ function openPostDetails(post,opener){
  // dopo una rigenerazione i Dettagli si riaprono con il file nuovo
  const reopen=()=>{modal.close();setTimeout(()=>openPostDetails(post,opener),60);};
  // per i formati video il post non ha un file Illustrator: niente Rigenera
- disposeArtwork=SocialIllustratorPreview.mount(dialog.querySelector('#details-artwork'),{key:post.key,revision:state.revision},call,formatKind(post.format)==='video'?{}:{onRegenerated:reopen});
+ // se il formato viene scelto ora, il piano cambia: si ricarica l'elenco e si riaprono i Dettagli aggiornati
+ const afterArtwork=async result=>{
+  if(!result?.formatSaved){reopen();return;}
+  modal.close();await reloadListAt(post.key);
+  const updated=(state.drafts||[]).find(p=>p.key===post.key);if(updated)setTimeout(()=>openPostDetails(updated,opener),60);
+  globalThis.pgs?.toast.success({title:'File Illustrator creato',description:`${result.name} · formato ${result.format}`,timeout:4000,closeTitle:'Chiudi'});bringToastToFront();
+ };
+ disposeArtwork=SocialIllustratorPreview.mount(dialog.querySelector('#details-artwork'),{key:post.key,revision:state.revision},call,formatKind(post.format)==='video'?{}:{onRegenerated:afterArtwork,chooseFormat:()=>chooseArtworkFormat(post)});
  call('details',{key:post.key,revision:state.revision}).then(result=>{
   if(!dialog.isConnected)return;
   dialog.querySelector('#details-metadata').innerHTML=detailsMetadata(result.post);

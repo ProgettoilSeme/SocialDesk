@@ -27,7 +27,7 @@ const {CHANNELS,FORMAT_KINDS}=require('./lib/posts.cjs');
 // piattaforme e formati dell'app, per il renderer (che non legge i moduli)
 const CATALOG={platforms:Object.fromEntries(Object.entries(CHANNELS).map(([name,c])=>[name,{formats:c.formats}])),kinds:FORMAT_KINDS};
 if(process.env.SOCIAL_TEST_USER_DATA)app.setPath('userData',process.env.SOCIAL_TEST_USER_DATA);
-let window,root='',client='',busy=false,lastResult=null,startupFailed=false;
+let window,root='',client='',pendingLogo=null,busy=false,lastResult=null,startupFailed=false;
 // Registro di avvio: aiuta a capire perché l'app non si apre (es. su Windows/NAS).
 const startupLog=()=>path.join(app.getPath('userData'),'socialdesk-avvio.log');
 function log(message){
@@ -142,13 +142,31 @@ else{
    if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');
    await clients.clientPath(root,folder);client=folder;lastResult=null;await remember();log(`cliente: ${client}`);return status();
   });
-  endpoint('social:create-client',async name=>{
+  // Crea cliente a passi: 1) nome (controllato subito), 2) logo facoltativo (il file resta qui nel main finché il
+  // cliente non esiste: il renderer riceve solo l'anteprima), 3) social gestiti, almeno uno.
+  endpoint('social:check-client-name',async name=>{const r=await clients.checkClientName(root,name);return{folder:r.folder,name:r.name};});
+  endpoint('social:pick-client-logo',async()=>{
    if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');
+   const result=await dialog.showOpenDialog(window,{title:'Logo del nuovo cliente',buttonLabel:'Usa come logo',properties:['openFile'],filters:[{name:'Immagini',extensions:Object.keys(settings.LOGO_TYPES).map(e=>e.slice(1))}]});
+   if(result.canceled)return null;
+   const preview=await settings.checkLogo(result.filePaths[0]);pendingLogo=result.filePaths[0];
+   return{preview,name:path.basename(pendingLogo)};
+  });
+  endpoint('social:clear-client-logo',async()=>{pendingLogo=null;return true;});
+  endpoint('social:create-client',async input=>{
+   if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');
+   const request=typeof input==='string'?{name:input}:input||{};
+   if(request.platforms!==undefined&&(!Array.isArray(request.platforms)||!request.platforms.length))throw new PostError('INPUT','Scegli almeno un social.');
    busy=true;
    try{
-    const created=await clients.createClient(root,name);
+    const created=await clients.createClient(root,request.name);
+    const dir=path.join(root,created.folder),warnings=[];
+    // social e logo dopo la creazione: se qualcosa non va il cliente resta, con un avviso
+    if(request.platforms)await settings.save(dir,{platforms:request.platforms}).catch(e=>warnings.push(`Social non salvati: ${errorMessage(e).message}`));
+    if(request.logo&&pendingLogo)await settings.setLogo(dir,pendingLogo).catch(e=>warnings.push(`Logo non salvato: ${errorMessage(e).message}`));
+    pendingLogo=null;
     client=created.folder;lastResult=null;await remember();log(`nuovo cliente: ${client}`);
-    return{...(await status()),created};
+    return{...(await status()),created:{...created,warnings}};
    }finally{busy=false;}
   });
   // Impostazioni del cliente (02_Settings/settings.json): logo e colore. Quelle dell'app (cartella Social, tema) sono del computer.

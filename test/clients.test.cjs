@@ -82,3 +82,15 @@ test('crea cliente: nomi non validi o già usati rifiutati senza lasciare cartel
  await assert.rejects(clients.createClient(path.join(social,'manca'),'Altro'),/non è raggiungibile/);
  assert.deepEqual((await fs.readdir(social)).sort(),before);
 });
+
+test('crea cliente a passi: controllo del nome prima di creare, anteprima del logo',async t=>{
+ const social=await seed(t);
+ assert.deepEqual(await clients.checkClientName(social,' Nuovo  cliente '),{root:social,folder:'Nuovo_cliente',name:'Nuovo cliente'});
+ await assert.rejects(clients.checkClientName(social,'Social Economy'),/già una cartella/);
+ assert.equal((await fs.readdir(social)).includes('Nuovo_cliente'),false,'il controllo non crea nulla');
+ const settings=require('../lib/settings.cjs');
+ const png=path.join(social,'..','logo.png');await fs.writeFile(png,Buffer.from([0x89,0x50,0x4e,0x47]));
+ assert.match(await settings.checkLogo(png),/^data:image\/png;base64,/);
+ await assert.rejects(settings.checkLogo(path.join(social,'..','logo.txt')),/PNG, JPG/);
+ await assert.rejects(settings.checkLogo(path.join(social,'..','manca.png')),/Non trovo/);
+});
