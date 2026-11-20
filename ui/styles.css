@@ -166,13 +166,13 @@ header,main{--page-width:960px}
 
 /* select box di Cambia stato: pallino e riga tinti con il colore dello stato */
 .status-dot{display:inline-block;flex:none;width:.8em;height:.8em;margin-right:var(--gap-details);border-radius:50%;background:var(--tone-fg);vertical-align:middle}
-.status-select :is([pgs~="listbox-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="text-needed"]){--tone-bg:#fff3d8;--tone-fg:#854900}
-.status-select :is([pgs~="listbox-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="text-draft"]){--tone-bg:#fff0e3;--tone-fg:#995016}
-.status-select :is([pgs~="listbox-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="image-needed"]){--tone-bg:#f0e9fb;--tone-fg:#6734a5}
-.status-select :is([pgs~="listbox-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="ready"]){--tone-bg:#e8f1fc;--tone-fg:#175c9d}
-.status-select :is([pgs~="listbox-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="published"]){--tone-bg:#e8f5ed;--tone-fg:#216b48}
-.status-select :is([pgs~="listbox-option"],[pgs~="_selectBox-button"]):has(.status-dot){color:var(--tone-fg);font-weight:var(--font-weight-bold,600)}
-.status-select [pgs~="listbox-option"]:has(.status-dot):is(:hover,[aria-selected="true"],[pgs-state~="active"]){background:var(--tone-bg)}
+.status-select :is([pgs~="listbox-list-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="text-needed"]){--tone-bg:#fff3d8;--tone-fg:#854900}
+.status-select :is([pgs~="listbox-list-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="text-draft"]){--tone-bg:#fff0e3;--tone-fg:#995016}
+.status-select :is([pgs~="listbox-list-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="image-needed"]){--tone-bg:#f0e9fb;--tone-fg:#6734a5}
+.status-select :is([pgs~="listbox-list-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="ready"]){--tone-bg:#e8f1fc;--tone-fg:#175c9d}
+.status-select :is([pgs~="listbox-list-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="published"]){--tone-bg:#e8f5ed;--tone-fg:#216b48}
+.status-select :is([pgs~="listbox-list-option"],[pgs~="_selectBox-button"]):has(.status-dot){color:var(--tone-fg);font-weight:var(--font-weight-bold,600)}
+.status-select [pgs~="listbox-list-option"]:has(.status-dot):is(:hover,[aria-selected="true"],[pgs-state~="active"]){background:var(--tone-bg)}
 .status-select [pgs~="_selectBox-button"]:has(.status-dot){background:var(--tone-bg)}
 /* la lista della select box esce dal riquadro della modale invece di essere tagliata */
 #status-modal :is([pgs~="modal-dialog-content"],[pgs~="modal-dialog-content-scroll"]){overflow:visible}
@@ -247,11 +247,11 @@ main{--page-bottom:var(--gap-elements)}
 :root[pgs-state~=darkmode] [data-status="image-needed"]{--tone-bg:#2e2240;--tone-fg:#c4a2f0}
 :root[pgs-state~=darkmode] [data-status="ready"]{--tone-bg:#16293e;--tone-fg:#8cc0f5}
 :root[pgs-state~=darkmode] [data-status="published"]{--tone-bg:#163223;--tone-fg:#7fd1a4}
-:root[pgs-state~=darkmode] .status-select :is([pgs~="listbox-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="text-needed"]){--tone-bg:#3d2e0c;--tone-fg:#f3c35c}
-:root[pgs-state~=darkmode] .status-select :is([pgs~="listbox-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="text-draft"]){--tone-bg:#3d2614;--tone-fg:#f2a466}
-:root[pgs-state~=darkmode] .status-select :is([pgs~="listbox-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="image-needed"]){--tone-bg:#2e2240;--tone-fg:#c4a2f0}
-:root[pgs-state~=darkmode] .status-select :is([pgs~="listbox-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="ready"]){--tone-bg:#16293e;--tone-fg:#8cc0f5}
-:root[pgs-state~=darkmode] .status-select :is([pgs~="listbox-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="published"]){--tone-bg:#163223;--tone-fg:#7fd1a4}
+:root[pgs-state~=darkmode] .status-select :is([pgs~="listbox-list-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="text-needed"]){--tone-bg:#3d2e0c;--tone-fg:#f3c35c}
+:root[pgs-state~=darkmode] .status-select :is([pgs~="listbox-list-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="text-draft"]){--tone-bg:#3d2614;--tone-fg:#f2a466}
+:root[pgs-state~=darkmode] .status-select :is([pgs~="listbox-list-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="image-needed"]){--tone-bg:#2e2240;--tone-fg:#c4a2f0}
+:root[pgs-state~=darkmode] .status-select :is([pgs~="listbox-list-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="ready"]){--tone-bg:#16293e;--tone-fg:#8cc0f5}
+:root[pgs-state~=darkmode] .status-select :is([pgs~="listbox-list-option"],[pgs~="_selectBox-button"]):has(.status-dot[data-status="published"]){--tone-bg:#163223;--tone-fg:#7fd1a4}
 /* finestre strette: i badge del gruppo vanno su una riga sotto il titolo */
 @media(max-width:760px){
  .group-summary{flex-wrap:wrap}
