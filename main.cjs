@@ -60,7 +60,7 @@ async function status(){
  const version=app.getVersion();
  if(!root)return{root:'',valid:false,version,clients:[],client:'',clientValid:false};
  let list;
- try{await clients.baseInfo(root);list=await clients.listClients(root);list=await Promise.all(list.map(async c=>({...c,logo:await settings.logoData(path.join(root,c.folder))})));}
+ try{await clients.baseInfo(root);list=await clients.listClients(root);list=await Promise.all(list.map(async c=>{const dir=path.join(root,c.folder);const color=await settings.current(dir).then(s=>s.color,()=>'');return{...c,logo:await settings.logoData(dir),color};}));}
  catch(e){return{root,valid:false,version,clients:[],client:'',clientValid:false,message:errorMessage(e).message};}
  if(!list.some(c=>c.folder===client)){const next=list[0]?.folder||'';if(next!==client){client=next;lastResult=null;await remember().catch(()=>{});}}
  if(!client)return{root,valid:true,version,clients:list,client:'',clientValid:false};

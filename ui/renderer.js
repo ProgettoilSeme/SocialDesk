@@ -132,10 +132,17 @@ function progressToast(title,{lazy=false,segments=1}={}){
 // Stato dal main: cartella Social (baseValid), clienti e cliente in uso. rootValid = si può lavorare sui post.
 function applyStatus(result){
  state.root=result.root||'';state.baseValid=!!result.valid;state.clients=result.clients||[];state.client=result.client||'';
+ applyClientColor();
  state.rootValid=!!(result.valid&&result.clientValid);
  state.error=!result.valid?result.message||'':result.client&&!result.clientValid?result.message||'':'';
 }
 const clientName=()=>state.clients.find(c=>c.folder===state.client)?.name||'';
+// Colore del cliente (Impostazioni del cliente) → --client-color, usato dalla sfumatura in alto alla pagina
+function applyClientColor(){
+ const color=state.clients.find(c=>c.folder===state.client)?.color||'';
+ if(/^#[0-9a-f]{6}$/i.test(color))document.documentElement.style.setProperty('--client-color',color);
+ else document.documentElement.style.removeProperty('--client-color');
+}
 const clientLogo=(c=state.clients.find(x=>x.folder===state.client))=>c?.logo?`<img class="client-logo" src="${escape(c.logo)}" alt="">`:'';
 async function call(method,...args){if(!api)throw new Error('Apri SocialDesk dall’applicazione per accedere ai file.');const response=await api[method](...args);if(!response.ok){const e=new Error(response.error.message);e.code=response.error.code;throw e;}return response.value;}
 const CAPS_HINT='Non scrivere il titolo tutto in maiuscolo: va bene solo la prima lettera (es. «Buone feste»).';
@@ -500,7 +507,7 @@ function renderSettings(){
  document.getElementById('logo-choose')?.addEventListener('click',()=>logoAction('chooseLogo','Logo salvato.'));
  document.getElementById('logo-remove')?.addEventListener('click',()=>logoAction('removeLogo','Logo rimosso.'));
  document.getElementById('client-color')?.addEventListener('change',async event=>{
-  try{state.settings=await call('saveSettings',{color:event.target.value});state.notice='Colore salvato.';state.error='';}
+  try{state.settings=await call('saveSettings',{color:event.target.value});await refreshClients();state.notice='Colore salvato.';state.error='';}
   catch(e){state.error=e.message;}
   render();
  });
