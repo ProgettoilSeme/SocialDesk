@@ -169,6 +169,16 @@ else{
     return{...(await status()),created:{...created,warnings}};
    }finally{busy=false;}
   });
+  // Nome del cliente: rinomina la cartella del cliente in uso in Social e la ricorda come cliente scelto
+  endpoint('social:rename-client',async name=>{
+   if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');
+   busy=true;
+   try{
+    const renamed=await clients.renameClient(root,client,name);
+    if(renamed.changed){log(`cliente rinominato: ${client} → ${renamed.folder}`);client=renamed.folder;lastResult=null;await remember();}
+    return{...(await status()),renamed};
+   }finally{busy=false;}
+  });
   // Impostazioni del cliente (02_Settings/settings.json): logo e colore. Quelle dell'app (cartella Social, tema) sono del computer.
   const clientSettings=async()=>{const current=await settings.current(clientDir());return{...current,logo:await settings.logoData(clientDir()),templates:await templates.listTemplates(clientDir(),current.platforms),name:clients.displayName(client),folder:client};};
   endpoint('social:settings',async()=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');await rootInfo(clientDir());return clientSettings();});

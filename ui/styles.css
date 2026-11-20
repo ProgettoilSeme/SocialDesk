@@ -220,6 +220,7 @@ header,main{--page-width:960px}
 #footer:empty{display:none}
 main{--page-bottom:var(--gap-elements)}
 /* Impostazioni: i pulsanti Sfoglia / Cambia cartella non si restringono né vanno a capo */
+.client-name-control>input{flex:1 1 auto;min-width:0}
 .settings-control>button{flex:none;white-space:nowrap}
 
 /* Ricollega cartella */
@@ -333,7 +334,10 @@ main{--page-bottom:var(--gap-elements)}
 .client-menu [data-client]>span:last-child{overflow:hidden;text-overflow:ellipsis}
 .client-check-space{display:inline-block;width:1em;height:1em;flex:none;box-sizing:border-box;border:var(--border-width,1.5px) solid currentColor;border-radius:50%;opacity:.35}
 .client-logo-initial{display:inline-flex;align-items:center;justify-content:center;font-size:.8em;font-weight:var(--font-weight-bold,600);line-height:1;background:color-mix(in srgb,currentColor 12%,transparent)}
-.client-menu .client-logo-initial{width:1.75em;height:1.75em}
+/* stesse misure per tutte le voci: il cliente in uso (btnCurrent) avrebbe meno spazio a sinistra e
+   l'iniziale deve essere grande quanto i loghi, altrimenti cerchi, loghi e nomi non sono in colonna */
+.client-menu [data-client],.client-menu #client-create,.client-menu #home-client-create{padding-inline:3rem}
+.client-menu .client-logo.client-logo-initial{width:1.75em;height:1.75em}
 /* Header pieno: a destra di "Crea nuovo post" lo stesso spazio che c'è sopra, fino al bordo della finestra.
    --header-gutter (misurato dal renderer) è la striscia vuota tenuta per la barra di scorrimento: l'header la copre. */
 header[pgs~="header"]{width:calc(100% + var(--header-gutter,0px))}

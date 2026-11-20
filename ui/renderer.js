@@ -610,7 +610,7 @@ async function refreshClients(){try{const result=await call('initial');applyStat
 function renderSettings(){
  const s=state.settings,tab=state.settingsTab==='client'?1:0;
  const appPanel=`<p class="hint">Valgono solo su questo computer, per chi usa l'app.</p><section pgs="box flex['column' 'gapParagraphs']" aria-labelledby="settings-root-title"><h2 pgs="h4" id="settings-root-title">Percorso</h2><p class="hint">La cartella Social che contiene le cartelle dei clienti.</p><div pgs="flex['row' 'itemCenter' 'gapParagraphs' 'nowrap']" class="settings-control"><p class="path folder-path" title="${escape(state.root)}">${escape(state.root||'Nessuna cartella selezionata')}</p><button pgs="button" id="settings-root" type="button">${icon('folderOpen')}<span>${state.root?'Cambia cartella':'Scegli cartella'}</span></button></div></section><section pgs="box flex['column' 'gapParagraphs']" aria-labelledby="settings-theme-title"><h2 pgs="h4" id="settings-theme-title">Aspetto</h2><p class="hint">Tema chiaro o scuro dell'app.</p><div><button pgs="button darkmodeToggle['tglLabeled']" class="theme-toggle" type="button" aria-label="Cambia tema"><i pgs="darkmodeToggle-light icon['icon-moon']" aria-hidden="true"></i><i pgs="darkmodeToggle-dark icon['icon-sun']" aria-hidden="true"></i></button></div></section>`;
- const clientPanel=!state.rootValid?alertHtml('info',state.baseValid?'Scegli o crea un cliente con la freccia in alto, accanto al nome.':'Scegli prima la cartella Social nelle impostazioni dell’app, in fondo alla pagina.'):!s?`<p class="hint">Caricamento…</p>`:`<p class="hint">Salvate nella cartella del cliente (02_Settings/settings.json): valgono per tutti quelli che lavorano su ${escape(s.name)}.</p><section pgs="box flex['column' 'gapParagraphs']" aria-labelledby="settings-logo-title"><h2 pgs="h4" id="settings-logo-title">Logo del cliente</h2><p class="hint">Compare accanto al nome del cliente in alto. PNG, JPG, WEBP, GIF o SVG, massimo 2 MB: viene copiato in 02_Settings.</p><div pgs="flex['row' 'wrap' 'itemCenter' 'gapParagraphs']" class="client-logo-row">${s.logo?`<img class="client-logo-preview" src="${escape(s.logo)}" alt="Logo di ${escape(s.name)}">`:`<span class="client-logo-preview client-logo-empty" aria-hidden="true">${icon('image')}</span>`}<button pgs="button" id="logo-choose" type="button" ${disabled(state.logoBusy)}>${icon('upload')}<span>${s.logo?'Cambia logo':'Carica logo'}</span></button>${s.logo?`<button pgs="button['btnTransparent']" id="logo-remove" type="button" ${disabled(state.logoBusy)}>${icon('trash')}<span>Rimuovi</span></button>`:''}</div></section><section pgs="box flex['column' 'gapParagraphs']" aria-labelledby="settings-color-title"><h2 pgs="h4" id="settings-color-title">Colore del cliente</h2><div pgs="flex['row' 'itemCenter' 'gapParagraphs']" class="client-color-row"><input type="color" id="client-color" value="${escape(s.color||'#23765a')}" aria-label="Colore del cliente"><span class="hint" id="client-color-value">${s.color?escape(s.color):'Nessun colore scelto'}</span></div></section>${platformsSection(s)}${templatesSection(s)}<section pgs="box flex['column' 'gapParagraphs']" aria-labelledby="settings-folders-title"><h2 pgs="h4" id="settings-folders-title">Cartelle dei post</h2><p class="hint">Trova i post la cui cartella è stata rinominata o spostata a mano e ricollegali.</p><div><button pgs="button" id="check-folders" type="button" ${disabled(state.checkingFolders)}>${icon('magnifyingGlass')}<span>${state.checkingFolders?'Controllo…':'Controlla cartelle'}</span></button></div>${folderReport()}</section>`;
+ const clientPanel=!state.rootValid?alertHtml('info',state.baseValid?'Scegli o crea un cliente con la freccia in alto, accanto al nome.':'Scegli prima la cartella Social nelle impostazioni dell’app, in fondo alla pagina.'):!s?`<p class="hint">Caricamento…</p>`:`<p class="hint">Salvate nella cartella del cliente (02_Settings/settings.json): valgono per tutti quelli che lavorano su ${escape(s.name)}.</p><section pgs="box flex['column' 'gapParagraphs']" aria-labelledby="settings-name-title"><h2 pgs="h4" id="settings-name-title">Nome del cliente</h2><p class="hint">Cambia anche il nome della sua cartella in Social (gli spazi diventano “_”). Prima chiudi i file del cliente aperti, piano compreso.</p><div pgs="flex['row' 'itemCenter' 'gapParagraphs' 'nowrap']" class="settings-control client-name-control"><input pgs="input" id="client-name-input" maxlength="60" value="${escape(s.name)}" aria-label="Nome del cliente" ${disabled(state.renamingClient)}><button pgs="button" id="client-rename" type="button" disabled>${icon('pencil')}<span>${state.renamingClient?'Rinomino…':'Rinomina'}</span></button></div><div id="client-rename-error" role="alert" hidden></div></section><section pgs="box flex['column' 'gapParagraphs']" aria-labelledby="settings-logo-title"><h2 pgs="h4" id="settings-logo-title">Logo del cliente</h2><p class="hint">Compare accanto al nome del cliente in alto. PNG, JPG, WEBP, GIF o SVG, massimo 2 MB: viene copiato in 02_Settings.</p><div pgs="flex['row' 'wrap' 'itemCenter' 'gapParagraphs']" class="client-logo-row">${s.logo?`<img class="client-logo-preview" src="${escape(s.logo)}" alt="Logo di ${escape(s.name)}">`:`<span class="client-logo-preview client-logo-empty" aria-hidden="true">${icon('image')}</span>`}<button pgs="button" id="logo-choose" type="button" ${disabled(state.logoBusy)}>${icon('upload')}<span>${s.logo?'Cambia logo':'Carica logo'}</span></button>${s.logo?`<button pgs="button['btnTransparent']" id="logo-remove" type="button" ${disabled(state.logoBusy)}>${icon('trash')}<span>Rimuovi</span></button>`:''}</div></section><section pgs="box flex['column' 'gapParagraphs']" aria-labelledby="settings-color-title"><h2 pgs="h4" id="settings-color-title">Colore del cliente</h2><div pgs="flex['row' 'itemCenter' 'gapParagraphs']" class="client-color-row"><input type="color" id="client-color" value="${escape(s.color||'#23765a')}" aria-label="Colore del cliente"><span class="hint" id="client-color-value">${s.color?escape(s.color):'Nessun colore scelto'}</span></div></section>${platformsSection(s)}${templatesSection(s)}<section pgs="box flex['column' 'gapParagraphs']" aria-labelledby="settings-folders-title"><h2 pgs="h4" id="settings-folders-title">Cartelle dei post</h2><p class="hint">Trova i post la cui cartella è stata rinominata o spostata a mano e ricollegali.</p><div><button pgs="button" id="check-folders" type="button" ${disabled(state.checkingFolders)}>${icon('magnifyingGlass')}<span>${state.checkingFolders?'Controllo…':'Controlla cartelle'}</span></button></div>${folderReport()}</section>`;
  main.innerHTML=tab===0?`<h1 pgs="h2">Impostazioni dell’app</h1>${appPanel}${errorBox()}${noticeBox()}`:`<h1 pgs="h2">Impostazioni del cliente${clientName()?` <span class="title-muted">${escape(clientName())}</span>`:''}</h1>${clientPanel}${errorBox()}${noticeBox()}`;
  footer.innerHTML=`<button pgs="button['btnTransparent']" id="settings-home" type="button">${icon('arrowLeft')}<span>Torna alla home</span></button>`;
  document.getElementById('settings-home').addEventListener('click',goHome);
@@ -627,11 +627,45 @@ function renderSettings(){
  document.getElementById('logo-remove')?.addEventListener('click',()=>logoAction('removeLogo','Logo rimosso.'));
  main.querySelectorAll('[data-platform-choice]').forEach(input=>input.addEventListener('change',()=>saveClientPlatforms(input)));
  main.querySelectorAll('[data-template-channel]').forEach(button=>button.addEventListener('click',()=>openTemplateModal(button.dataset.templateChannel,button.dataset.templateFormat,button)));
+ // Nome del cliente: il pulsante si attiva solo se il nome cambia; Invio = Rinomina
+ const nameInput=document.getElementById('client-name-input'),renameButton=document.getElementById('client-rename');
+ if(nameInput&&renameButton){
+  const changed=()=>nameInput.value.trim().replace(/\s+/g,' ')!==String(state.settings?.name||'');
+  nameInput.addEventListener('input',()=>{renameButton.disabled=!changed()||state.renamingClient;setAlert(document.getElementById('client-rename-error'),'');});
+  nameInput.addEventListener('keydown',event=>{if(event.key==='Enter'&&!renameButton.disabled){event.preventDefault();renameButton.click();}});
+  renameButton.addEventListener('click',async()=>{
+   if(!changed())return;
+   const name=nameInput.value.trim(),same=name.replace(/\s+/g,' ').toLowerCase()===String(state.settings?.name||'').toLowerCase();
+   // nome non valido o già usato: l'errore subito, senza passare dalla conferma (con sole maiuscole diverse è la stessa cartella)
+   if(!same){try{await call('checkClientName',name);}catch(e){setAlert(document.getElementById('client-rename-error'),e.message);return;}}
+   confirmRenameClient(name,renameButton);
+  });
+ }
  document.getElementById('client-color')?.addEventListener('change',async event=>{
   try{state.settings=await call('saveSettings',{color:event.target.value});await refreshClients();state.error='';savedToast('Colore salvato');}
   catch(e){state.error=e.message;}
   render();
  });
+}
+// Conferma e rinomina del cliente (cartella in Social). Sugli altri computer chi lo usava lo ritrova nell'elenco col nuovo nome.
+function confirmRenameClient(name,opener){
+ if(anyModalOpen())return;
+ const from=state.settings?.name||'';
+ const body=`<p>Il cliente <strong>${escape(from)}</strong> si chiamerà <strong>${escape(name.replace(/\s+/g,' '))}</strong> e la sua cartella in Social verrà rinominata. Post, piano e impostazioni restano com'erano.</p><p class="hint">Chi lo sta usando su un altro computer dovrà sceglierlo di nuovo dall'elenco dei clienti.</p><div pgs="flex['row' 'wrap' 'justifyEnd' 'gapParagraphs']"><button pgs="button" type="button" data-rename-cancel>Annulla</button><button pgs="button['btnStrong']" type="button" data-rename-ok>${icon('pencil')}<span>Rinomina</span></button></div>`;
+ const modal=createModal({title:'Rinominare il cliente?',titleId:'rename-client-title',body,onClose:value=>{if(value==='ok')void renameClient(name);else opener?.focus({preventScroll:true});}});
+ modal.dialog.querySelector('[data-rename-cancel]').addEventListener('click',()=>modal.close());
+ modal.dialog.querySelector('[data-rename-ok]').addEventListener('click',()=>modal.close('ok'));
+ modal.open();modal.dialog.querySelector('[data-rename-ok]').focus();
+}
+async function renameClient(name){
+ if(state.renamingClient)return;
+ state.renamingClient=true;render();
+ try{
+  const result=await call('renameClient',name);
+  applyStatus(result);state.settings=await call('settings');
+  savedToast(`Cliente rinominato: ${result.renamed.name}`);
+ }catch(e){state.renamingClient=false;render();setAlert(document.getElementById('client-rename-error'),e.message);document.getElementById('client-name-input')?.focus();return;}
+ state.renamingClient=false;render();
 }
 async function syncAssets(){
  if(state.loading)return;

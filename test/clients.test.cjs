@@ -94,3 +94,24 @@ test('crea cliente a passi: controllo del nome prima di creare, anteprima del lo
  await assert.rejects(settings.checkLogo(path.join(social,'..','logo.txt')),/PNG, JPG/);
  await assert.rejects(settings.checkLogo(path.join(social,'..','manca.png')),/Non trovo/);
 });
+
+test('rinomina cliente: cambia la cartella in Social, contenuto e collegamenti invariati',async t=>{
+ const social=await seed(t);
+ const before=(await fs.readdir(path.join(social,'social_economy'))).sort();
+ await assert.rejects(clients.renameClient(social,'social_economy','Progetto il seme'),/già una cartella/);
+ await assert.rejects(clients.renameClient(social,'social_economy','a/b'),/non può contenere/);
+ await assert.rejects(clients.renameClient(social,'manca','Altro'),/non c’è più/);
+ assert.deepEqual(await clients.renameClient(social,'social_economy','social economy'),{folder:'social_economy',name:'social economy',changed:false});
+ const r=await clients.renameClient(social,'social_economy','  Economia   Sociale ');
+ assert.deepEqual(r,{folder:'Economia_Sociale',name:'Economia Sociale',changed:true});
+ assert.deepEqual((await fs.readdir(path.join(social,'Economia_Sociale'))).sort(),before);
+ assert.deepEqual((await clients.listClients(social)).map(c=>c.folder),['Economia_Sociale','progetto_il_seme']);
+ // solo maiuscole: passa da un nome d'appoggio
+ const r2=await clients.renameClient(social,'Economia_Sociale','economia sociale');
+ assert.equal(r2.folder,'economia_sociale');
+ assert.ok((await fs.readdir(social)).includes('economia_sociale'));
+ assert.ok(!(await fs.readdir(social)).some(n=>n.startsWith('.rinomina-')));
+ // operazione in corso: niente rinomina
+ await fs.writeFile(path.join(social,'economia_sociale','.social-create.lock'),'{}');
+ await assert.rejects(clients.renameClient(social,'economia_sociale','Altro nome'),/operazione è in corso/);
+});

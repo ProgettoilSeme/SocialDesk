@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('socialAPI',{
  selectClient:folder=>ipcRenderer.invoke('social:select-client',folder),
  createClient:input=>ipcRenderer.invoke('social:create-client',input),
  checkClientName:name=>ipcRenderer.invoke('social:check-client-name',name),
+ renameClient:name=>ipcRenderer.invoke('social:rename-client',name),
  pickClientLogo:()=>ipcRenderer.invoke('social:pick-client-logo'),
  clearClientLogo:()=>ipcRenderer.invoke('social:clear-client-logo'),
  settings:()=>ipcRenderer.invoke('social:settings'),
