@@ -64,7 +64,7 @@ async function status(){
  const version=app.getVersion(),catalog=CATALOG;
  if(!root)return{root:'',valid:false,version,catalog,clients:[],client:'',clientValid:false};
  let list;
- try{await clients.baseInfo(root);list=await clients.listClients(root);list=await Promise.all(list.map(async c=>{const dir=path.join(root,c.folder);const s=await settings.current(dir).catch(()=>({color:'',platforms:null}));return{...c,logo:await settings.logoData(dir),color:s.color,platforms:s.platforms};}));}
+ try{await clients.baseInfo(root);list=await clients.listClients(root);list=await Promise.all(list.map(async c=>{const dir=path.join(root,c.folder);const s=await settings.current(dir).catch(()=>({color:'',platforms:null}));return{...c,logo:await settings.logoData(dir),background:await settings.backgroundStamp(dir),color:s.color,platforms:s.platforms};}));}
  catch(e){return{root,valid:false,version,catalog,clients:[],client:'',clientValid:false,message:errorMessage(e).message};}
  if(!list.some(c=>c.folder===client)){const next=list[0]?.folder||'';if(next!==client){client=next;lastResult=null;await remember().catch(()=>{});}}
  if(!client)return{root,valid:true,version,catalog,clients:list,client:'',clientValid:false};
@@ -199,6 +199,16 @@ else{
    await templates.setTemplate(clientDir(),input?.channel,input?.format,result.filePaths[0]);return clientSettings();
   });
   endpoint('social:remove-template',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');await rootInfo(clientDir());await templates.removeTemplate(clientDir(),input?.channel,input?.format);return clientSettings();});
+  // Sfondo della home del cliente: si carica come il logo (02_Settings/sfondo.<ext>)
+  endpoint('social:choose-background',async()=>{
+   if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');
+   await rootInfo(clientDir());
+   const result=await dialog.showOpenDialog(window,{title:`Sfondo della home di ${clients.displayName(client)}`,buttonLabel:'Usa come sfondo',properties:['openFile'],filters:[{name:'Immagini',extensions:Object.keys(settings.BACKGROUND_TYPES).map(e=>e.slice(1))}]});
+   if(result.canceled)return null;
+   await settings.setBackground(clientDir(),result.filePaths[0]);return clientSettings();
+  });
+  endpoint('social:remove-background',async()=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');await rootInfo(clientDir());await settings.removeBackground(clientDir());return clientSettings();});
+  endpoint('social:client-background',async()=>{if(!client)return null;return settings.backgroundData(clientDir());});
   endpoint('social:remove-logo',async()=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');await rootInfo(clientDir());await settings.removeLogo(clientDir());return clientSettings();});
   endpoint('social:plan',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine della creazione.');return planPost(clientDir(),input);});
   endpoint('social:drafts',async()=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return listDrafts(clientDir());});
