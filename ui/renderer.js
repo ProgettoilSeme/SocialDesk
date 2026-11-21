@@ -156,6 +156,8 @@ function applyClientColor(){
  const color=state.clients.find(c=>c.folder===state.client)?.color||'',root=document.documentElement;
  if(/^#[0-9a-f]{6}$/i.test(color))root.style.setProperty('--color-primary',color);
  else root.style.removeProperty('--color-primary');
+ // le immagini della home prendono il colore solo se il cliente ne ha uno (filtro #client-tint)
+ root.toggleAttribute('data-client-color',/^#[0-9a-f]{6}$/i.test(color));
 }
 // Sfondo della home del cliente (Impostazioni del cliente): l'immagine arriva dal main come byte e diventa un URL blob,
 // ricaricato solo quando cambiano cliente o file. È visibile solo in home (data-home-background su :root).

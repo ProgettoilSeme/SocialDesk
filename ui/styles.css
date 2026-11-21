@@ -62,6 +62,10 @@ header,main{--page-width:960px}
 
 /* home */
 .home-action img{width:100%;max-width:200px;height:auto;aspect-ratio:1;object-fit:contain;pointer-events:none}
+/* immagini della home nel colore del cliente (filtro SVG in index.html), solo se il cliente ha un colore */
+.svg-filters{position:absolute;width:0;height:0;overflow:hidden}
+.client-tint-flood{flood-color:var(--color-primary)}
+:root[data-client-color] .home-action img{filter:url(#client-tint)}
 /* stesso hover per tutti i pulsanti della home: un velo sopra il loro sfondo (anche quello verde di Crea) */
 .app-version{margin-left:auto}
 
