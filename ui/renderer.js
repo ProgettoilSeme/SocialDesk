@@ -446,6 +446,16 @@ async function selectClient(folder){
 }
 // chiude i menu dei clienti (freccia nell'header e Cambia cliente in home) prima di ridisegnare la pagina:
 // un menu ridisegnato mentre è aperto resterebbe «aperto» per myPgs e il clic dopo lo chiuderebbe invece di aprirlo
+// aprendo un menu dei clienti lungo (che scorre) il cliente in uso è subito visibile
+document.addEventListener('click',event=>{
+ const button=event.target.closest?.('#client-switch,#home-client-switch');if(!button)return;
+ setTimeout(()=>{
+  const content=button.closest('.client-dropdown')?.querySelector('[pgs~="dropdown-content"]'),current=content?.querySelector('[aria-current="page"]');
+  if(!content||!current||content.scrollHeight<=content.clientHeight)return;
+  const offset=current.getBoundingClientRect().top-content.getBoundingClientRect().top+content.scrollTop;
+  content.scrollTop=Math.max(0,offset-content.clientHeight/2+current.offsetHeight/2);
+ },60);
+});
 function closeClientMenu(){document.querySelectorAll('.client-dropdown').forEach(root=>{try{globalThis.pgs?.dropdown.api(root)?.close();}catch{}});}
 // Crea cliente a passi (stepTabs di myPgs): 1) nome, controllato subito (valido e non già usato); 2) logo facoltativo
 // (il file lo tiene il main, qui solo l'anteprima); 3) social gestiti, almeno uno. Poi Social/<nome> con piano vuoto e cartelle fisse.
