@@ -64,7 +64,7 @@ async function status(){
  const version=app.getVersion(),catalog=CATALOG;
  if(!root)return{root:'',valid:false,version,catalog,clients:[],client:'',clientValid:false};
  let list;
- try{await clients.baseInfo(root);list=await clients.listClients(root);list=await Promise.all(list.map(async c=>{const dir=path.join(root,c.folder);const s=await settings.current(dir).catch(()=>({color:'',platforms:null}));return{...c,logo:await settings.logoData(dir),background:await settings.backgroundStamp(dir),color:s.color,platforms:s.platforms};}));}
+ try{await clients.baseInfo(root);list=await clients.listClients(root);list=await Promise.all(list.map(async c=>{const dir=path.join(root,c.folder);const s=await settings.current(dir).catch(()=>({color:'',platforms:null}));return{...c,logo:await settings.logoData(dir),background:await settings.backgroundStamp(dir),backgroundFit:s.backgroundFit,color:s.color,platforms:s.platforms};}));}
  catch(e){return{root,valid:false,version,catalog,clients:[],client:'',clientValid:false,message:errorMessage(e).message};}
  if(!list.some(c=>c.folder===client)){const next=list[0]?.folder||'';if(next!==client){client=next;lastResult=null;await remember().catch(()=>{});}}
  if(!client)return{root,valid:true,version,catalog,clients:list,client:'',clientValid:false};
@@ -182,7 +182,7 @@ else{
   // Impostazioni del cliente (02_Settings/settings.json): logo e colore. Quelle dell'app (cartella Social, tema) sono del computer.
   const clientSettings=async()=>{const current=await settings.current(clientDir());return{...current,logo:await settings.logoData(clientDir()),templates:await templates.listTemplates(clientDir(),current.platforms),name:clients.displayName(client),folder:client};};
   endpoint('social:settings',async()=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');await rootInfo(clientDir());return clientSettings();});
-  endpoint('social:save-settings',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');await rootInfo(clientDir());await settings.save(clientDir(),{color:input?.color,platforms:input?.platforms});return clientSettings();});
+  endpoint('social:save-settings',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');await rootInfo(clientDir());await settings.save(clientDir(),{color:input?.color,platforms:input?.platforms,backgroundFit:input?.backgroundFit});return clientSettings();});
   endpoint('social:choose-logo',async()=>{
    if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');
    await rootInfo(clientDir());

@@ -24,11 +24,11 @@ test('cartelle fisse: nomi nuovi, oppure quelli di prima se ci sono ancora (senz
 });
 test('impostazioni del cliente: colore e logo in 02_Settings, JSON senza i vecchi percorsi',async t=>{
  const {base,root}=await seed(t);
- assert.deepEqual(await settings.current(root),{logo:'',background:'',color:'',platforms:['Facebook','Instagram','LinkedIn']});
- assert.deepEqual(await settings.save(root,{color:'#AA00cc'}),{logo:'',background:'',color:'#aa00cc',platforms:['Facebook','Instagram','LinkedIn']});
+ assert.deepEqual(await settings.current(root),{logo:'',background:'',backgroundFit:'cover',color:'',platforms:['Facebook','Instagram','LinkedIn']});
+ assert.deepEqual(await settings.save(root,{color:'#AA00cc'}),{logo:'',background:'',backgroundFit:'cover',color:'#aa00cc',platforms:['Facebook','Instagram','LinkedIn']});
  await assert.rejects(settings.save(root,{color:'rosso'}),/colore valido/);
  const png=path.join(base,'logo cliente.PNG');await fs.writeFile(png,Buffer.from('89504e470d0a1a0a','hex'));
- assert.deepEqual(await settings.setLogo(root,png),{logo:'logo.png',background:'',color:'#aa00cc',platforms:['Facebook','Instagram','LinkedIn']});
+ assert.deepEqual(await settings.setLogo(root,png),{logo:'logo.png',background:'',backgroundFit:'cover',color:'#aa00cc',platforms:['Facebook','Instagram','LinkedIn']});
  assert.ok((await fs.stat(path.join(root,'02_Settings','logo.png'))).isFile());
  assert.match(await settings.logoData(root),/^data:image\/png;base64,iVBORw0KGgo/);
  // un logo nuovo con un'altra estensione sostituisce il vecchio
@@ -39,18 +39,18 @@ test('impostazioni del cliente: colore e logo in 02_Settings, JSON senza i vecch
  await assert.rejects(settings.setLogo(root,path.join(base,'testo.txt')),/PNG, JPG/);
  const big=path.join(base,'grande.png');await fs.writeFile(big,Buffer.alloc(settings.MAX_LOGO+1));
  await assert.rejects(settings.setLogo(root,big),/troppo grande/);
- assert.deepEqual(await settings.removeLogo(root),{logo:'',background:'',color:'#aa00cc',platforms:['Facebook','Instagram','LinkedIn']});
+ assert.deepEqual(await settings.removeLogo(root),{logo:'',background:'',backgroundFit:'cover',color:'#aa00cc',platforms:['Facebook','Instagram','LinkedIn']});
  assert.deepEqual((await fs.readdir(path.join(root,'02_Settings'))),['settings.json']);
- assert.deepEqual(JSON.parse(await fs.readFile(path.join(root,'02_Settings','settings.json'),'utf8')),{version:2,logo:'',background:'',color:'#aa00cc',platforms:['Facebook','Instagram','LinkedIn']});
+ assert.deepEqual(JSON.parse(await fs.readFile(path.join(root,'02_Settings','settings.json'),'utf8')),{version:2,logo:'',background:'',backgroundFit:'cover',color:'#aa00cc',platforms:['Facebook','Instagram','LinkedIn']});
 });
 test('impostazioni del cliente: il vecchio 00_template/socialdesk-settings.json si legge (senza i percorsi) e non si tocca',async t=>{
  const {root}=await seed(t);
  const old=JSON.stringify({version:1,mac:{socialRoot:root,templates:{},trash:'00_cestino'},windows:{},color:'#123456'});
  await fs.writeFile(path.join(root,'00_template','socialdesk-settings.json'),old);
- assert.deepEqual(await settings.current(root),{logo:'',background:'',color:'#123456',platforms:['Facebook','Instagram','LinkedIn']});
+ assert.deepEqual(await settings.current(root),{logo:'',background:'',backgroundFit:'cover',color:'#123456',platforms:['Facebook','Instagram','LinkedIn']});
  await settings.save(root,{color:'#654321'});
  assert.equal(await fs.readFile(path.join(root,'00_template','socialdesk-settings.json'),'utf8'),old);
- assert.deepEqual(await settings.current(root),{logo:'',background:'',color:'#654321',platforms:['Facebook','Instagram','LinkedIn']});
+ assert.deepEqual(await settings.current(root),{logo:'',background:'',backgroundFit:'cover',color:'#654321',platforms:['Facebook','Instagram','LinkedIn']});
  await fs.writeFile(path.join(root,'02_Settings','settings.json'),'{non json');
  await assert.rejects(settings.current(root),e=>e.code==='SETTINGS');
  assert.equal(await settings.logoData(root),'');
@@ -126,6 +126,9 @@ test('sfondo della home del cliente: in 02_Settings come il logo, sostituito e r
  await settings.setBackground(root,png);
  const big=path.join(base,'grande.jpg');await fs.writeFile(big,Buffer.alloc(settings.MAX_BACKGROUND+1));
  await assert.rejects(settings.setBackground(root,big),/troppo grande/);
+ assert.equal((await settings.current(root)).backgroundFit,'cover');
+ assert.equal((await settings.save(root,{backgroundFit:'contain'})).backgroundFit,'contain');
+ await assert.rejects(settings.save(root,{backgroundFit:'stretch'}),/adattare lo sfondo/);
  const after=await settings.removeBackground(root);
  assert.equal(after.background,'');assert.equal(after.logo,'logo.png');
  assert.deepEqual((await fs.readdir(path.join(root,'02_Settings'))).sort(),['logo.png','settings.json']);
