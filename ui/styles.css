@@ -312,6 +312,8 @@ main{--page-bottom:var(--gap-elements)}
 #idea-form textarea,#idea-edit-notes{resize:vertical}
 /* Home: riquadro con Tutti i post / Post in bozza, Crea nuovo post a destra, Idee sotto a tutta larghezza */
 .home-pair{padding:0;overflow:hidden;gap:0}
+/* riquadri della home col colore pieno di box (myPgs usa --color-box-transparent): non lasciano vedere lo sfondo del cliente */
+.home-pair,.home-ideas{--box-background:var(--color-box)}
 .home-row{width:100%;flex:1 1 0;padding:var(--padding-paragraphs) var(--padding-elements);background:transparent;border-radius:0;text-align:left}
 .home-row img,.home-ideas img{width:80px;max-width:80px;flex:none}
 .home-actions>#create-new img{max-width:170px}
