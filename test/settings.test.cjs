@@ -120,7 +120,10 @@ test('sfondo della home del cliente: in 02_Settings come il logo, sostituito e r
  const png=path.join(base,'altro.png');await fs.writeFile(png,Buffer.from('89504e470d0a1a0a','hex'));
  await settings.setLogo(root,png);await settings.setBackground(root,png);
  assert.deepEqual((await fs.readdir(path.join(root,'02_Settings'))).sort(),['logo.png','settings.json','sfondo.png']);
- await assert.rejects(settings.setBackground(root,path.join(base,'x.svg')),/PNG, JPG, WEBP o GIF/);
+ await assert.rejects(settings.setBackground(root,path.join(base,'x.tif')),/PNG, JPG, WEBP, GIF o SVG/);
+ const svg=path.join(base,'sfondo vettoriale.svg');await fs.writeFile(svg,'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10" fill="#c36"/></svg>');
+ await settings.setBackground(root,svg);assert.equal((await settings.backgroundData(root)).type,'image/svg+xml');
+ await settings.setBackground(root,png);
  const big=path.join(base,'grande.jpg');await fs.writeFile(big,Buffer.alloc(settings.MAX_BACKGROUND+1));
  await assert.rejects(settings.setBackground(root,big),/troppo grande/);
  const after=await settings.removeBackground(root);
