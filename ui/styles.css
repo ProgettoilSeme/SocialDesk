@@ -309,16 +309,16 @@ main{--page-bottom:var(--gap-elements)}
 .idea-notes{min-width:0;flex:1 1 auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #idea-form textarea,#idea-edit-notes{resize:vertical}
 /* Home: riquadro con Tutti i post / Post in bozza, Crea nuovo post a destra, Idee sotto a tutta larghezza */
-.home-pair{padding:0;overflow:hidden;gap:0;--box-background:var(--color-box);border:var(--border-width,1px) solid var(--clickable-borderColor)}
+.home-pair{padding:0;overflow:hidden;--box-background:var(--color-box);border:var(--border-width,1px) solid var(--clickable-borderColor)}
 /* Schede della home: pulsanti di myPgs (hover, focus e disabilitato sono i loro); qui solo forma e misure di prima:
    angoli e colore del box pieno, altezza libera, testo a capo e allineato a sinistra nelle righe */
 .home-card,.home-row{height:auto;white-space:normal;font-weight:inherit;line-height:inherit}
 /* le due righe del riquadro non hanno bordo: il bordo è del riquadro, come quello dei pulsanti */
 .home-row{border-width:0}
 .home-card{--button-borderRadius:calc(var(--borderRadius-paragraphs) + var(--padding-elements));--button-background:var(--color-box)}
-.home-actions>#create-new{--button-background:var(--color-primary-soft);padding:var(--padding-elements);width:100%;align-items:center}
-.home-row{width:100%;flex:1 1 0;padding:var(--padding-paragraphs) var(--padding-elements);--button-borderRadius:0px;justify-content:flex-start;text-align:left}
-.home-ideas{width:100%;justify-content:flex-start;text-align:left;padding:var(--padding-paragraphs) var(--padding-elements)}
+.home-actions>#create-new{--button-background:var(--color-primary-soft);width:100%;align-items:center}
+.home-row{width:100%;flex:1 1 0;--button-borderRadius:0px;justify-content:flex-start;text-align:left}
+.home-ideas{width:100%;justify-content:flex-start;text-align:left}
 /* riquadri della home col colore pieno di box (myPgs usa --color-box-transparent): non lasciano vedere lo sfondo del cliente */
 .home-row img,.home-ideas img{width:80px;max-width:80px;flex:none}
 .home-actions>#create-new img{max-width:170px}
