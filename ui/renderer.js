@@ -166,6 +166,9 @@ async function loadClientBackground(){
  const current=state.clients.find(c=>c.folder===state.client),stamp=current?.background||'';
  const key=stamp&&state.rootValid?`${state.client}|${stamp}`:'';
  if(key===state.background.key||(key&&key===backgroundLoading))return;
+ // cambiato cliente: lo sfondo di prima sparisce subito, senza aspettare quello nuovo (dal NAS arriva con un po' di ritardo).
+ // Se cambia solo l'immagine dello stesso cliente, la vecchia resta finché non arriva la nuova.
+ if(state.background.url&&state.background.key.split('|')[0]!==state.client)setClientBackground('','');
  let url='';
  if(key){
   backgroundLoading=key;
@@ -175,12 +178,15 @@ async function loadClientBackground(){
   const now=state.clients.find(c=>c.folder===state.client);
   if(`${state.client}|${now?.background||''}`!==key){if(url)URL.revokeObjectURL(url);return;}
  }
- if(state.background.url)URL.revokeObjectURL(state.background.url);
+ setClientBackground(key,url);
+ if(state.route==='settings')render();
+}
+function setClientBackground(key,url){
+ if(state.background.url&&state.background.url!==url)URL.revokeObjectURL(state.background.url);
  state.background={key,url};
  const root=document.documentElement;
  if(url)root.style.setProperty('--client-background',`url("${url}")`);else root.style.removeProperty('--client-background');
  applyHomeBackground();
- if(state.route==='settings')render();
 }
 // Adattamento dello sfondo della home (Impostazioni del cliente): valore salvato e testo della tendina
 const BACKGROUND_FITS=[['cover','Riempi la finestra (cover: può tagliare i bordi)'],['contain','Immagine intera, in basso (contain)'],['cover-blur','Riempi la finestra, sfocata'],['contain-blur','Immagine intera, in basso, sfocata']];
