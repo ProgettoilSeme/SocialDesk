@@ -366,11 +366,13 @@ header[pgs~="header"]:not([pgs-state~="compact"]) [pgs~="header-element"]{paddin
 :root{--home-background-veil:color-mix(in srgb,var(--color-background,#fff) 35%,transparent)}
 :root[data-home-background] body::after{content:"";position:fixed;inset:0;z-index:-2;pointer-events:none;background-image:linear-gradient(var(--home-background-veil),var(--home-background-veil)),var(--client-background);background-size:cover;background-position:center;background-repeat:no-repeat}
 /* contain: immagine intera appoggiata in basso (il velo resta su tutta la finestra) */
-:root[data-home-background][data-home-background-fit=contain] body::after{background-size:cover,contain;background-position:center,bottom}
+:root[data-home-background][data-home-background-fit^=contain] body::after{background-size:cover,contain;background-position:center,bottom}
+/* varianti sfocate; con cover lo strato sborda un po' perché la sfocatura non schiarisca i bordi della finestra */
+:root[data-home-background][data-home-background-fit$=blur] body::after{filter:blur(20px)}
+:root[data-home-background][data-home-background-fit=cover-blur] body::after{inset:-40px}
 .background-fit-field{max-width:44rem}
 .client-background-preview{width:160px;height:96px;object-fit:cover;border-radius:var(--borderRadius-paragraphs,12px);background:var(--color-background-soft,rgba(127,127,127,.08));flex:none}
 .client-background-preview.client-logo-empty{display:inline-flex;align-items:center;justify-content:center;font-size:2rem;opacity:.45}
-body::before{content:"";width:100%;height: var(--_header-heightScroll);background:linear-gradient(180deg,color-mix(in srgb,var(--color-primary) 50%,transparent),transparent);position:absolute;top:0;left:0;z-index:-1;pointer-events:none}
 /* Impostazioni del cliente: righe dei template (ognuna apre la sua modale) */
 .template-group-title{display:flex;align-items:center;gap:var(--gap-details);margin:0}
 .template-list{list-style:none;margin:0;padding:0;gap:0}

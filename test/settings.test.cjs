@@ -128,6 +128,7 @@ test('sfondo della home del cliente: in 02_Settings come il logo, sostituito e r
  await assert.rejects(settings.setBackground(root,big),/troppo grande/);
  assert.equal((await settings.current(root)).backgroundFit,'cover');
  assert.equal((await settings.save(root,{backgroundFit:'contain'})).backgroundFit,'contain');
+ for(const fit of ['cover-blur','contain-blur'])assert.equal((await settings.save(root,{backgroundFit:fit})).backgroundFit,fit);
  await assert.rejects(settings.save(root,{backgroundFit:'stretch'}),/adattare lo sfondo/);
  const after=await settings.removeBackground(root);
  assert.equal(after.background,'');assert.equal(after.logo,'logo.png');
