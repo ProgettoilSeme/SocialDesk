@@ -59,6 +59,10 @@
  <footer pgs="footer" class="app-footer" id="app-footer"></footer>
  <!-- toast di myPgs: popover, così resta sopra anche alle modali aperte -->
  <div pgs="toast" id="toast-host" popover="manual" aria-live="polite"></div>
+ <!-- Filtro per le immagini della home: le parti colorate prendono tinta e saturazione dal colore del cliente
+      (flood-color in styles.css) tenendo luci e ombre; grigi e bianchi restano come sono. La «saturazione» di ogni punto
+      è la somma di |r-g|, |g-b|, |b-r| (feColorMatrix + feComponentTransfer) e decide quanto colore applicare -->
+ <svg class="svg-filters" width="0" height="0" aria-hidden="true" focusable="false"><filter id="client-tint" color-interpolation-filters="sRGB"><feFlood class="client-tint-flood" result="tinta"/><feComposite in="tinta" in2="SourceAlpha" operator="in" result="forma"/><feBlend in="forma" in2="SourceGraphic" mode="color" result="colorata"/><feColorMatrix in="SourceGraphic" type="matrix" values=".5 -.5 0 0 .5  0 .5 -.5 0 .5  -.5 0 .5 0 .5  0 0 0 0 1" result="differenze"/><feComponentTransfer in="differenze" result="scarti"><feFuncR type="table" tableValues="1 0 1"/><feFuncG type="table" tableValues="1 0 1"/><feFuncB type="table" tableValues="1 0 1"/></feComponentTransfer><feColorMatrix in="scarti" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  2.5 2.5 2.5 0 -.25" result="saturazione"/><feComposite in="colorata" in2="saturazione" operator="in" result="soloColori"/><feComposite in="soloColori" in2="SourceGraphic" operator="over" result="unita"/><feComposite in="unita" in2="SourceAlpha" operator="in"/></filter></svg>
  <script src="post-filters.js"></script>
  <script src="illustrator-preview.js"></script>
  <script src="markdown.js"></script>

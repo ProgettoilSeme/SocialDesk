@@ -5,7 +5,7 @@ const api=window.socialAPI;
 document.documentElement.dataset.platform=/Mac/i.test(navigator.platform)?'mac':'other';
 const localToday=()=>{const d=new Date();return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
 const initialPost=()=>({channels:[],title:'',topic:'',channelFormats:{},channelDates:{},year:String(new Date().getFullYear())});
-const state={route:'home',step:0,visited:0,root:'',rootValid:false,baseValid:false,clients:[],client:'',post:initialPost(),plan:null,result:null,error:'',loading:false,drafts:[],revision:'',selected:null,notice:'',filterYear:String(new Date().getFullYear()),filterChannels:['Facebook','Instagram','LinkedIn','Blog','TikTok','YouTube','X','Reddit'],filterStatus:'',filterMonth:'',filterSearch:'',groupById:true,hidePublished:true,expandedGroups:new Set(),years:[],listMode:'drafts',editValues:null,editOriginal:null,settings:null,settingsTab:'app',logoBusy:false,platformsBusy:false,highlight:null,editModal:null,ideas:null,ideaDraft:{text:'',notes:'',channels:[]},ideasLoading:false};
+const state={route:'home',step:0,visited:0,root:'',rootValid:false,baseValid:false,clients:[],client:'',post:initialPost(),plan:null,result:null,error:'',loading:false,drafts:[],revision:'',selected:null,notice:'',filterYear:String(new Date().getFullYear()),filterChannels:['Facebook','Instagram','LinkedIn','Blog','TikTok','YouTube','X','Reddit'],filterStatus:'',filterMonth:'',filterSearch:'',groupById:true,hidePublished:true,expandedGroups:new Set(),years:[],listMode:'drafts',editValues:null,editOriginal:null,settings:null,settingsTab:'app',logoBusy:false,platformsBusy:false,highlight:null,editModal:null,ideas:null,ideaDraft:{text:'',notes:'',channels:[]},ideasLoading:false,background:{key:'',url:''}};
 const main=document.getElementById('main'),footer=document.getElementById('footer'),progress=document.getElementById('progress');
 // Piattaforme e formati arrivano dal main (social:initial → catalog); questi valori valgono solo prima della risposta
 let CHANNELS=['Facebook','Instagram','LinkedIn','Blog','TikTok','YouTube','X','Reddit'];
@@ -100,7 +100,31 @@ const toastHost=document.getElementById('toast-host');
 function bringToastToFront(){try{if(toastHost.matches(':popover-open'))toastHost.hidePopover();toastHost.showPopover();}catch{}}
 let activeProgress=null;
 api?.onProgress?.(data=>activeProgress?.update(data));
-function progressToast(title,{lazy=false,segments=1}={}){
+// Menu dell'app su Mac (main.cjs → updateMenu): le voci usano le stesse funzioni dei pulsanti
+api?.onMenu?.(data=>void menuAction(data?.action,data?.arg));
+async function menuAction(action,arg){
+ if(state.loading)return;
+ // con una finestra aperta (modifica, dettagli…) i comandi di navigazione aspettano che si chiuda
+ const navigation=['new-post','home','posts','drafts','ideas','client','settings-app','settings-client','create-client','link-folder','sync-assets'];
+ if(navigation.includes(action)&&anyModalOpen())return;
+ if(['new-post','posts','drafts','ideas'].includes(action)&&!state.rootValid)return;
+ if(['new-post','posts','drafts','ideas','settings-app','settings-client'].includes(action)&&!await confirmLeave())return;
+ switch(action){
+  case 'new-post':startCreate();break;
+  case 'home':goHome();break;
+  case 'posts':case 'drafts':await loadList(action);window.scrollTo({top:0});break;
+  case 'ideas':openIdeas();break;
+  case 'refresh':if((state.route==='posts'||state.route==='drafts')&&!anyModalOpen())await reloadListAt(state.highlight);else if(!anyModalOpen())await recheckRoot();break;
+  case 'client':if(typeof arg==='string')selectClient(arg);break;
+  case 'create-client':openClientModal(null);break;
+  case 'settings-app':openSettings('app');break;
+  case 'settings-client':if(state.rootValid)openSettings('client');break;
+  case 'sync-assets':if(state.rootValid)syncAssets();break;
+  case 'link-folder':linkExistingFolder();break;
+  case 'check-update':checkUpdateNow();break;
+ }
+}
+function progressToast(title,{lazy=false,segments=1,showSteps=true}={}){
  let shown=false,card=null,segment=0;
  const job={label:'Controllo dei dati…',fraction:0,step:'',
   show(){
@@ -121,7 +145,7 @@ function progressToast(title,{lazy=false,segments=1}={}){
   update({step,total,label}){
    if(!Number.isInteger(step)||!Number.isInteger(total)||total<1)return;
    job.label=String(label||'');job.fraction=(segment+step/total)/segments;
-   job.step=segments===1?`Passo ${step+1} di ${total}`:'';
+   job.step=segments===1&&showSteps?`Passo ${step+1} di ${total}`:'';
    job.show();job.draw();
   },
   // operazioni fatte di più salvataggi (es. data e stato): ognuno occupa una parte della barra
@@ -146,6 +170,7 @@ function applyStatus(result){
  if(result.catalog){CATALOG=result.catalog;CHANNELS=Object.keys(result.catalog.platforms);}
  applyClientColor();
  state.rootValid=!!(result.valid&&result.clientValid);
+ void loadClientBackground();
  state.error=!result.valid?result.message||'':result.client&&!result.clientValid?result.message||'':'';
 }
 const clientName=()=>state.clients.find(c=>c.folder===state.client)?.name||'';
@@ -155,6 +180,44 @@ function applyClientColor(){
  const color=state.clients.find(c=>c.folder===state.client)?.color||'',root=document.documentElement;
  if(/^#[0-9a-f]{6}$/i.test(color))root.style.setProperty('--color-primary',color);
  else root.style.removeProperty('--color-primary');
+ // le immagini della home prendono il colore solo se il cliente ne ha uno (filtro #client-tint)
+ root.toggleAttribute('data-client-color',/^#[0-9a-f]{6}$/i.test(color));
+}
+// Sfondo della home del cliente (Impostazioni del cliente): l'immagine arriva dal main come byte e diventa un URL blob,
+// ricaricato solo quando cambiano cliente o file. È visibile solo in home (data-home-background su :root).
+let backgroundLoading='';
+async function loadClientBackground(){
+ const current=state.clients.find(c=>c.folder===state.client),stamp=current?.background||'';
+ const key=stamp&&state.rootValid?`${state.client}|${stamp}`:'';
+ if(key===state.background.key||(key&&key===backgroundLoading))return;
+ // cambiato cliente: lo sfondo di prima sparisce subito, senza aspettare quello nuovo (dal NAS arriva con un po' di ritardo).
+ // Se cambia solo l'immagine dello stesso cliente, la vecchia resta finché non arriva la nuova.
+ if(state.background.url&&state.background.key.split('|')[0]!==state.client)setClientBackground('','');
+ let url='';
+ if(key){
+  backgroundLoading=key;
+  try{const r=await call('clientBackground');if(r?.data)url=URL.createObjectURL(new Blob([r.data],{type:r.type}));}catch{}
+  finally{if(backgroundLoading===key)backgroundLoading='';}
+  // nel frattempo è cambiato cliente: questa immagine non serve più
+  const now=state.clients.find(c=>c.folder===state.client);
+  if(`${state.client}|${now?.background||''}`!==key){if(url)URL.revokeObjectURL(url);return;}
+ }
+ setClientBackground(key,url);
+ if(state.route==='settings')render();
+}
+function setClientBackground(key,url){
+ if(state.background.url&&state.background.url!==url)URL.revokeObjectURL(state.background.url);
+ state.background={key,url};
+ const root=document.documentElement;
+ if(url)root.style.setProperty('--client-background',`url("${url}")`);else root.style.removeProperty('--client-background');
+ applyHomeBackground();
+}
+// Adattamento dello sfondo della home (Impostazioni del cliente): valore salvato e testo della tendina
+const BACKGROUND_FITS=[['cover','Riempi la finestra (cover: può tagliare i bordi)'],['contain','Immagine intera, in basso (contain)'],['cover-blur','Riempi la finestra, sfocata'],['contain-blur','Immagine intera, in basso, sfocata']];
+function applyHomeBackground(){
+ const root=document.documentElement,saved=state.clients.find(c=>c.folder===state.client)?.backgroundFit,fit=BACKGROUND_FITS.some(([v])=>v===saved)?saved:'cover';
+ root.dataset.homeBackgroundFit=fit;
+ root.toggleAttribute('data-home-background',state.route==='home'&&state.rootValid&&!!state.background.url);
 }
 const clientLogo=(c=state.clients.find(x=>x.folder===state.client))=>c?.logo?`<img class="client-logo" src="${escape(c.logo)}" alt="">`:'';
 async function call(method,...args){if(!api)throw new Error('Apri SocialDesk dall’applicazione per accedere ai file.');const response=await api[method](...args);if(!response.ok){const e=new Error(response.error.message);e.code=response.error.code;if(e.code==='CHANGED'&&/Il piano è cambiato/.test(e.message))changedMessages.add(e.message);throw e;}return response.value;}
@@ -178,6 +241,7 @@ function render(){
  renderHeader();
  progress.hidden=state.route!=='create';
  document.body.dataset.screen=state.route;
+ applyHomeBackground();
  const section=state.listMode==='posts'?'Tutti i post':'Post in bozza';
  const who=clientName()?` — ${clientName()}`:'';
  document.title=(state.route==='home'?'SocialDesk':state.route==='create'?'SocialDesk — Nuovo post':state.route==='settings'?'SocialDesk — Impostazioni':state.route==='ideas'?'SocialDesk — Idee':'SocialDesk — '+section)+who;
@@ -281,10 +345,11 @@ function renderSuccess(){
  document.getElementById('new-post').addEventListener('click',()=>{state.step=0;state.visited=0;state.post=initialPost();state.plan=null;state.result=null;state.error='';render();});
 }
 async function goHome(){if(state.loading||!await confirmLeave())return;state.route='home';state.error='';state.notice='';state.selected=null;state.highlight=null;render();window.scrollTo({top:0});refreshUpdate();}
-// Aggiornamento: App Social/versione.json nella cartella Social. Controllato all'avvio e tornando in home (al massimo ogni minuto).
+// Aggiornamento: ultima Release su GitHub (lib/update.cjs). Controllato all'avvio e tornando in home (al massimo ogni minuto),
+// anche senza cartella Social: non dipende dal NAS.
 let lastUpdateCheck=0;
 async function refreshUpdate(force=false){
- if(!state.baseValid||!api?.checkUpdate||(!force&&Date.now()-lastUpdateCheck<60000))return;
+ if(!api?.checkUpdate||(!force&&Date.now()-lastUpdateCheck<60000))return;
  lastUpdateCheck=Date.now();
  try{const result=await call('checkUpdate');const changed=!!result.available!==!!state.update?.available||result.version!==state.update?.version;state.update=result;if(changed&&!state.loading)renderAppFooter();}catch{}
 }
@@ -304,7 +369,7 @@ async function checkUpdateNow(){
 function openUpdateModal(){
  if(anyModalOpen()||!state.update?.available)return;
  const u=state.update,opener=document.getElementById('install-update');
- const body=`<p>È disponibile <strong>SocialDesk ${escape(u.version)}</strong> (ora usi la ${escape(state.version)}).</p>${u.notes?`<p class="hint">${escape(u.notes)}</p>`:''}<p>SocialDesk si chiuderà, installerà la nuova versione dalla cartella App Social e si riaprirà da solo. Le impostazioni restano invariate.</p><div id="update-error" role="alert" hidden></div><div pgs="flex['row' 'justifyEnd' 'gapParagraphs']"><button pgs="button" id="update-later" type="button">Più tardi</button><button pgs="button['btnStrong']" id="update-now" type="button">${icon('download')}<span>Aggiorna ora</span></button></div>`;
+ const body=`<p>È disponibile <strong>SocialDesk ${escape(u.version)}</strong> (ora usi la ${escape(state.version)}).</p>${u.notes?`<p class="hint">${escape(u.notes)}</p>`:''}<p>SocialDesk scaricherà la nuova versione da internet (circa 130 MB), si chiuderà, la installerà e si riaprirà da solo. Le impostazioni restano invariate.</p><div id="update-error" role="alert" hidden></div><div pgs="flex['row' 'justifyEnd' 'gapParagraphs']"><button pgs="button" id="update-later" type="button">Più tardi</button><button pgs="button['btnStrong']" id="update-now" type="button">${icon('download')}<span>Aggiorna ora</span></button></div>`;
  const modal=createModal({title:'Aggiorna SocialDesk',titleId:'update-title',body,onClose:()=>{if(opener?.isConnected)opener.focus({preventScroll:true});}});
  modal.dialog.id='update-modal';
  const now=modal.dialog.querySelector('#update-now'),message=modal.dialog.querySelector('#update-error');
@@ -312,28 +377,44 @@ function openUpdateModal(){
  now.addEventListener('click',async()=>{
   if(modal.busy)return;modal.busy=true;state.loading=true;setAlert(message,'');
   modal.dialog.querySelectorAll('button').forEach(button=>button.disabled=true);now.textContent='Aggiornamento in corso…';
-  try{await call('installUpdate');setAlert(message,'SocialDesk si chiude e si riapre con la nuova versione tra pochi secondi.','info');}
-  catch(e){modal.busy=false;state.loading=false;modal.dialog.querySelectorAll('button').forEach(button=>button.disabled=false);now.innerHTML=`${icon('download')}<span>Aggiorna ora</span>`;setAlert(message,e.message);}
+  const job=progressToast('Scarico l’aggiornamento',{showSteps:false});
+  try{await call('installUpdate');job.success('Aggiornamento scaricato','SocialDesk si riapre con la nuova versione.');setAlert(message,'SocialDesk si chiude e si riapre con la nuova versione tra pochi secondi.','info');}
+  catch(e){job.cancel();modal.busy=false;state.loading=false;modal.dialog.querySelectorAll('button').forEach(button=>button.disabled=false);now.innerHTML=`${icon('download')}<span>Aggiorna ora</span>`;setAlert(message,e.message);}
  });
  modal.open();now.focus();
 }
-// Nessun cliente nella cartella Social: al posto della home il benvenuto con Crea cliente
+// Benvenuto al posto della home: al primo avvio (nessuna cartella scelta) o con una cartella senza clienti.
+// Inizia apre Crea cliente (che, senza cartella, chiede prima dove salvare i clienti); Collega cartella esistente
+// sceglie una cartella che contiene già i clienti.
 function renderWelcome(){
- main.innerHTML=`<section pgs="flex['column' 'itemCenter' 'gapElements']" class="welcome"><img class="welcome-logo" src="assets/socialdesk-logo.svg" alt="" width="120" height="120"><h1 pgs="h2">Benvenuto in SocialDesk</h1><p class="lead">Qui organizzi i post social dei tuoi clienti: idee, testi, grafiche e piano editoriale, tutto nella stessa cartella.</p><p class="hint">Per iniziare crea il primo cliente. In Social verrà creata la sua cartella con il piano editoriale e le cartelle per i post, le impostazioni e i template.</p><button pgs="button['btnStrong']" id="welcome-create" type="button" ${disabled(state.loading)}>${icon('circlePlus')}<span>Crea cliente</span></button></section>${noticeBox()}${errorBox()}`;
+ const folder=state.root&&state.baseValid?state.root:'';
+ const where=folder?`<p class="hint">Cartella collegata: <span class="path">${escape(folder)}</span>. Non contiene ancora clienti: premi Inizia per creare il primo.</p>`:`<p class="hint">Per iniziare scegli dove salvare il lavoro e crea il primo cliente. Se la cartella dei clienti esiste già (per esempio su un disco condiviso con i colleghi), collegala.</p>`;
+ main.innerHTML=`<section pgs="flex['column' 'itemCenter' 'gapElements']" class="welcome"><img class="welcome-logo" src="assets/socialdesk-logo.svg" alt="" width="120" height="120"><h1 pgs="h2">Benvenuto in SocialDesk</h1><p class="lead">Qui organizzi i post social dei tuoi clienti: idee, testi, grafiche e piano editoriale, tutto nella stessa cartella.</p>${where}<div pgs="flex['column' 'itemCenter' 'gapParagraphs']" class="welcome-actions"><button pgs="button['btnStrong']" id="welcome-create" type="button" ${disabled(state.loading)}><span>Inizia</span>${icon('arrowRight')}</button><button pgs="button['btnTransparent']" id="welcome-link" type="button" ${disabled(state.loading)}>${icon('folderOpen')}<span>${folder?'Collega un’altra cartella':'Collega cartella esistente'}</span></button></div></section>${noticeBox()}${errorBox()}`;
  footer.innerHTML='';
  document.getElementById('welcome-create').addEventListener('click',event=>openClientModal(event.currentTarget));
+ document.getElementById('welcome-link').addEventListener('click',linkExistingFolder);
+}
+// Collega cartella esistente: se contiene clienti si va alla home, altrimenti resta il benvenuto con la cartella indicata
+async function linkExistingFolder(){
+ if(state.loading)return;
+ try{
+  const result=await call('chooseRoot');if(!result)return;
+  applyStatus(result);state.notice='';state.route='home';render();refreshUpdate(true);
+  const n=state.clients.length;
+  globalThis.pgs?.toast[n?'success':'neutral']({title:'Cartella collegata',description:n?`${n===1?'Trovato 1 cliente':`Trovati ${n} clienti`}.`:'Nessun cliente in questa cartella: premi Inizia per creare il primo.',timeout:4000,closeTitle:'Chiudi'});bringToastToFront();
+ }catch(e){state.error=e.message;render();}
 }
 function renderHome(){
- if(state.baseValid&&!state.clients.length){renderWelcome();return;}
- const card=(id,tone,image,label)=>`<button pgs="box${tone?` background['${tone}']`:''} flex['column' 'itemCenter' 'gapParagraphs']" class="home-action" id="${id}" type="button" ${disabled(state.loading||!state.rootValid)}><img src="assets/${image}" alt="" width="240" height="240"><span pgs="h4">${label}</span></button>`;
+ if(!state.root||(state.baseValid&&!state.clients.length)){renderWelcome();return;}
+ const card=(id,tone,image,label)=>`<button pgs="button['btnPaddingEqual'] flex['column' 'itemCenter' 'gapParagraphs']" class="home-action home-card" id="${id}" type="button" ${disabled(state.loading||!state.rootValid)}><img src="assets/${image}" alt="" width="240" height="240"><span pgs="h4">${label}</span></button>`;
  // Home: a sinistra Tutti i post e Post in bozza nello stesso riquadro, a destra Crea nuovo post, sotto Idee
- const row=(id,image,label)=>`<button pgs="flex['row' 'itemCenter' 'gapParagraphs']" class="home-action home-row" id="${id}" type="button" ${disabled(state.loading||!state.rootValid)}><img src="assets/${image}" alt="" width="120" height="120"><span pgs="h4">${label}</span></button>`;
+ const row=(id,image,label)=>`<button pgs="button['btnTransparent' 'btnPaddingEqual'] flex['row' 'itemCenter' 'gapParagraphs']" class="home-action home-row" id="${id}" type="button" ${disabled(state.loading||!state.rootValid)}><img src="assets/${image}" alt="" width="120" height="120"><span pgs="h4">${label}</span></button>`;
  const rootError=homeErrorBox();
  // in alto il saluto con il nome del cliente; Cambia cliente (stesso elenco della freccia nell'header) nella riga in basso, accanto ad Aggiorna
  const current=state.clients.find(c=>c.folder===state.client);
  const greeting=current?`Ciao, ${current.name}`:'Ciao!';
  const switcher=state.baseValid&&state.clients.length?`<span pgs="dropdown" pgs-data="dropdownPosition[top]" class="client-dropdown home-client-dropdown"><button pgs="dropdown-button button" id="home-client-switch" type="button" aria-haspopup="true" ${disabled(state.loading)}>${icon('users')}<span>Cambia cliente</span>${icon('chevronDown')}</button><div pgs="dropdown-content" class="client-menu"><nav pgs="menu" aria-label="Clienti"><ul pgs="buttonGroup['btgVertical' 'btgFill']">${clientMenuItems()}<li><button pgs="button['btnTransparent' 'btnPaddingEqual']" id="home-client-create" type="button">${icon('circlePlus')}<span>Crea cliente</span></button></li></ul></nav></div></span>`:'';
- main.innerHTML=`${noticeBox()}${rootError}<div pgs="flex['column' 'itemCenter' 'gapDetails']" class="home-heading"><h1 pgs="h2" class="home-title">${escape(greeting)}</h1></div><div pgs="grid['column-2' 'gapElements']" class="home-actions"><div pgs="box flex['column']" class="home-pair">${row('all-posts','calendar.png','Tutti i post')}<hr class="home-divider">${row('drafts','draft.png','Post in bozza')}</div>${card('create-new','bgPrimarySoft','megaphone.png','Crea nuovo post')}<button pgs="box flex['row' 'itemCenter' 'gapParagraphs']" class="home-action home-ideas" id="home-ideas" type="button" ${disabled(state.loading||!state.rootValid)}><img src="assets/idea.png" alt="" width="120" height="120"><span pgs="flex['column' 'gapDetails']"><span pgs="h4">Idee</span><span class="hint">Le idee per i prossimi post, condivise con tutti.</span></span></button></div><hr><div pgs="flex['row' 'wrap' 'itemCenter' 'gapParagraphs']" class="home-settings"><button pgs="button" id="client-settings" type="button" ${disabled(state.loading||!state.rootValid)}>${icon('user')}<span>Impostazioni del cliente</span></button><button pgs="button" id="sync-assets" type="button" ${disabled(state.loading||!state.rootValid)} title="Copia le immagini di tutti i post in 03_Template/Archivio asset, divise per social e anno">${icon('images')}<span>${state.assetSyncing?'Aggiornamento…':'Aggiorna archivio asset'}</span></button>${state.baseValid?`<button pgs="button" id="home-recheck" class="${state.checkingRoot?'is-checking':''}" type="button" title="Ricontrolla la cartella Social e i clienti (es. dopo aver collegato il disco o la VPN)" ${disabled(state.loading||state.checkingRoot)}>${icon('refresh')}<span>${state.checkingRoot?'Controllo…':'Aggiorna'}</span></button>`:''}${switcher}</div>`;
+ main.innerHTML=`${noticeBox()}${rootError}<div pgs="flex['column' 'itemCenter' 'gapDetails']" class="home-heading"><h1 pgs="h2" class="home-title">${escape(greeting)}</h1></div><div pgs="grid['column-2' 'gapElements']" class="home-actions"><div pgs="box flex['column' 'gapNone']" class="home-pair">${row('all-posts','calendar.png','Tutti i post')}<hr class="home-divider">${row('drafts','draft.png','Post in bozza')}</div>${card('create-new','bgPrimarySoft','megaphone.png','Crea nuovo post')}<button pgs="button['btnPaddingEqual'] flex['row' 'itemCenter' 'gapParagraphs']" class="home-action home-card home-ideas" id="home-ideas" type="button" ${disabled(state.loading||!state.rootValid)}><img src="assets/idea.png" alt="" width="120" height="120"><span pgs="flex['column' 'gapDetails']"><span pgs="h4">Idee</span><span class="hint">Le idee per i prossimi post, condivise con tutti.</span></span></button></div><hr><div pgs="flex['row' 'wrap' 'itemCenter' 'justifyCenter' 'gapParagraphs']" class="home-settings"><button pgs="button" id="client-settings" type="button" ${disabled(state.loading||!state.rootValid)}>${icon('user')}<span>Impostazioni del cliente</span></button><button pgs="button" id="sync-assets" type="button" ${disabled(state.loading||!state.rootValid)} title="Copia le immagini di tutti i post in 03_Template/Archivio asset, divise per social e anno">${icon('images')}<span>${state.assetSyncing?'Aggiornamento…':'Aggiorna archivio asset'}</span></button>${state.baseValid?`<button pgs="button" id="home-recheck" class="${state.checkingRoot?'is-checking':''}" type="button" title="Ricontrolla la cartella Social e i clienti (es. dopo aver collegato il disco o la VPN)" ${disabled(state.loading||state.checkingRoot)}>${icon('refresh')}<span>${state.checkingRoot?'Controllo…':'Aggiorna'}</span></button>`:''}${switcher}</div>`;
  footer.innerHTML='';
  document.getElementById('choose-root')?.addEventListener('click',chooseRootFromHome);
  document.getElementById('sync-assets').addEventListener('click',syncAssets);
@@ -377,7 +458,7 @@ function renderClientSlot(){
 // Footer dell'app, su tutte le pagine: logo SocialDesk, impostazioni dell'app, versione e aggiornamenti
 function renderAppFooter(){
  const host=document.getElementById('app-footer');if(!host)return;
- const update=state.update?.available?`<button pgs="button['btnStrong' 'btnMini']" id="install-update" type="button" ${disabled(state.loading)} title="Installa la versione ${escape(state.update.version)} da App Social">${icon('download')}<span>Aggiorna alla ${escape(state.update.version)}</span></button>`:`<button pgs="button['btnMini']" id="check-update" type="button" ${disabled(state.loading||state.checkingUpdate)} title="Controlla se in App Social c'è una versione più recente">${icon('download')}<span>${state.checkingUpdate?'Controllo…':'Cerca aggiornamenti'}</span></button>`;
+ const update=state.update?.available?`<button pgs="button['btnStrong' 'btnMini']" id="install-update" type="button" ${disabled(state.loading)} title="Scarica e installa la versione ${escape(state.update.version)}">${icon('download')}<span>Aggiorna alla ${escape(state.update.version)}</span></button>`:`<button pgs="button['btnMini']" id="check-update" type="button" ${disabled(state.loading||state.checkingUpdate)} title="Controlla su internet se c'è una versione più recente">${icon('download')}<span>${state.checkingUpdate?'Controllo…':'Cerca aggiornamenti'}</span></button>`;
  host.innerHTML=`<section pgs="footer-legal section"><div pgs="footer-legal-content"><a pgs="logo" href="#home" id="footer-home" class="footer-brand-link" aria-label="SocialDesk — Home"><img pgs="logo-image" src="assets/socialdesk-logo.svg" alt=""><span pgs="logo-text">SocialDesk</span></a><button pgs="button['btnMini']" id="open-settings" type="button" ${disabled(state.loading)} ${state.route==='settings'&&state.settingsTab==='app'?'aria-current="page"':''}>${icon('gear')}<span>Impostazioni</span></button>${state.version?`<span pgs="badge['badgeNeutral']" class="app-version">Versione ${escape(state.version)}</span>${update}`:''}</div></section>`;
  enhance(host);
  host.querySelector('#footer-home').addEventListener('click',event=>{event.preventDefault();goHome();});
@@ -406,6 +487,16 @@ async function selectClient(folder){
 }
 // chiude i menu dei clienti (freccia nell'header e Cambia cliente in home) prima di ridisegnare la pagina:
 // un menu ridisegnato mentre è aperto resterebbe «aperto» per myPgs e il clic dopo lo chiuderebbe invece di aprirlo
+// aprendo un menu dei clienti lungo (che scorre) il cliente in uso è subito visibile
+document.addEventListener('click',event=>{
+ const button=event.target.closest?.('#client-switch,#home-client-switch');if(!button)return;
+ setTimeout(()=>{
+  const content=button.closest('.client-dropdown')?.querySelector('[pgs~="dropdown-content"]'),current=content?.querySelector('[aria-current="page"]');
+  if(!content||!current||content.scrollHeight<=content.clientHeight)return;
+  const offset=current.getBoundingClientRect().top-content.getBoundingClientRect().top+content.scrollTop;
+  content.scrollTop=Math.max(0,offset-content.clientHeight/2+current.offsetHeight/2);
+ },60);
+});
 function closeClientMenu(){document.querySelectorAll('.client-dropdown').forEach(root=>{try{globalThis.pgs?.dropdown.api(root)?.close();}catch{}});}
 // Crea cliente a passi (stepTabs di myPgs): 1) nome, controllato subito (valido e non già usato); 2) logo facoltativo
 // (il file lo tiene il main, qui solo l'anteprima); 3) social gestiti, almeno uno. Poi Social/<nome> con piano vuoto e cartelle fisse.
@@ -415,10 +506,13 @@ async function openClientModal(opener){
  if(state.route==='create'&&!(await confirmLeave()))return;
  // il flex sta dentro il passo: su stepTabs-container-tab vincerebbe sul display:none dei passi non attivi
  const tab=(iconName,content,locked=false)=>`<section pgs="stepTabs-container-tab flex['column' 'gapParagraphs']" pgs-data="stepTabsIcon[icon-${iconName}]" tabindex="-1" ${locked?'pgs-state="locked"':''}>${content}</section>`;
- const step1=tab('pencil',`<h3 pgs="h5">Come si chiama il cliente?</h3><div pgs="form flex['column' 'gapParagraphs']">${field('Nome del cliente',`<input pgs="input" id="client-name" maxlength="60" autocomplete="off" required placeholder=" ">`)}<p class="hint" id="client-folder-preview" aria-live="polite">Verrà creata in Social una cartella con questo nome (gli spazi diventano “_”).</p></div>`,true);
+ // senza cartella dei clienti (primo avvio) il primo passo è sceglierla o crearla
+ const needFolder=!state.root||!state.baseValid,nameStep=needFolder?1:0;
+ const step0=needFolder?tab('folderOpen',`<h3 pgs="h5">Dove salvo i clienti?</h3><p class="hint">Scegli o crea la cartella che conterrà tutti i clienti: dentro ognuno avrà la sua cartella con il piano editoriale, i post e i template. Se lavori con altre persone, mettila su un disco condiviso (per esempio un NAS) e fate scegliere a tutti la stessa cartella.</p><div pgs="flex['row' 'wrap' 'itemCenter' 'gapParagraphs']"><button pgs="button" type="button" id="new-client-folder">${icon('folderOpen')}<span>Scegli o crea cartella</span></button></div><p class="hint path" id="new-client-folder-path" aria-live="polite" hidden></p>`,true):'';
+ const step1=tab('pencil',`<h3 pgs="h5">Come si chiama il cliente?</h3><div pgs="form flex['column' 'gapParagraphs']">${field('Nome del cliente',`<input pgs="input" id="client-name" maxlength="60" autocomplete="off" required placeholder=" ">`)}<p class="hint" id="client-folder-preview" aria-live="polite">Verrà creata una cartella con questo nome (gli spazi diventano “_”).</p></div>`,true);
  const step2=tab('image',`<h3 pgs="h5">Logo <span class="optional">(facoltativo)</span></h3><p class="hint">Compare accanto al nome del cliente in alto. PNG, JPG, WEBP, GIF o SVG, massimo 2 MB. Puoi aggiungerlo anche dopo in Impostazioni del cliente.</p><div pgs="flex['row' 'wrap' 'itemCenter' 'gapParagraphs']" class="client-logo-row"><span id="new-client-logo" class="client-logo-preview client-logo-empty" aria-hidden="true">${icon('image')}</span><button pgs="button" type="button" id="new-client-logo-pick">${icon('upload')}<span>Scegli immagine</span></button><button pgs="button['btnTransparent']" type="button" id="new-client-logo-clear" hidden>${icon('trash')}<span>Togli</span></button></div>`);
  const step3=tab('globe',`<h3 pgs="h5">Su quali social pubblica?</h3><p class="hint">Scegline almeno uno. Potrai cambiarli in Impostazioni del cliente.</p><fieldset pgs="chips" class="channel-chips platform-choices"><legend pgs="visuallyHidden">Social del cliente</legend>${CHANNELS.map(c=>`<label pgs="button['btnMini' 'btnTwoState']" class="channel-chip" data-channel="${c}"><input type="checkbox" data-new-platform="${c}">${socialIcon(c)}<span>${c}</span></label>`).join('')}</fieldset>`);
- const body=`<div pgs="stepTabs flex['column' 'gapElements']" class="client-wizard"><div pgs="stepTabs-dots" role="group" aria-label="Passi"></div><div pgs="stepTabs-container">${step1}${step2}${step3}</div><div id="client-error" role="alert" hidden></div><div pgs="flex['row' 'wrap' 'justifyBetween' 'gapParagraphs']" class="client-wizard-actions"><button pgs="stepTabs-prev button" type="button">${icon('arrowLeft')}<span>Indietro</span></button><span pgs="flex['row' 'gapParagraphs']"><button pgs="button" type="button" id="client-cancel">Annulla</button><button pgs="stepTabs-next button['btnReverse']" type="button" id="client-next"><span>Avanti</span>${icon('arrowRight')}</button><button pgs="button['btnStrong']" type="button" id="client-save" hidden disabled>${icon('circlePlus')}<span>Crea cliente</span></button></span></div></div>`;
+ const body=`<div pgs="stepTabs flex['column' 'gapElements']" class="client-wizard"><div pgs="stepTabs-dots" role="group" aria-label="Passi"></div><div pgs="stepTabs-container">${step0}${step1}${step2}${step3}</div><div id="client-error" role="alert" hidden></div><div pgs="flex['row' 'wrap' 'justifyBetween' 'gapParagraphs']" class="client-wizard-actions"><button pgs="stepTabs-prev button" type="button">${icon('arrowLeft')}<span>Indietro</span></button><span pgs="flex['row' 'gapParagraphs']"><button pgs="button" type="button" id="client-cancel">Annulla</button><button pgs="stepTabs-next button['btnReverse']" type="button" id="client-next"><span>Avanti</span>${icon('arrowRight')}</button><button pgs="button['btnStrong']" type="button" id="client-save" hidden disabled>${icon('circlePlus')}<span>Crea cliente</span></button></span></div></div>`;
  let created=false;
  const modal=createModal({title:'Crea cliente',titleId:'client-modal-title',body,size:'dialogMedium',onClose:()=>{if(!created)call('clearClientLogo').catch(()=>{});if(opener?.isConnected)opener.focus({preventScroll:true});}});
  const dialog=modal.dialog,root=dialog.querySelector('.client-wizard');
@@ -428,11 +522,25 @@ async function openClientModal(opener){
  const wizard=()=>{try{return globalThis.pgs?.stepTabs.api(root);}catch{return null;}};
  let checked='',checkTimer=null,valid=false;
  // passo 1: il nome si controlla mentre si scrive; finché non va bene Avanti resta bloccato
- const lock=on=>{valid=!on;try{wizard()?.toggleLock(0,on);}catch{}};
+ const lock=on=>{valid=!on;try{wizard()?.toggleLock(nameStep,on);}catch{}};
+ // passo 0 (solo senza cartella): la cartella scelta diventa subito la cartella dei clienti di questo computer
+ dialog.querySelector('#new-client-folder')?.addEventListener('click',async()=>{
+  setAlert(message,'');
+  try{
+   const result=await call('chooseRoot');if(!result)return;
+   applyStatus(result);
+   const where=dialog.querySelector('#new-client-folder-path');where.hidden=false;
+   const n=state.clients.length;
+   where.textContent=`Cartella: ${state.root}${n?` · contiene già ${n===1?'1 cliente':n+' clienti'}`:''}`;
+   dialog.querySelector('#new-client-folder span').textContent='Cambia cartella';
+   try{wizard()?.toggleLock(0,false);}catch{}
+   if(input.value.trim())checkName();
+  }catch(e){setAlert(message,e.message);}
+ });
  const checkName=async()=>{
   const value=input.value;
-  if(!value.trim()){lock(true);preview.textContent='Verrà creata in Social una cartella con questo nome (gli spazi diventano “_”).';preview.classList.remove('field-error');return;}
-  try{const r=await call('checkClientName',value);if(input.value!==value)return;checked=value;preview.textContent=`Cartella: Social/${r.folder}`;preview.classList.remove('field-error');lock(false);}
+  if(!value.trim()){lock(true);preview.textContent='Verrà creata una cartella con questo nome (gli spazi diventano “_”).';preview.classList.remove('field-error');return;}
+  try{const r=await call('checkClientName',value);if(input.value!==value)return;checked=value;preview.textContent=`Cartella: ${(state.root.split(/[\\/]/).filter(Boolean).pop()||'Social')}/${r.folder}`;preview.classList.remove('field-error');lock(false);}
   catch(e){if(input.value!==value)return;preview.textContent=e.message;preview.classList.add('field-error');lock(true);}
  };
  input.addEventListener('input',()=>{lock(true);clearTimeout(checkTimer);checkTimer=setTimeout(checkName,250);});
@@ -449,7 +557,7 @@ async function openClientModal(opener){
  const chosen=()=>[...dialog.querySelectorAll('[data-new-platform]:checked')].map(x=>x.dataset.newPlatform);
  dialog.querySelectorAll('[data-new-platform]').forEach(x=>x.addEventListener('change',()=>{save.disabled=!chosen().length;}));
  // sull'ultimo passo Avanti diventa Crea cliente
- root.addEventListener('pgs:stepTabs:change',event=>{const last=event.detail?.current===event.detail?.total-1;next.hidden=last;save.hidden=!last;setAlert(message,'');if(event.detail?.current===0)input.focus();});
+ root.addEventListener('pgs:stepTabs:change',event=>{const last=event.detail?.current===event.detail?.total-1;next.hidden=last;save.hidden=!last;setAlert(message,'');if(event.detail?.current===nameStep)input.focus();else if(event.detail?.current===0&&needFolder)dialog.querySelector('#new-client-folder')?.focus();});
  dialog.querySelector('#client-cancel').addEventListener('click',()=>modal.close());
  save.addEventListener('click',async()=>{
   if(modal.busy||!chosen().length)return;
@@ -463,7 +571,7 @@ async function openClientModal(opener){
    globalThis.pgs?.toast[warnings.length?'warning':'success']({title:'Cliente creato',description:`${result.created?.name||''}${warnings.length?': '+warnings.join(' '):': carica i template in Impostazioni del cliente.'}`,timeout:6000,closeTitle:'Chiudi'});bringToastToFront();
   }catch(e){modal.busy=false;save.disabled=false;setAlert(message,e.message);}
  });
- modal.open();input.focus();
+ modal.open();(needFolder?dialog.querySelector('#new-client-folder'):input).focus();
 }
 // Ricontrolla la cartella Social senza riavviare l'app (disco non collegato, VPN spenta…)
 async function recheckRoot(){
@@ -610,7 +718,7 @@ async function refreshClients(){try{const result=await call('initial');applyStat
 function renderSettings(){
  const s=state.settings,tab=state.settingsTab==='client'?1:0;
  const appPanel=`<p class="hint">Valgono solo su questo computer, per chi usa l'app.</p><section pgs="box flex['column' 'gapParagraphs']" aria-labelledby="settings-root-title"><h2 pgs="h4" id="settings-root-title">Percorso</h2><p class="hint">La cartella Social che contiene le cartelle dei clienti.</p><div pgs="flex['row' 'itemCenter' 'gapParagraphs' 'nowrap']" class="settings-control"><p class="path folder-path" title="${escape(state.root)}">${escape(state.root||'Nessuna cartella selezionata')}</p><button pgs="button" id="settings-root" type="button">${icon('folderOpen')}<span>${state.root?'Cambia cartella':'Scegli cartella'}</span></button></div></section><section pgs="box flex['column' 'gapParagraphs']" aria-labelledby="settings-theme-title"><h2 pgs="h4" id="settings-theme-title">Aspetto</h2><p class="hint">Tema chiaro o scuro dell'app.</p><div><button pgs="button darkmodeToggle['tglLabeled']" class="theme-toggle" type="button" aria-label="Cambia tema"><i pgs="darkmodeToggle-light icon['icon-moon']" aria-hidden="true"></i><i pgs="darkmodeToggle-dark icon['icon-sun']" aria-hidden="true"></i></button></div></section>`;
- const clientPanel=!state.rootValid?alertHtml('info',state.baseValid?'Scegli o crea un cliente con la freccia in alto, accanto al nome.':'Scegli prima la cartella Social nelle impostazioni dell’app, in fondo alla pagina.'):!s?`<p class="hint">Caricamento…</p>`:`<p class="hint">Salvate nella cartella del cliente (02_Settings/settings.json): valgono per tutti quelli che lavorano su ${escape(s.name)}.</p><section pgs="box flex['column' 'gapParagraphs']" aria-labelledby="settings-name-title"><h2 pgs="h4" id="settings-name-title">Nome del cliente</h2><p class="hint">Cambia anche il nome della sua cartella in Social (gli spazi diventano “_”). Prima chiudi i file del cliente aperti, piano compreso.</p><div pgs="flex['row' 'itemCenter' 'gapParagraphs' 'nowrap']" class="settings-control client-name-control"><input pgs="input" id="client-name-input" maxlength="60" value="${escape(s.name)}" aria-label="Nome del cliente" ${disabled(state.renamingClient)}><button pgs="button" id="client-rename" type="button" disabled>${icon('pencil')}<span>${state.renamingClient?'Rinomino…':'Rinomina'}</span></button></div><div id="client-rename-error" role="alert" hidden></div></section><section pgs="box flex['column' 'gapParagraphs']" aria-labelledby="settings-logo-title"><h2 pgs="h4" id="settings-logo-title">Logo del cliente</h2><p class="hint">Compare accanto al nome del cliente in alto. PNG, JPG, WEBP, GIF o SVG, massimo 2 MB: viene copiato in 02_Settings.</p><div pgs="flex['row' 'wrap' 'itemCenter' 'gapParagraphs']" class="client-logo-row">${s.logo?`<img class="client-logo-preview" src="${escape(s.logo)}" alt="Logo di ${escape(s.name)}">`:`<span class="client-logo-preview client-logo-empty" aria-hidden="true">${icon('image')}</span>`}<button pgs="button" id="logo-choose" type="button" ${disabled(state.logoBusy)}>${icon('upload')}<span>${s.logo?'Cambia logo':'Carica logo'}</span></button>${s.logo?`<button pgs="button['btnTransparent']" id="logo-remove" type="button" ${disabled(state.logoBusy)}>${icon('trash')}<span>Rimuovi</span></button>`:''}</div></section><section pgs="box flex['column' 'gapParagraphs']" aria-labelledby="settings-color-title"><h2 pgs="h4" id="settings-color-title">Colore del cliente</h2><div pgs="flex['row' 'itemCenter' 'gapParagraphs']" class="client-color-row"><input type="color" id="client-color" value="${escape(s.color||'#23765a')}" aria-label="Colore del cliente"><span class="hint" id="client-color-value">${s.color?escape(s.color):'Nessun colore scelto'}</span></div></section>${platformsSection(s)}${templatesSection(s)}<section pgs="box flex['column' 'gapParagraphs']" aria-labelledby="settings-folders-title"><h2 pgs="h4" id="settings-folders-title">Cartelle dei post</h2><p class="hint">Trova i post la cui cartella è stata rinominata o spostata a mano e ricollegali.</p><div><button pgs="button" id="check-folders" type="button" ${disabled(state.checkingFolders)}>${icon('magnifyingGlass')}<span>${state.checkingFolders?'Controllo…':'Controlla cartelle'}</span></button></div>${folderReport()}</section>`;
+ const clientPanel=!state.rootValid?alertHtml('info',state.baseValid?'Scegli o crea un cliente con la freccia in alto, accanto al nome.':'Scegli prima la cartella Social nelle impostazioni dell’app, in fondo alla pagina.'):!s?`<p class="hint">Caricamento…</p>`:`<p class="hint">Salvate nella cartella del cliente (02_Settings/settings.json): valgono per tutti quelli che lavorano su ${escape(s.name)}.</p><section pgs="box flex['column' 'gapParagraphs']" aria-labelledby="settings-name-title"><h2 pgs="h4" id="settings-name-title">Nome del cliente</h2><p class="hint">Cambia anche il nome della sua cartella in Social (gli spazi diventano “_”). Prima chiudi i file del cliente aperti, piano compreso.</p><div pgs="flex['row' 'itemCenter' 'gapParagraphs' 'nowrap']" class="settings-control client-name-control"><input pgs="input" id="client-name-input" maxlength="60" value="${escape(s.name)}" aria-label="Nome del cliente" ${disabled(state.renamingClient)}><button pgs="button" id="client-rename" type="button" disabled>${icon('pencil')}<span>${state.renamingClient?'Rinomino…':'Rinomina'}</span></button></div><div id="client-rename-error" role="alert" hidden></div></section><section pgs="box flex['column' 'gapParagraphs']" aria-labelledby="settings-logo-title"><h2 pgs="h4" id="settings-logo-title">Logo del cliente</h2><p class="hint">Compare accanto al nome del cliente in alto. PNG, JPG, WEBP, GIF o SVG, massimo 2 MB: viene copiato in 02_Settings.</p><div pgs="flex['row' 'wrap' 'itemCenter' 'gapParagraphs']" class="client-logo-row">${s.logo?`<img class="client-logo-preview" src="${escape(s.logo)}" alt="Logo di ${escape(s.name)}">`:`<span class="client-logo-preview client-logo-empty" aria-hidden="true">${icon('image')}</span>`}<button pgs="button" id="logo-choose" type="button" ${disabled(state.logoBusy)}>${icon('upload')}<span>${s.logo?'Cambia logo':'Carica logo'}</span></button>${s.logo?`<button pgs="button['btnTransparent']" id="logo-remove" type="button" ${disabled(state.logoBusy)}>${icon('trash')}<span>Rimuovi</span></button>`:''}</div></section><section pgs="box flex['column' 'gapParagraphs']" aria-labelledby="settings-background-title"><h2 pgs="h4" id="settings-background-title">Sfondo della home</h2><p class="hint">Compare dietro la home di questo cliente (solo in home). PNG, JPG, WEBP, GIF o SVG, massimo 10 MB: viene copiato in 02_Settings.</p><div pgs="flex['row' 'wrap' 'itemCenter' 'gapParagraphs']" class="client-logo-row">${s.background&&state.background.url?`<img class="client-background-preview" src="${escape(state.background.url)}" alt="Sfondo della home di ${escape(s.name)}">`:`<span class="client-background-preview client-logo-empty" aria-hidden="true">${icon('image')}</span>`}<button pgs="button" id="background-choose" type="button" ${disabled(state.logoBusy)}>${icon('upload')}<span>${s.background?'Cambia sfondo':'Carica sfondo'}</span></button>${s.background?`<button pgs="button['btnTransparent']" id="background-remove" type="button" ${disabled(state.logoBusy)}>${icon('trash')}<span>Rimuovi</span></button>`:''}</div>${s.background?`<div pgs="flex['column']" class="background-fit-field"><label pgs="label" for="background-fit">Adattamento</label><select pgs="select" id="background-fit">${BACKGROUND_FITS.map(([value,label])=>`<option value="${value}" ${(s.backgroundFit||'cover')===value?'selected':''}>${escape(label)}</option>`).join('')}</select></div>`:''}</section><section pgs="box flex['column' 'gapParagraphs']" aria-labelledby="settings-color-title"><h2 pgs="h4" id="settings-color-title">Colore del cliente</h2><div pgs="flex['row' 'itemCenter' 'gapParagraphs']" class="client-color-row"><input type="color" id="client-color" value="${escape(s.color||'#23765a')}" aria-label="Colore del cliente"><span class="hint" id="client-color-value">${s.color?escape(s.color):'Nessun colore scelto'}</span></div></section>${platformsSection(s)}${templatesSection(s)}<section pgs="box flex['column' 'gapParagraphs']" aria-labelledby="settings-folders-title"><h2 pgs="h4" id="settings-folders-title">Cartelle dei post</h2><p class="hint">Trova i post la cui cartella è stata rinominata o spostata a mano e ricollegali.</p><div><button pgs="button" id="check-folders" type="button" ${disabled(state.checkingFolders)}>${icon('magnifyingGlass')}<span>${state.checkingFolders?'Controllo…':'Controlla cartelle'}</span></button></div>${folderReport()}</section>`;
  main.innerHTML=tab===0?`<h1 pgs="h2">Impostazioni dell’app</h1>${appPanel}${errorBox()}${noticeBox()}`:`<h1 pgs="h2">Impostazioni del cliente${clientName()?` <span class="title-muted">${escape(clientName())}</span>`:''}</h1>${clientPanel}${errorBox()}${noticeBox()}`;
  footer.innerHTML=`<button pgs="button['btnTransparent']" id="settings-home" type="button">${icon('arrowLeft')}<span>Torna alla home</span></button>`;
  document.getElementById('settings-home').addEventListener('click',goHome);
@@ -625,6 +733,13 @@ function renderSettings(){
  };
  document.getElementById('logo-choose')?.addEventListener('click',()=>logoAction('chooseLogo','Logo salvato.'));
  document.getElementById('logo-remove')?.addEventListener('click',()=>logoAction('removeLogo','Logo rimosso.'));
+ document.getElementById('background-choose')?.addEventListener('click',()=>logoAction('chooseBackground','Sfondo salvato.'));
+ document.getElementById('background-remove')?.addEventListener('click',()=>logoAction('removeBackground','Sfondo rimosso.'));
+ document.getElementById('background-fit')?.addEventListener('change',async event=>{
+  try{state.settings=await call('saveSettings',{backgroundFit:event.target.value});await refreshClients();state.error='';savedToast('Adattamento salvato');}
+  catch(e){state.error=e.message;}
+  render();
+ });
  main.querySelectorAll('[data-platform-choice]').forEach(input=>input.addEventListener('change',()=>saveClientPlatforms(input)));
  main.querySelectorAll('[data-template-channel]').forEach(button=>button.addEventListener('click',()=>openTemplateModal(button.dataset.templateChannel,button.dataset.templateFormat,button)));
  // Nome del cliente: il pulsante si attiva solo se il nome cambia; Invio = Rinomina
@@ -706,8 +821,10 @@ function renderPostRow(d){
 }
 function renderPostGroup(group){
  const first=group.posts[0],channels=group.posts.map(post=>post.channel);
- const icons=group.posts.map(post=>`<span class="post-social-icon" data-channel="${escape(post.channel)}" aria-hidden="true">${socialIcon(post.channel)}</span>`).join('');
- return `<div pgs="accordion['accOpenBox']" class="post-group${group.posts.some(p=>p.key===state.highlight)?' has-selected':''}" data-group-key="${escape(group.key)}" ${state.expandedGroups.has(group.key)?'pgs-state="open"':''}><button pgs="accordion-button" class="group-summary" type="button"><span pgs="flex['row' 'itemStart' 'gapParagraphs' 'nowrap']" class="post-body"><span class="post-icon-stack" role="img" aria-label="${escape(channels.join(', '))}">${icons}</span><span pgs="flex['column' 'gapDetails']" class="post-heading"><span pgs="h6" class="group-title">${escape(first.title)}</span><span pgs="flex['row' 'wrap' 'itemCenter' 'gapParagraphs']" class="draft-meta post-details"><span>ID ${escape(first.id)} · ${group.posts.length} social</span>${group.posts.some(post=>state.missingKeys?.has(post.key))?`<span pgs="flex['row' 'itemCenter' 'gapDetails' 'nowrap']" class="folder-missing" title="La cartella del post non si trova più: apri il post per ricollegarla">${icon('triangleExclamation')}<span>Cartella non trovata</span></span>`:''}</span></span></span>${groupStatusDots(group.posts)}</button><div pgs="accordion-content flex['column']" class="group-children" ${state.expandedGroups.has(group.key)?'':'hidden'}>${group.posts.map(renderPostRow).join('')}</div></div>`;
+ // da 1 a 4 icone si vedono tutte (con 4 in una griglia 2×2); con 5 o più le prime 3 e una casella «+N»
+ const shown=group.posts.length>4?group.posts.slice(0,3):group.posts;
+ const icons=shown.map(post=>`<span class="post-social-icon" data-channel="${escape(post.channel)}" aria-hidden="true">${socialIcon(post.channel)}</span>`).join('')+(group.posts.length>4?`<span class="post-social-icon post-icon-more" aria-hidden="true">+${group.posts.length-3}</span>`:'');
+ return `<div pgs="accordion['accOpenBox']" class="post-group${group.posts.some(p=>p.key===state.highlight)?' has-selected':''}" data-group-key="${escape(group.key)}" ${state.expandedGroups.has(group.key)?'pgs-state="open"':''}><button pgs="accordion-button" class="group-summary" type="button"><span pgs="flex['row' 'itemStart' 'gapParagraphs' 'nowrap']" class="post-body"><span class="post-icon-stack${group.posts.length>=4?' post-icon-grid':''}" role="img" aria-label="${escape(channels.join(', '))}">${icons}</span><span pgs="flex['column' 'gapDetails']" class="post-heading"><span pgs="h6" class="group-title">${escape(first.title)}</span><span pgs="flex['row' 'wrap' 'itemCenter' 'gapParagraphs']" class="draft-meta post-details"><span>ID ${escape(first.id)} · ${group.posts.length} social</span>${group.posts.some(post=>state.missingKeys?.has(post.key))?`<span pgs="flex['row' 'itemCenter' 'gapDetails' 'nowrap']" class="folder-missing" title="La cartella del post non si trova più: apri il post per ricollegarla">${icon('triangleExclamation')}<span>Cartella non trovata</span></span>`:''}</span></span></span>${groupStatusDots(group.posts)}</button><div pgs="accordion-content flex['column']" class="group-children" ${state.expandedGroups.has(group.key)?'':'hidden'}>${group.posts.map(renderPostRow).join('')}</div></div>`;
 }
 // Gruppo per ID: vicino alla freccia un badge per social (icona del social + stato, nel colore dello stato).
 function groupStatusDots(posts){

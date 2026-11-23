@@ -75,11 +75,16 @@ const os = require('node:os');
     }
     } finally { await fs.rm(staging, {recursive:true, force:true}); }
   }
-  // versione.json va copiato nella cartella "App Social" della cartella Social, accanto a
-  // Mac/SocialDesk.app, Mac/SocialDesk-Mac.zip (= SocialDesk-Mac-arm64.zip, usato dall'aggiornamento:
-  // un solo file dal NAS) e Windows/SocialDesk-Setup-<versione>.exe: l'app lo legge per proporre
-  // l'aggiornamento. Note facoltative con SOCIAL_NOTES="...".
-  const manifest = { version: pkg.version, macZip: 'Mac/SocialDesk-Mac.zip', windows: `Windows/${pkg.productName}-Setup-${pkg.version}.exe`, notes: process.env.SOCIAL_NOTES || '' };
+  // File della Release su GitHub (vedi scripts/release.cjs e lib/update.cjs): SocialDesk-Mac.zip (copia di
+  // SocialDesk-Mac-arm64.zip), SocialDesk-Setup-<versione>.exe e versione.json con dimensione e impronta
+  // SHA-256 di ciascuno, che l'app controlla dopo il download. Note facoltative con SOCIAL_NOTES="...".
+  const crypto = require('node:crypto');
+  const describe = async file => { const data = await fs.readFile(file); return { file: path.basename(file), size: data.length, sha256: crypto.createHash('sha256').update(data).digest('hex') }; };
+  const manifest = { version: pkg.version, notes: process.env.SOCIAL_NOTES || '' };
+  const macZip = path.join(out, `${pkg.productName}-Mac-arm64.zip`), releaseZip = path.join(out, `${pkg.productName}-Mac.zip`);
+  if (await fs.stat(macZip).then(() => true, () => false)) { await fs.copyFile(macZip, releaseZip); manifest.mac = await describe(releaseZip); }
+  const setup = path.join(out, `${pkg.productName}-Setup-${pkg.version}.exe`);
+  if (await fs.stat(setup).then(() => true, () => false)) manifest.windows = await describe(setup);
   await fs.writeFile(path.join(out, 'versione.json'), JSON.stringify(manifest, null, 2) + '\n');
   console.log(path.join(out, 'versione.json'));
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -1,127 +1,140 @@
 'use strict';
+// Aggiornamenti da GitHub Releases: un piccolo server HTTP locale fa la parte di
+// https://github.com/<repo>/releases (latest/download/versione.json e download/v<versione>/<file>).
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
+const http=require('node:http');
+const crypto=require('node:crypto');
 const update=require('../lib/update.cjs');
+const isMac=process.platform==='darwin';
 
-async function social(manifest,{mac=true,win=true,version='1.3.0'}={}){
- const base=await fs.mkdtemp(path.join(process.env.SOCIAL_TEST_TEMP||os.tmpdir(),'social-update-'));
- const root=path.join(base,'Social'),folder=path.join(root,'App Social');
- await fs.mkdir(path.join(folder,'Windows'),{recursive:true});
- if(mac){const app=path.join(folder,'Mac','SocialDesk.app','Contents');await fs.mkdir(path.join(app,'MacOS'),{recursive:true});await fs.writeFile(path.join(app,'Info.plist'),`<plist><string>it.progettoilseme.social</string><string>${version}</string></plist>`);}
- if(win)await fs.writeFile(path.join(folder,'Windows',`SocialDesk-Setup-${version}.exe`),'MZ');
- if(manifest!==undefined)await fs.writeFile(path.join(folder,'versione.json'),typeof manifest==='string'?manifest:JSON.stringify(manifest));
- return{base,root,folder};
+const sha=data=>crypto.createHash('sha256').update(data).digest('hex');
+const describe=(file,data)=>({file,size:data.length,sha256:sha(data)});
+async function tempDir(t){const dir=await fs.mkdtemp(path.join(process.env.SOCIAL_TEST_TEMP||os.tmpdir(),'social-update-'));t.after(()=>fs.rm(dir,{recursive:true,force:true}));return dir;}
+// Server delle Release: files = {'/latest/download/versione.json': Buffer|string, '/download/v1.3.0/x.exe': Buffer}
+async function releases(t,files){
+ const hits=[];
+ const server=http.createServer((req,res)=>{
+  const url=decodeURIComponent(req.url.split('?')[0]);hits.push(url);
+  // come GitHub, "latest" fa un redirect alla Release vera
+  if(url.startsWith('/latest/download/')&&files.latestVersion){res.writeHead(302,{Location:`/download/v${files.latestVersion}/${url.slice(17)}`});return res.end();}
+  const body=files[url];
+  if(body===undefined){res.writeHead(404);return res.end('Not Found');}
+  res.writeHead(200,{'Content-Length':Buffer.byteLength(body)});res.end(body);
+ });
+ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>new Promise(resolve=>server.close(resolve)));
+ return{env:{SOCIAL_UPDATE_URL:`http://127.0.0.1:${server.address().port}`},hits};
 }
-const manifest=(version='1.3.0')=>({version,mac:'Mac/SocialDesk.app',windows:`Windows/SocialDesk-Setup-${version}.exe`,notes:'Novità'});
+// Release completa della versione indicata: manifest, installer finto e (su Mac) zip con una SocialDesk.app finta
+async function fullRelease(t,version,{plistVersion=version,tamper=false}={}){
+ const exe=Buffer.from('MZ installer '+version),files={latestVersion:version};
+ const manifest={version,notes:'Novità',windows:describe(`SocialDesk-Setup-${version}.exe`,exe)};
+ files[`/download/v${version}/SocialDesk-Setup-${version}.exe`]=tamper?Buffer.from('MZ manomesso '+version):exe;
+ if(isMac){
+  const {execFileSync}=require('node:child_process');
+  const dir=await tempDir(t),app=path.join(dir,'SocialDesk.app','Contents');
+  await fs.mkdir(path.join(app,'MacOS'),{recursive:true});
+  await fs.writeFile(path.join(app,'Info.plist'),`<plist><string>it.progettoilseme.social</string><string>${plistVersion}</string></plist>`);
+  const zip=path.join(dir,'SocialDesk-Mac.zip');
+  execFileSync('/usr/bin/ditto',['-c','-k','--keepParent',path.join(dir,'SocialDesk.app'),zip]);
+  const data=await fs.readFile(zip);manifest.mac=describe('SocialDesk-Mac.zip',data);
+  files[`/download/v${version}/SocialDesk-Mac.zip`]=data;
+ }
+ files[`/download/v${version}/versione.json`]=JSON.stringify(manifest);
+ return{manifest,files};
+}
 
 test('confronto versioni numerico, non alfabetico',()=>{
- assert.ok(update.compareVersions('1.2.10','1.2.9')>0);
- assert.ok(update.compareVersions('1.3.0','1.2.15')>0);
- assert.equal(update.compareVersions('1.2.15','1.2.15'),0);
- assert.ok(update.compareVersions('1.2.9','1.2.10')<0);
- assert.throws(()=>update.compareVersions('1.2','1.2.0'));
+ assert.ok(update.compareVersions('1.10.0','1.9.9')>0);
+ assert.ok(update.compareVersions('2.0.0','1.12.1')>0);
+ assert.equal(update.compareVersions('1.3.0','1.3.0'),0);
+ assert.throws(()=>update.compareVersions('1.3','1.2.0'),/non valido/);
 });
 
-test('controllo: senza manifest o cartella nessun aggiornamento e nessun errore',async()=>{
- const {root}=await social(undefined);
- assert.equal((await update.checkUpdate(root,'1.2.15','darwin')).available,false);
- assert.equal((await update.checkUpdate('', '1.2.15','darwin')).available,false);
- assert.equal((await update.checkUpdate(path.join(root,'manca'),'1.2.15','win32')).available,false);
+test('indirizzi delle Release: repository di package.json, oppure quello di prova',()=>{
+ assert.equal(update.REPO,require('../package.json').updates.github);
+ assert.equal(update.manifestUrl({}),`https://github.com/${update.REPO}/releases/latest/download/versione.json`);
+ assert.equal(update.assetUrl('2.4.0','SocialDesk Setup 2.4.0.exe',{}),`https://github.com/${update.REPO}/releases/download/v2.4.0/SocialDesk%20Setup%202.4.0.exe`);
+ assert.equal(update.manifestUrl({SOCIAL_UPDATE_URL:'http://127.0.0.1:9/'}),'http://127.0.0.1:9/latest/download/versione.json');
 });
 
-test('controllo: propone solo versioni più recenti e per il proprio sistema',async()=>{
- const {root}=await social(manifest('1.3.0'));
- const mac=await update.checkUpdate(root,'1.2.15','darwin');
- assert.equal(mac.available,true);assert.equal(mac.version,'1.3.0');assert.equal(mac.notes,'Novità');
- assert.equal((await update.checkUpdate(root,'1.3.0','darwin')).available,false);
- assert.equal((await update.checkUpdate(root,'1.4.0','win32')).available,false);
- assert.equal((await update.checkUpdate(root,'1.2.15','linux')).available,false);
- const {root:onlyMac}=await social({version:'1.3.0',mac:'Mac/SocialDesk.app'});
- assert.equal((await update.checkUpdate(onlyMac,'1.2.15','win32')).available,false);
+test('controllo: senza internet o senza Release nessun aggiornamento e nessun errore',async t=>{
+ const none=await releases(t,{});
+ const r=await update.checkUpdate('2.0.0',{platform:'win32',env:none.env});
+ assert.equal(r.available,false);assert.match(r.reason,/nessuna versione pubblicata/);
+ const offline=await update.checkUpdate('2.0.0',{platform:'win32',env:{SOCIAL_UPDATE_URL:'http://127.0.0.1:9'}});
+ assert.equal(offline.available,false);assert.match(offline.reason,/connessione a internet/);
 });
 
-test('manifest non valido o con percorsi fuori da App Social',async()=>{
- assert.equal((await update.checkUpdate((await social('{non json')).root,'1.0.0','darwin')).available,false);
- assert.equal((await update.checkUpdate((await social({version:'tre'})).root,'1.0.0','darwin')).available,false);
- for(const bad of ['../fuori.exe','/tmp/x.exe','Windows/../../x.exe']){
-  const {root}=await social({version:'1.3.0',windows:bad,mac:bad});
-  await assert.rejects(update.prepareUpdate(root,{currentVersion:'1.2.15',platform:'win32'}),/percorso non valido/);
-  await assert.rejects(update.prepareUpdate(root,{currentVersion:'1.2.15',platform:'darwin',execPath:'/Applications/SocialDesk.app/Contents/MacOS/SocialDesk'}),/percorso non valido/);
- }
+test('controllo: propone solo versioni più recenti e con il file per il proprio sistema',async t=>{
+ const {files}=await fullRelease(t,'2.4.0');
+ const {env,hits}=await releases(t,files);
+ const win=await update.checkUpdate('2.3.4',{platform:'win32',env});
+ assert.deepEqual(win,{available:true,version:'2.4.0',current:'2.3.4',notes:'Novità'});
+ assert.ok(hits.includes('/latest/download/versione.json'),'segue il redirect di latest');
+ assert.equal((await update.checkUpdate('2.4.0',{platform:'win32',env})).available,false);
+ assert.equal((await update.checkUpdate('2.5.0',{platform:'win32',env})).available,false);
+ assert.equal((await update.checkUpdate('2.3.4',{platform:'linux',env})).available,false);
+ // manifest senza il file per Mac: niente aggiornamento su Mac
+ const onlyWin=JSON.parse(files['/download/v2.4.0/versione.json']);delete onlyWin.mac;
+ const other=await releases(t,{latestVersion:'2.4.0','/download/v2.4.0/versione.json':JSON.stringify(onlyWin)});
+ assert.equal((await update.checkUpdate('2.3.4',{platform:'darwin',env:other.env})).available,false);
 });
 
-test('Windows: installer esistente; manca o non è .exe → errore chiaro',async()=>{
- const {root,folder}=await social(manifest('1.3.0'));
- const plan=await update.prepareUpdate(root,{currentVersion:'1.2.15',platform:'win32'});
- assert.equal(plan.installer,path.join(folder,'Windows','SocialDesk-Setup-1.3.0.exe'));
- await assert.rejects(update.prepareUpdate(root,{currentVersion:'1.3.0',platform:'win32'}),/più recente/);
- await assert.rejects(update.prepareUpdate(root,{currentVersion:'1.2.15',platform:'win32',packaged:false}),/app installata/);
- const {root:missing}=await social(manifest('1.3.0'),{win:false});
- await assert.rejects(update.prepareUpdate(missing,{currentVersion:'1.2.15',platform:'win32'}),/non è disponibile/);
+test('manifest non valido: nome di file con cartelle, impronta mancante, JSON rotto',async t=>{
+ const bad=async manifest=>{const {env}=await releases(t,{'/latest/download/versione.json':typeof manifest==='string'?manifest:JSON.stringify(manifest)});return update.prepareUpdate({currentVersion:'2.0.0',platform:'win32',env});};
+ await assert.rejects(bad('{rotto'),/non è leggibile/);
+ await assert.rejects(bad({version:'2.4'}),/versione valida/);
+ await assert.rejects(bad({version:'2.4.0',windows:{file:'../../evil.exe',size:2,sha256:'a'.repeat(64)}}),/nome di file non valido/);
+ await assert.rejects(bad({version:'2.4.0',windows:{file:'SocialDesk-Setup-2.4.0.exe',size:2}}),/impronta/);
+ await assert.rejects(bad({version:'2.4.0',windows:{file:'SocialDesk-Setup-2.4.0.exe',size:0,sha256:'a'.repeat(64)}}),/dimensione/);
 });
 
-test('Mac: sostituzione accanto all’app in uso, solo riavvio se è la stessa app, versione verificata',async()=>{
- const {base,root,folder}=await social(manifest('1.3.0'));
- const installed=path.join(base,'Applicazioni','SocialDesk.app');
- await fs.mkdir(path.join(installed,'Contents','MacOS'),{recursive:true});
- const plan=await update.prepareUpdate(root,{currentVersion:'1.2.15',platform:'darwin',execPath:path.join(installed,'Contents','MacOS','SocialDesk')});
- assert.equal(plan.target,installed);assert.equal(plan.source,path.join(folder,'Mac','SocialDesk.app'));
- const same=await update.prepareUpdate(root,{currentVersion:'1.2.15',platform:'darwin',execPath:path.join(folder,'Mac','SocialDesk.app','Contents','MacOS','SocialDesk')});
- assert.equal(same.restartOnly,true);
- const {root:wrong}=await social(manifest('1.3.0'),{version:'1.2.99'});
- await assert.rejects(update.prepareUpdate(wrong,{currentVersion:'1.2.15',platform:'darwin',execPath:path.join(installed,'Contents','MacOS','SocialDesk')}),/non corrisponde/);
+test('Windows: scarica l’installer, controlla dimensione e impronta',async t=>{
+ const {files}=await fullRelease(t,'2.4.0');
+ const {env}=await releases(t,files);
+ const steps=[];
+ const plan=await update.prepareUpdate({currentVersion:'2.3.4',platform:'win32',env,progress:(step,total,label)=>steps.push([step,total,label])});
+ assert.equal(plan.version,'2.4.0');assert.equal(plan.platform,'win32');
+ assert.equal(await fs.readFile(plan.installer,'utf8'),'MZ installer 2.4.0');
+ assert.equal(steps.at(-1)[0],100);assert.match(steps.at(-1)[2],/Scaricamento 100%/);
+ await fs.rm(plan.installer,{force:true});
+ await assert.rejects(update.prepareUpdate({currentVersion:'2.4.0',platform:'win32',env}),/più recente/);
+ await assert.rejects(update.prepareUpdate({currentVersion:'2.3.4',platform:'win32',env,packaged:false}),/dai sorgenti/);
 });
 
-test('Mac: lo zip ha la precedenza, si estrae accanto all’app in uso e la versione viene verificata',{skip:process.platform!=='darwin'},async()=>{
- const {execFileSync}=require('node:child_process');
- const {base,root,folder}=await social({...manifest('1.3.0'),macZip:'Mac/SocialDesk-Mac.zip'});
- execFileSync('/usr/bin/ditto',['-c','-k','--keepParent',path.join(folder,'Mac','SocialDesk.app'),path.join(folder,'Mac','SocialDesk-Mac.zip')]);
- const installed=path.join(base,'Applicazioni','SocialDesk.app');
- await fs.mkdir(path.join(installed,'Contents','MacOS'),{recursive:true});
- const plan=await update.prepareUpdate(root,{currentVersion:'1.2.15',platform:'darwin',execPath:path.join(installed,'Contents','MacOS','SocialDesk')});
- assert.equal(plan.zip,path.join(folder,'Mac','SocialDesk-Mac.zip'));assert.equal(plan.source,undefined);
+test('Windows: file manomesso o mancante nella Release → errore e nessun file lasciato',async t=>{
+ const before=new Set(await fs.readdir(os.tmpdir()));
+ const tampered=await fullRelease(t,'2.4.1',{tamper:true});
+ const a=await releases(t,tampered.files);
+ await assert.rejects(update.prepareUpdate({currentVersion:'2.3.4',platform:'win32',env:a.env}),/(impronta diversa|più grande)/);
+ const missing=await fullRelease(t,'2.4.2');delete missing.files['/download/v2.4.2/SocialDesk-Setup-2.4.2.exe'];
+ const b=await releases(t,missing.files);
+ await assert.rejects(update.prepareUpdate({currentVersion:'2.3.4',platform:'win32',env:b.env}),/nessuna versione pubblicata/);
+ const left=(await fs.readdir(os.tmpdir())).filter(n=>!before.has(n)&&/^SocialDesk-Setup-2\.4\.[12]-/.test(n));
+ assert.deepEqual(left,[]);
+});
+
+test('Mac: scarica lo zip, lo estrae accanto all’app in uso e ne verifica la versione',{skip:!isMac},async t=>{
+ const {files}=await fullRelease(t,'2.4.0');
+ const {env}=await releases(t,files);
+ const base=await tempDir(t),installed=path.join(base,'Applicazioni','SocialDesk.app'),exec=path.join(installed,'Contents','MacOS','SocialDesk');
+ await fs.mkdir(path.dirname(exec),{recursive:true});
+ const plan=await update.prepareUpdate({currentVersion:'2.3.4',platform:'darwin',execPath:exec,env});
+ assert.equal(plan.target,installed);assert.ok(plan.zip.endsWith('.zip'));
  const staged=await update.stageMacApp(plan,123);
  assert.equal(staged,path.join(base,'Applicazioni','.SocialDesk-aggiornamento-123.app'));
- assert.ok((await fs.readFile(path.join(staged,'Contents','Info.plist'),'utf8')).includes('1.3.0'));
- assert.deepEqual((await fs.readdir(path.join(base,'Applicazioni'))).sort(),['.SocialDesk-aggiornamento-123.app','SocialDesk.app']);
- // residui tolti all'avvio
- assert.equal(await update.cleanupLeftovers(path.join(installed,'Contents','MacOS','SocialDesk')),1);
+ assert.ok((await fs.readFile(path.join(staged,'Contents','Info.plist'),'utf8')).includes('2.4.0'));
+ assert.equal(await fs.stat(plan.zip).then(()=>true,()=>false),false,'lo zip scaricato viene tolto');
+ assert.equal(await update.cleanupLeftovers(exec),1);
  assert.deepEqual(await fs.readdir(path.join(base,'Applicazioni')),['SocialDesk.app']);
- // zip con una versione diversa: errore e nessun residuo
- const wrong=await social({...manifest('1.3.1'),macZip:'Mac/SocialDesk-Mac.zip'},{version:'1.3.0'});
- execFileSync('/usr/bin/ditto',['-c','-k','--keepParent',path.join(wrong.folder,'Mac','SocialDesk.app'),path.join(wrong.folder,'Mac','SocialDesk-Mac.zip')]);
- const plan2=await update.prepareUpdate(wrong.root,{currentVersion:'1.2.15',platform:'darwin',execPath:path.join(installed,'Contents','MacOS','SocialDesk')});
+ // zip con dentro un'altra versione: errore e nessun residuo
+ const wrong=await fullRelease(t,'2.4.1',{plistVersion:'2.0.0'});
+ const w=await releases(t,wrong.files);
+ const plan2=await update.prepareUpdate({currentVersion:'2.3.4',platform:'darwin',execPath:exec,env:w.env});
  await assert.rejects(update.stageMacApp(plan2,456),/non corrisponde/);
  assert.deepEqual(await fs.readdir(path.join(base,'Applicazioni')),['SocialDesk.app']);
-});
-
-test('Mac: consegna solo zip (senza SocialDesk.app sul NAS)',{skip:process.platform!=='darwin'},async()=>{
- const {execFileSync}=require('node:child_process');
- const {base,root,folder}=await social({version:'1.3.0',macZip:'Mac/SocialDesk-Mac.zip',windows:'Windows/SocialDesk-Setup-1.3.0.exe'});
- execFileSync('/usr/bin/ditto',['-c','-k','--keepParent',path.join(folder,'Mac','SocialDesk.app'),path.join(folder,'Mac','SocialDesk-Mac.zip')]);
- await fs.rm(path.join(folder,'Mac','SocialDesk.app'),{recursive:true});
- assert.equal((await update.checkUpdate(root,'1.2.15','darwin')).available,true);
- const installed=path.join(base,'Applicazioni','SocialDesk.app');
- await fs.mkdir(path.join(installed,'Contents','MacOS'),{recursive:true});
- const plan=await update.prepareUpdate(root,{currentVersion:'1.2.15',platform:'darwin',execPath:path.join(installed,'Contents','MacOS','SocialDesk')});
- assert.equal(plan.zip,path.join(folder,'Mac','SocialDesk-Mac.zip'));
- const staged=await update.stageMacApp(plan,7);
- assert.ok((await fs.readFile(path.join(staged,'Contents','Info.plist'),'utf8')).includes('1.3.0'));
-});
-
-test('App Social accanto alla cartella Social (es. Comunicazione/App Social): trovata; dentro Social ha la precedenza',async()=>{
- const base=await fs.mkdtemp(path.join(process.env.SOCIAL_TEST_TEMP||os.tmpdir(),'social-update-fuori-'));
- const root=path.join(base,'Social'),outside=path.join(base,'App Social');
- await fs.mkdir(path.join(root,'progetto_il_seme'),{recursive:true});await fs.mkdir(path.join(outside,'Windows'),{recursive:true});
- await fs.writeFile(path.join(outside,'Windows','SocialDesk-Setup-1.8.0.exe'),'MZ');
- await fs.writeFile(path.join(outside,'versione.json'),JSON.stringify({version:'1.8.0',windows:'Windows/SocialDesk-Setup-1.8.0.exe'}));
- const found=await update.checkUpdate(root,'1.7.5','win32');
- assert.equal(found.available,true);assert.equal(found.version,'1.8.0');
- assert.equal((await update.readManifest(root)).folder,outside);
- const inside=path.join(root,'App Social');await fs.mkdir(inside);await fs.writeFile(path.join(inside,'versione.json'),JSON.stringify({version:'1.7.9'}));
- assert.equal((await update.readManifest(root)).folder,inside);
- await fs.rm(base,{recursive:true,force:true});
 });

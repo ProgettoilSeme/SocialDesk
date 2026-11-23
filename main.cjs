@@ -60,11 +60,79 @@ function errorMessage(e){
 // Cartella del cliente in uso: tutte le operazioni sui post (piano, template, 01_Posts, idee, cestino) avvengono lì.
 function clientDir(){if(!root)throw new PostError('ROOT','Scegli la cartella Social.');if(!client)throw new PostError('CLIENT','Scegli o crea un cliente.');return path.join(root,client);}
 // Stato per la home: cartella Social, elenco dei clienti e cliente in uso (se il cliente salvato non c'è più si passa al primo)
-async function status(){
+// Menu dell'app su Mac (barra in alto): le voci mandano un'azione al renderer, che usa le stesse funzioni dei pulsanti.
+// Senza cliente valido le voci dei post e del cliente sono disattivate. Su Windows nessun menu.
+const REPO_URL=`https://github.com/${require('./package.json').updates?.github||''}`;
+function menuAction(action,arg){
+ if(!window||window.isDestroyed())return;
+ if(window.isMinimized())window.restore();window.show();window.focus();
+ window.webContents.send('social:menu',{action,arg});
+}
+function updateMenu(st){
+ if(process.platform!=='darwin')return;
+ const ready=!!st.clientValid,clientsList=st.clients||[];
+ const item=(label,action,extra={})=>({label,click:()=>menuAction(action,extra.arg),...extra,arg:undefined});
+ const template=[
+  {label:app.name,submenu:[
+   {role:'about',label:'Informazioni su SocialDesk'},
+   item('Cerca aggiornamenti…','check-update'),
+   {type:'separator'},
+   item('Impostazioni…','settings-app',{accelerator:'CmdOrCtrl+,'}),
+   {type:'separator'},
+   {role:'services',label:'Servizi'},
+   {type:'separator'},
+   {role:'hide',label:'Nascondi SocialDesk'},{role:'hideOthers',label:'Nascondi altre'},{role:'unhide',label:'Mostra tutte'},
+   {type:'separator'},
+   {role:'quit',label:'Esci da SocialDesk'},
+  ]},
+  {label:'Modifica',submenu:[
+   {role:'undo',label:'Annulla'},{role:'redo',label:'Ripeti'},{type:'separator'},
+   {role:'cut',label:'Taglia'},{role:'copy',label:'Copia'},{role:'paste',label:'Incolla'},{role:'pasteAndMatchStyle',label:'Incolla e adatta stile'},{role:'delete',label:'Elimina'},{role:'selectAll',label:'Seleziona tutto'},
+  ]},
+  {label:'Post',submenu:[
+   item('Nuovo post','new-post',{accelerator:'CmdOrCtrl+N',enabled:ready}),
+   {type:'separator'},
+   item('Home','home',{accelerator:'CmdOrCtrl+Shift+H'}),
+   item('Tutti i post','posts',{accelerator:'CmdOrCtrl+1',enabled:ready}),
+   item('Post in bozza','drafts',{accelerator:'CmdOrCtrl+2',enabled:ready}),
+   item('Idee','ideas',{accelerator:'CmdOrCtrl+3',enabled:ready}),
+   {type:'separator'},
+   item('Aggiorna','refresh',{accelerator:'CmdOrCtrl+R'}),
+  ]},
+  {label:'Cliente',submenu:[
+   {label:'Cambia cliente',enabled:clientsList.length>0,submenu:clientsList.length?clientsList.map(c=>({label:c.name,type:'radio',checked:c.folder===st.client,click:()=>menuAction('client',c.folder)})):[{label:'Nessun cliente',enabled:false}]},
+   item('Crea cliente…','create-client'),
+   {type:'separator'},
+   item('Impostazioni del cliente…','settings-client',{accelerator:'CmdOrCtrl+Shift+,',enabled:ready}),
+   item('Aggiorna archivio asset','sync-assets',{enabled:ready}),
+  ]},
+  {label:'Impostazioni',submenu:[
+   item('Impostazioni dell’app…','settings-app'),
+   item('Impostazioni del cliente…','settings-client',{enabled:ready}),
+   {type:'separator'},
+   item('Collega cartella dei clienti…','link-folder'),
+   item('Cerca aggiornamenti…','check-update'),
+  ]},
+  {label:'Vista',submenu:[
+   {role:'resetZoom',label:'Dimensioni reali'},{role:'zoomIn',label:'Ingrandisci'},{role:'zoomOut',label:'Riduci'},
+   {type:'separator'},
+   {role:'togglefullscreen',label:'Schermo intero'},
+  ]},
+  {role:'windowMenu',label:'Finestra',submenu:[{role:'minimize',label:'Riduci a icona'},{role:'zoom',label:'Ridimensiona'},{type:'separator'},{role:'front',label:'Porta tutto in primo piano'}]},
+  {role:'help',label:'Aiuto',submenu:[
+   {label:'SocialDesk su GitHub',click:()=>shell.openExternal(REPO_URL)},
+   {label:'Novità delle versioni',click:()=>shell.openExternal(`${REPO_URL}/releases`)},
+  ]},
+ ];
+ Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+// Stato per il renderer; su Mac aggiorna anche il menu in alto (clienti, voci attive)
+async function status(){const result=await computeStatus();try{updateMenu(result);}catch(e){log(`menu: ${e.message}`);}return result;}
+async function computeStatus(){
  const version=app.getVersion(),catalog=CATALOG;
  if(!root)return{root:'',valid:false,version,catalog,clients:[],client:'',clientValid:false};
  let list;
- try{await clients.baseInfo(root);list=await clients.listClients(root);list=await Promise.all(list.map(async c=>{const dir=path.join(root,c.folder);const s=await settings.current(dir).catch(()=>({color:'',platforms:null}));return{...c,logo:await settings.logoData(dir),color:s.color,platforms:s.platforms};}));}
+ try{await clients.baseInfo(root);list=await clients.listClients(root);list=await Promise.all(list.map(async c=>{const dir=path.join(root,c.folder);const s=await settings.current(dir).catch(()=>({color:'',platforms:null}));return{...c,logo:await settings.logoData(dir),background:await settings.backgroundStamp(dir),backgroundFit:s.backgroundFit,color:s.color,platforms:s.platforms};}));}
  catch(e){return{root,valid:false,version,catalog,clients:[],client:'',clientValid:false,message:errorMessage(e).message};}
  if(!list.some(c=>c.folder===client)){const next=list[0]?.folder||'';if(next!==client){client=next;lastResult=null;await remember().catch(()=>{});}}
  if(!client)return{root,valid:true,version,catalog,clients:list,client:'',clientValid:false};
@@ -129,12 +197,15 @@ else{
   // residui di un aggiornamento interrotto accanto all'app (solo app installata su Mac)
   if(app.isPackaged&&process.platform==='darwin')update.cleanupLeftovers().then(n=>{if(n)log(`rimossi ${n} residui di aggiornamento`);}).catch(()=>{});
   log(`cartella Social: ${root||'(non scelta)'}, cliente: ${client||'(nessuno)'}`);
-  if(process.platform==='darwin')Menu.setApplicationMenu(Menu.buildFromTemplate([{role:'appMenu'},{role:'editMenu'},{role:'windowMenu'}]));else Menu.setApplicationMenu(null);
+  if(process.platform==='darwin')updateMenu({});else Menu.setApplicationMenu(null);
   endpoint('social:initial',async()=>status());
   endpoint('social:choose',async()=>{
    if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');
-   const result=await dialog.showOpenDialog(window,{title:'Scegli la cartella Social',properties:['openDirectory'],defaultPath:root||app.getPath('documents')});
+   // si può anche creare una cartella nuova dal dialogo (primo avvio: Crea cliente → dove salvare i clienti)
+   const result=await dialog.showOpenDialog(window,{title:'Scegli o crea la cartella dei clienti',buttonLabel:'Usa questa cartella',properties:['openDirectory','createDirectory','promptToCreate'],defaultPath:root||app.getPath('documents')});
    if(result.canceled)return null;
+   // su Windows promptToCreate può restituire una cartella non ancora esistente: la si crea
+   await fs.mkdir(result.filePaths[0],{recursive:true}).catch(()=>{});
    const selected=await clients.baseInfo(result.filePaths[0]);root=selected;await remember();return status();
   });
   // Clienti: una cartella per cliente dentro Social
@@ -182,7 +253,7 @@ else{
   // Impostazioni del cliente (02_Settings/settings.json): logo e colore. Quelle dell'app (cartella Social, tema) sono del computer.
   const clientSettings=async()=>{const current=await settings.current(clientDir());return{...current,logo:await settings.logoData(clientDir()),templates:await templates.listTemplates(clientDir(),current.platforms),name:clients.displayName(client),folder:client};};
   endpoint('social:settings',async()=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');await rootInfo(clientDir());return clientSettings();});
-  endpoint('social:save-settings',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');await rootInfo(clientDir());await settings.save(clientDir(),{color:input?.color,platforms:input?.platforms});return clientSettings();});
+  endpoint('social:save-settings',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');await rootInfo(clientDir());await settings.save(clientDir(),{color:input?.color,platforms:input?.platforms,backgroundFit:input?.backgroundFit});return clientSettings();});
   endpoint('social:choose-logo',async()=>{
    if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');
    await rootInfo(clientDir());
@@ -199,6 +270,16 @@ else{
    await templates.setTemplate(clientDir(),input?.channel,input?.format,result.filePaths[0]);return clientSettings();
   });
   endpoint('social:remove-template',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');await rootInfo(clientDir());await templates.removeTemplate(clientDir(),input?.channel,input?.format);return clientSettings();});
+  // Sfondo della home del cliente: si carica come il logo (02_Settings/sfondo.<ext>)
+  endpoint('social:choose-background',async()=>{
+   if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');
+   await rootInfo(clientDir());
+   const result=await dialog.showOpenDialog(window,{title:`Sfondo della home di ${clients.displayName(client)}`,buttonLabel:'Usa come sfondo',properties:['openFile'],filters:[{name:'Immagini',extensions:Object.keys(settings.BACKGROUND_TYPES).map(e=>e.slice(1))}]});
+   if(result.canceled)return null;
+   await settings.setBackground(clientDir(),result.filePaths[0]);return clientSettings();
+  });
+  endpoint('social:remove-background',async()=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');await rootInfo(clientDir());await settings.removeBackground(clientDir());return clientSettings();});
+  endpoint('social:client-background',async()=>{if(!client)return null;return settings.backgroundData(clientDir());});
   endpoint('social:remove-logo',async()=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');await rootInfo(clientDir());await settings.removeLogo(clientDir());return clientSettings();});
   endpoint('social:plan',async input=>{if(busy)throw new PostError('BUSY','Attendi la fine della creazione.');return planPost(clientDir(),input);});
   endpoint('social:drafts',async()=>{if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');return listDrafts(clientDir());});
@@ -291,15 +372,14 @@ else{
     return await relink.relinkFolder(clientDir(),input,chosen);
    }finally{busy=false;}
   });
-  // Aggiornamento da App Social/versione.json nella cartella Social (NAS)
-  endpoint('social:check-update',async()=>update.checkUpdate(root,app.getVersion()));
+  // Aggiornamento dall'ultima Release su GitHub (versione.json + zip Mac / installer Windows)
+  endpoint('social:check-update',async()=>update.checkUpdate(app.getVersion()));
   endpoint('social:install-update',async()=>{
    if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione in corso, poi aggiorna.');
    busy=true;
    try{
-    const plan=await update.prepareUpdate(root,{currentVersion:app.getVersion(),packaged:app.isPackaged});
-    log(`aggiornamento a ${plan.version} (${plan.platform}${plan.restartOnly?', solo riavvio':''})`);
-    if(plan.restartOnly){busy=false;setTimeout(()=>{app.relaunch();app.exit(0);},400);return{started:true,version:plan.version};}
+    const plan=await update.prepareUpdate({currentVersion:app.getVersion(),packaged:app.isPackaged,progress});
+    log(`aggiornamento a ${plan.version} (${plan.platform})`);
     if(plan.platform==='darwin')await update.launchMacUpdate(plan,{keepEnv:!!process.env.SOCIAL_TEST_ROOT});
     else await update.launchWindowsUpdate(plan);
     busy=false;setTimeout(()=>app.quit(),600);

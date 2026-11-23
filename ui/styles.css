@@ -61,15 +61,13 @@ header,main{--page-width:960px}
 .progress .step-number{width:2.2em;height:2.2em;min-width:0;min-height:0;padding:0;aspect-ratio:1;border-radius:50%;justify-content:center;flex:none}
 
 /* home */
-.home-action{border:0;cursor:pointer;font:inherit;color:inherit;transition:background-color .15s ease,background-image .15s ease;--home-hover:color-mix(in srgb,var(--color-black) 4%,transparent)}
 .home-action img{width:100%;max-width:200px;height:auto;aspect-ratio:1;object-fit:contain;pointer-events:none}
+/* immagini della home nel colore del cliente (filtro SVG in index.html), solo se il cliente ha un colore */
+.svg-filters{position:absolute;width:0;height:0;overflow:hidden}
+.client-tint-flood{flood-color:var(--color-primary)}
+:root[data-client-color] .home-action img{filter:url(#client-tint)}
 /* stesso hover per tutti i pulsanti della home: un velo sopra il loro sfondo (anche quello verde di Crea) */
-.home-action:hover:not(:disabled){background-image:linear-gradient(var(--home-hover),var(--home-hover))}
-:root[pgs-state~=darkmode] .home-action{--home-hover:rgba(255,255,255,.06)}
-.home-action:focus-visible{outline:var(--focus-visible,3px solid var(--color-link));outline-offset:3px}
-.home-action:disabled{opacity:.5;cursor:default}
 .app-version{margin-left:auto}
-@media(prefers-reduced-motion:reduce){.home-action{transition:none}}
 
 /* riepiloghi */
 .review{display:grid;align-items:baseline;grid-template-columns:max-content minmax(0,1fr);gap:var(--gap-details) var(--gap-elements);margin:0}
@@ -117,6 +115,11 @@ header,main{--page-width:960px}
 .post-icon-stack .post-social-icon:first-child:nth-last-child(3){top:0;left:0;right:0;margin-inline:auto}
 .post-icon-stack .post-social-icon:nth-child(2):nth-last-child(2){bottom:0;left:.05em}
 .post-icon-stack .post-social-icon:nth-child(3):last-child{bottom:0;right:.05em}
+/* 4 o più social: griglia 2×2 (con 5 o più l'ultima casella è «+N», gli altri sono nel titolo accessibile) */
+.post-icon-stack.post-icon-grid{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;place-items:center}
+.post-icon-stack.post-icon-grid .post-social-icon{position:static;width:1.1em;height:1.1em;margin:0}
+.post-icon-stack.post-icon-grid .post-social-icon .social-icon{--icon-size:.95em}
+.post-icon-more{font-size:.62em;font-weight:var(--font-weight-bold,600);line-height:1;color:var(--color-text);background:color-mix(in srgb,currentColor 12%,transparent);border-radius:50%;width:1.8em!important;height:1.8em!important}
 .group-summary{width:100%;text-align:left}
 @media(max-width:660px){.draft-item{flex-wrap:wrap}.post-actions{flex-wrap:wrap}}
 
@@ -253,7 +256,9 @@ main{--page-bottom:var(--gap-elements)}
 .post-group[pgs-state~="open"] .group-status-badges{display:none}
 /* gruppo aperto: intestazione (icone, titolo, ID) al 50%, così risaltano le righe dei social; la freccia resta piena */
 .post-group[pgs-state~="open"]>.group-summary>.post-body{opacity:.5;transition:opacity .15s ease}
-.group-status-badges{margin-left:auto;padding-inline:var(--gap-paragraphs);flex:0 1 auto;min-width:0}
+.group-status-badges{margin-left:auto;padding-inline:var(--gap-paragraphs);flex:0 1 auto;min-width:0;max-width:55%}
+/* con molti social i badge vanno a capo e lasciano al titolo almeno metà riga (prima il titolo finiva una lettera per riga) */
+.group-summary>.post-body{min-width:min(16rem,45%)}
 .group-status-badge{display:inline-flex;align-items:center;gap:.35em;white-space:nowrap}
 .group-status-badge .social-icon{--icon-size:1em;width:1em;height:1em;--icon-color:currentColor}
 
@@ -278,7 +283,8 @@ main{--page-bottom:var(--gap-elements)}
 @media(max-width:760px){
  .group-summary{flex-wrap:wrap}
  .group-summary .post-body{flex:1 1 0;min-width:0}
- .group-summary .group-status-badges{order:3;flex:1 1 100%;margin-left:0;justify-content:flex-start;padding-inline:0;padding-top:var(--gap-details)}
+ .group-summary .group-status-badges{order:3;flex:1 1 100%;max-width:none;margin-left:0;justify-content:flex-start;padding-inline:0;padding-top:var(--gap-details)}
+ .group-summary>.post-body{min-width:0}
 }
 .field-error{color:var(--color-error)}
 :is([pgs~=header],[pgs*="header["]){--header-background:transparent}
@@ -311,24 +317,30 @@ main{--page-bottom:var(--gap-elements)}
 .idea-notes{min-width:0;flex:1 1 auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #idea-form textarea,#idea-edit-notes{resize:vertical}
 /* Home: riquadro con Tutti i post / Post in bozza, Crea nuovo post a destra, Idee sotto a tutta larghezza */
-.home-pair{padding:0;overflow:hidden;gap:0}
-.home-row{width:100%;flex:1 1 0;padding:var(--padding-paragraphs) var(--padding-elements);background:transparent;border-radius:0;text-align:left}
+.home-pair{padding:0;overflow:hidden;--box-background:var(--color-box);border:var(--border-width,1px) solid var(--clickable-borderColor)}
+/* Schede della home: pulsanti di myPgs (hover, focus e disabilitato sono i loro); qui solo forma e misure di prima:
+   angoli e colore del box pieno, altezza libera, testo a capo e allineato a sinistra nelle righe */
+.home-card,.home-row{height:auto;white-space:normal;font-weight:inherit;line-height:inherit}
+/* le due righe del riquadro non hanno bordo: il bordo è del riquadro, come quello dei pulsanti */
+.home-row{border-width:0}
+.home-card{--button-borderRadius:calc(var(--borderRadius-paragraphs) + var(--padding-elements));--button-background:var(--color-box)}
+.home-actions>#create-new{--button-background:var(--color-primary-soft);width:100%;align-items:center}
+.home-row{width:100%;flex:1 1 0;--button-borderRadius:0px;justify-content:flex-start;text-align:left}
+.home-ideas{width:100%;justify-content:flex-start;text-align:left}
+/* riquadri della home col colore pieno di box (myPgs usa --color-box-transparent): non lasciano vedere lo sfondo del cliente */
 .home-row img,.home-ideas img{width:80px;max-width:80px;flex:none}
 .home-actions>#create-new img{max-width:170px}
 .home-divider{margin:0 var(--padding-elements);border:0;border-top:var(--border-width,1px) solid var(--border-color)}
-.home-ideas{width:100%;text-align:left;padding:var(--padding-paragraphs) var(--padding-elements)}
 /* Crea nuovo post occupa in altezza le due righe di sinistra (Tutti i post / Post in bozza e Idee) */
 .home-actions>#create-new{grid-row:span 2}
 /* con una sola colonna (myPgs: contenitore sotto 900 px) Crea torna una riga normale; il contenuto resta centrato */
 @container (max-width:900px){.home-actions>#create-new{grid-row:auto}}
 .home-actions>#create-new{justify-content:center}
-.home-pair:has(.home-row:disabled){opacity:.5}
-.home-pair .home-row:disabled{opacity:1}
 @media(max-width:660px){.home-row img,.home-ideas img{width:64px;max-width:64px}}
 /* Header: logo (home) e, al posto della scritta SocialDesk, il nome del cliente con la freccia */
 .brand-row{gap:var(--gap-details);min-width:0;max-width:100%}
 .client-slot{min-width:0;display:flex}
-.client-dropdown{display:inline-flex;max-width:100%;--dropdown-inline-size:max-content;--dropdown-maxInlineSize:min(36rem,calc(100vw - 32px));--dropdown-borderRadius:calc(var(--borderRadius-elements) + var(--padding-details))}
+.client-dropdown{display:inline-flex;max-width:100%;--dropdown-inline-size:max-content;--dropdown-maxBlockSize:50vh;--dropdown-maxInlineSize:min(36rem,calc(100vw - 32px));--dropdown-borderRadius:calc(var(--borderRadius-elements) + var(--padding-details))}
 .client-menu{min-width:14rem;font-size:var(--font-size-text,1rem);font-weight:400;text-align:left;-webkit-app-region:no-drag}
 .client-menu [data-client],.client-menu #client-create,.client-menu #home-client-create{justify-content:flex-start;width:100%;white-space:nowrap}
 .client-menu [data-client]>span:last-child{overflow:hidden;text-overflow:ellipsis}
@@ -359,7 +371,18 @@ header[pgs~="header"]:not([pgs-state~="compact"]) [pgs~="header-element"]{paddin
 .app-footer [pgs~="footer-legal"]{padding-block:0}
 .app-footer [pgs~="footer-legal-content"]{padding-block:var(--padding-paragraphs)}
 /* Sfumatura in alto alla pagina nel colore primario (quello del cliente, se scelto) al 50% di trasparenza */
-body::before{content:"";width:100%;height: var(--_header-heightScroll);background:linear-gradient(180deg,color-mix(in srgb,var(--color-primary) 50%,transparent),transparent);position:absolute;top:0;left:0;z-index:-1;pointer-events:none}
+/* Sfondo della home del cliente: a tutta finestra dietro la pagina, solo in home, con un velo del colore di sfondo
+   perché testi e riquadri restino leggibili */
+:root{--home-background-veil:color-mix(in srgb,var(--color-background,#fff) 35%,transparent)}
+:root[data-home-background] body::after{content:"";position:fixed;inset:0;z-index:-2;pointer-events:none;background-image:linear-gradient(var(--home-background-veil),var(--home-background-veil)),var(--client-background);background-size:cover;background-position:center;background-repeat:no-repeat}
+/* contain: immagine intera appoggiata in basso (il velo resta su tutta la finestra) */
+:root[data-home-background][data-home-background-fit^=contain] body::after{background-size:cover,contain;background-position:center,bottom}
+/* varianti sfocate; con cover lo strato sborda un po' perché la sfocatura non schiarisca i bordi della finestra */
+:root[data-home-background][data-home-background-fit$=blur] body::after{filter:blur(20px)}
+:root[data-home-background][data-home-background-fit=cover-blur] body::after{inset:-40px}
+.background-fit-field{max-width:44rem}
+.client-background-preview{width:160px;height:96px;object-fit:cover;border-radius:var(--borderRadius-paragraphs,12px);background:var(--color-background-soft,rgba(127,127,127,.08));flex:none}
+.client-background-preview.client-logo-empty{display:inline-flex;align-items:center;justify-content:center;font-size:2rem;opacity:.45}
 /* Impostazioni del cliente: righe dei template (ognuna apre la sua modale) */
 .template-group-title{display:flex;align-items:center;gap:var(--gap-details);margin:0}
 .template-list{list-style:none;margin:0;padding:0;gap:0}
@@ -369,6 +392,7 @@ body::before{content:"";width:100%;height: var(--_header-heightScroll);backgroun
 /* Benvenuto (nessun cliente) */
 .welcome{text-align:center;max-width:44rem;margin-inline:auto;padding-block:var(--padding-groups,3rem)}
 .welcome-logo{width:120px;height:auto}
+.welcome-actions>button{min-width:16rem;justify-content:center}
 /* in tema scuro TikTok e X selezionati hanno lo sfondo chiaro: testo e icona scuri */
 :root[pgs-state~=darkmode] .channel-chip:has(input:checked):is([data-channel="TikTok"],[data-channel="X"]){--button-color-twoState:#111}
 :root[pgs-state~=darkmode] .channel-chip:has(input:checked):is([data-channel="TikTok"],[data-channel="X"]) .social-icon{--icon-color:#111}
