@@ -148,6 +148,10 @@ anteprima dei file Illustrator con `pdfjs-dist`; Excel modificato con `fflate` +
 - Niente conferma nativa «hai chiuso i file?» prima di salvare: il controllo del piano aperto
   resta automatico. Titoli tutti in maiuscolo non ammessi (sigle sì).
 - Modifica post e Dettagli sono modali a tutto schermo sopra l'elenco.
+- Gruppi per ID nell'elenco: icone dei social a sinistra (1 al centro, 2 in diagonale, 3 a
+  triangolo, 4 in griglia 2×2; con 5 o più le prime 3 e una casella «+N»; tutti i nomi restano
+  nell'etichetta accessibile). I badge di stato a destra occupano al massimo metà riga e vanno a
+  capo; sotto 760 px vanno su una riga sotto il titolo.
 
 ## Limiti e cose non verificate
 
