@@ -131,8 +131,9 @@ anteprima dei file Illustrator con `pdfjs-dist`; Excel modificato con `fflate` +
 
 ## Scelte dell'utente da non disfare
 
-- Header: logo e nome del cliente a sinistra con la freccia dei clienti; Tutti i post, Post in
-  bozza, Idee, Crea nuovo post. Footer: logo SocialDesk, Impostazioni dell'app, versione, Cerca
+- Header: logo e nome del cliente a sinistra con la freccia dei clienti; Tutti i post
+  (`icon-fileText`), Post in bozza (`icon-formEdit`), Idee (lampadina), Crea nuovo post (cerchio con
+  «+», da non cambiare); stesse icone nel menu compatto. Footer: logo SocialDesk, Impostazioni dell'app, versione, Cerca
   aggiornamenti. Niente sfumatura colorata dietro l'header.
 - Home: «Ciao, <cliente>»; schede Tutti i post / Post in bozza (un riquadro), Idee, Crea nuovo
   post (colore del cliente), tutte pulsanti myPgs; immagini tinte col colore del cliente solo
