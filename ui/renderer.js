@@ -100,7 +100,7 @@ const toastHost=document.getElementById('toast-host');
 function bringToastToFront(){try{if(toastHost.matches(':popover-open'))toastHost.hidePopover();toastHost.showPopover();}catch{}}
 let activeProgress=null;
 api?.onProgress?.(data=>activeProgress?.update(data));
-function progressToast(title,{lazy=false,segments=1}={}){
+function progressToast(title,{lazy=false,segments=1,showSteps=true}={}){
  let shown=false,card=null,segment=0;
  const job={label:'Controllo dei dati…',fraction:0,step:'',
   show(){
@@ -121,7 +121,7 @@ function progressToast(title,{lazy=false,segments=1}={}){
   update({step,total,label}){
    if(!Number.isInteger(step)||!Number.isInteger(total)||total<1)return;
    job.label=String(label||'');job.fraction=(segment+step/total)/segments;
-   job.step=segments===1?`Passo ${step+1} di ${total}`:'';
+   job.step=segments===1&&showSteps?`Passo ${step+1} di ${total}`:'';
    job.show();job.draw();
   },
   // operazioni fatte di più salvataggi (es. data e stato): ognuno occupa una parte della barra
@@ -321,10 +321,11 @@ function renderSuccess(){
  document.getElementById('new-post').addEventListener('click',()=>{state.step=0;state.visited=0;state.post=initialPost();state.plan=null;state.result=null;state.error='';render();});
 }
 async function goHome(){if(state.loading||!await confirmLeave())return;state.route='home';state.error='';state.notice='';state.selected=null;state.highlight=null;render();window.scrollTo({top:0});refreshUpdate();}
-// Aggiornamento: App Social/versione.json nella cartella Social. Controllato all'avvio e tornando in home (al massimo ogni minuto).
+// Aggiornamento: ultima Release su GitHub (lib/update.cjs). Controllato all'avvio e tornando in home (al massimo ogni minuto),
+// anche senza cartella Social: non dipende dal NAS.
 let lastUpdateCheck=0;
 async function refreshUpdate(force=false){
- if(!state.baseValid||!api?.checkUpdate||(!force&&Date.now()-lastUpdateCheck<60000))return;
+ if(!api?.checkUpdate||(!force&&Date.now()-lastUpdateCheck<60000))return;
  lastUpdateCheck=Date.now();
  try{const result=await call('checkUpdate');const changed=!!result.available!==!!state.update?.available||result.version!==state.update?.version;state.update=result;if(changed&&!state.loading)renderAppFooter();}catch{}
 }
@@ -344,7 +345,7 @@ async function checkUpdateNow(){
 function openUpdateModal(){
  if(anyModalOpen()||!state.update?.available)return;
  const u=state.update,opener=document.getElementById('install-update');
- const body=`<p>È disponibile <strong>SocialDesk ${escape(u.version)}</strong> (ora usi la ${escape(state.version)}).</p>${u.notes?`<p class="hint">${escape(u.notes)}</p>`:''}<p>SocialDesk si chiuderà, installerà la nuova versione dalla cartella App Social e si riaprirà da solo. Le impostazioni restano invariate.</p><div id="update-error" role="alert" hidden></div><div pgs="flex['row' 'justifyEnd' 'gapParagraphs']"><button pgs="button" id="update-later" type="button">Più tardi</button><button pgs="button['btnStrong']" id="update-now" type="button">${icon('download')}<span>Aggiorna ora</span></button></div>`;
+ const body=`<p>È disponibile <strong>SocialDesk ${escape(u.version)}</strong> (ora usi la ${escape(state.version)}).</p>${u.notes?`<p class="hint">${escape(u.notes)}</p>`:''}<p>SocialDesk scaricherà la nuova versione da internet (circa 130 MB), si chiuderà, la installerà e si riaprirà da solo. Le impostazioni restano invariate.</p><div id="update-error" role="alert" hidden></div><div pgs="flex['row' 'justifyEnd' 'gapParagraphs']"><button pgs="button" id="update-later" type="button">Più tardi</button><button pgs="button['btnStrong']" id="update-now" type="button">${icon('download')}<span>Aggiorna ora</span></button></div>`;
  const modal=createModal({title:'Aggiorna SocialDesk',titleId:'update-title',body,onClose:()=>{if(opener?.isConnected)opener.focus({preventScroll:true});}});
  modal.dialog.id='update-modal';
  const now=modal.dialog.querySelector('#update-now'),message=modal.dialog.querySelector('#update-error');
@@ -352,8 +353,9 @@ function openUpdateModal(){
  now.addEventListener('click',async()=>{
   if(modal.busy)return;modal.busy=true;state.loading=true;setAlert(message,'');
   modal.dialog.querySelectorAll('button').forEach(button=>button.disabled=true);now.textContent='Aggiornamento in corso…';
-  try{await call('installUpdate');setAlert(message,'SocialDesk si chiude e si riapre con la nuova versione tra pochi secondi.','info');}
-  catch(e){modal.busy=false;state.loading=false;modal.dialog.querySelectorAll('button').forEach(button=>button.disabled=false);now.innerHTML=`${icon('download')}<span>Aggiorna ora</span>`;setAlert(message,e.message);}
+  const job=progressToast('Scarico l’aggiornamento',{showSteps:false});
+  try{await call('installUpdate');job.success('Aggiornamento scaricato','SocialDesk si riapre con la nuova versione.');setAlert(message,'SocialDesk si chiude e si riapre con la nuova versione tra pochi secondi.','info');}
+  catch(e){job.cancel();modal.busy=false;state.loading=false;modal.dialog.querySelectorAll('button').forEach(button=>button.disabled=false);now.innerHTML=`${icon('download')}<span>Aggiorna ora</span>`;setAlert(message,e.message);}
  });
  modal.open();now.focus();
 }
@@ -417,7 +419,7 @@ function renderClientSlot(){
 // Footer dell'app, su tutte le pagine: logo SocialDesk, impostazioni dell'app, versione e aggiornamenti
 function renderAppFooter(){
  const host=document.getElementById('app-footer');if(!host)return;
- const update=state.update?.available?`<button pgs="button['btnStrong' 'btnMini']" id="install-update" type="button" ${disabled(state.loading)} title="Installa la versione ${escape(state.update.version)} da App Social">${icon('download')}<span>Aggiorna alla ${escape(state.update.version)}</span></button>`:`<button pgs="button['btnMini']" id="check-update" type="button" ${disabled(state.loading||state.checkingUpdate)} title="Controlla se in App Social c'è una versione più recente">${icon('download')}<span>${state.checkingUpdate?'Controllo…':'Cerca aggiornamenti'}</span></button>`;
+ const update=state.update?.available?`<button pgs="button['btnStrong' 'btnMini']" id="install-update" type="button" ${disabled(state.loading)} title="Scarica e installa la versione ${escape(state.update.version)}">${icon('download')}<span>Aggiorna alla ${escape(state.update.version)}</span></button>`:`<button pgs="button['btnMini']" id="check-update" type="button" ${disabled(state.loading||state.checkingUpdate)} title="Controlla su internet se c'è una versione più recente">${icon('download')}<span>${state.checkingUpdate?'Controllo…':'Cerca aggiornamenti'}</span></button>`;
  host.innerHTML=`<section pgs="footer-legal section"><div pgs="footer-legal-content"><a pgs="logo" href="#home" id="footer-home" class="footer-brand-link" aria-label="SocialDesk — Home"><img pgs="logo-image" src="assets/socialdesk-logo.svg" alt=""><span pgs="logo-text">SocialDesk</span></a><button pgs="button['btnMini']" id="open-settings" type="button" ${disabled(state.loading)} ${state.route==='settings'&&state.settingsTab==='app'?'aria-current="page"':''}>${icon('gear')}<span>Impostazioni</span></button>${state.version?`<span pgs="badge['badgeNeutral']" class="app-version">Versione ${escape(state.version)}</span>${update}`:''}</div></section>`;
  enhance(host);
  host.querySelector('#footer-home').addEventListener('click',event=>{event.preventDefault();goHome();});

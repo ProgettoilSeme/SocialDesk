@@ -301,15 +301,14 @@ else{
     return await relink.relinkFolder(clientDir(),input,chosen);
    }finally{busy=false;}
   });
-  // Aggiornamento da App Social/versione.json nella cartella Social (NAS)
-  endpoint('social:check-update',async()=>update.checkUpdate(root,app.getVersion()));
+  // Aggiornamento dall'ultima Release su GitHub (versione.json + zip Mac / installer Windows)
+  endpoint('social:check-update',async()=>update.checkUpdate(app.getVersion()));
   endpoint('social:install-update',async()=>{
    if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione in corso, poi aggiorna.');
    busy=true;
    try{
-    const plan=await update.prepareUpdate(root,{currentVersion:app.getVersion(),packaged:app.isPackaged});
-    log(`aggiornamento a ${plan.version} (${plan.platform}${plan.restartOnly?', solo riavvio':''})`);
-    if(plan.restartOnly){busy=false;setTimeout(()=>{app.relaunch();app.exit(0);},400);return{started:true,version:plan.version};}
+    const plan=await update.prepareUpdate({currentVersion:app.getVersion(),packaged:app.isPackaged,progress});
+    log(`aggiornamento a ${plan.version} (${plan.platform})`);
     if(plan.platform==='darwin')await update.launchMacUpdate(plan,{keepEnv:!!process.env.SOCIAL_TEST_ROOT});
     else await update.launchWindowsUpdate(plan);
     busy=false;setTimeout(()=>app.quit(),600);
