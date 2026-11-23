@@ -49,5 +49,6 @@ contextBridge.exposeInMainWorld('socialAPI',{
  ideas:()=>ipcRenderer.invoke('social:ideas'),
  changeIdea:input=>ipcRenderer.invoke('social:idea',input),
  // avanzamento delle operazioni lunghe: {step,total,label}
+ onMenu:callback=>{const listener=(event,data)=>callback(data);ipcRenderer.on('social:menu',listener);return()=>ipcRenderer.removeListener('social:menu',listener);},
  onProgress:callback=>{const listener=(event,data)=>callback(data);ipcRenderer.on('social:progress',listener);return()=>ipcRenderer.removeListener('social:progress',listener);},
 });

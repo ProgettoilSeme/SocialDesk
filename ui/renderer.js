@@ -100,6 +100,30 @@ const toastHost=document.getElementById('toast-host');
 function bringToastToFront(){try{if(toastHost.matches(':popover-open'))toastHost.hidePopover();toastHost.showPopover();}catch{}}
 let activeProgress=null;
 api?.onProgress?.(data=>activeProgress?.update(data));
+// Menu dell'app su Mac (main.cjs → updateMenu): le voci usano le stesse funzioni dei pulsanti
+api?.onMenu?.(data=>void menuAction(data?.action,data?.arg));
+async function menuAction(action,arg){
+ if(state.loading)return;
+ // con una finestra aperta (modifica, dettagli…) i comandi di navigazione aspettano che si chiuda
+ const navigation=['new-post','home','posts','drafts','ideas','client','settings-app','settings-client','create-client','link-folder','sync-assets'];
+ if(navigation.includes(action)&&anyModalOpen())return;
+ if(['new-post','posts','drafts','ideas'].includes(action)&&!state.rootValid)return;
+ if(['new-post','posts','drafts','ideas','settings-app','settings-client'].includes(action)&&!await confirmLeave())return;
+ switch(action){
+  case 'new-post':startCreate();break;
+  case 'home':goHome();break;
+  case 'posts':case 'drafts':await loadList(action);window.scrollTo({top:0});break;
+  case 'ideas':openIdeas();break;
+  case 'refresh':if((state.route==='posts'||state.route==='drafts')&&!anyModalOpen())await reloadListAt(state.highlight);else if(!anyModalOpen())await recheckRoot();break;
+  case 'client':if(typeof arg==='string')selectClient(arg);break;
+  case 'create-client':openClientModal(null);break;
+  case 'settings-app':openSettings('app');break;
+  case 'settings-client':if(state.rootValid)openSettings('client');break;
+  case 'sync-assets':if(state.rootValid)syncAssets();break;
+  case 'link-folder':linkExistingFolder();break;
+  case 'check-update':checkUpdateNow();break;
+ }
+}
 function progressToast(title,{lazy=false,segments=1,showSteps=true}={}){
  let shown=false,card=null,segment=0;
  const job={label:'Controllo dei dati…',fraction:0,step:'',

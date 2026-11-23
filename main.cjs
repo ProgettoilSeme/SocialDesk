@@ -60,7 +60,75 @@ function errorMessage(e){
 // Cartella del cliente in uso: tutte le operazioni sui post (piano, template, 01_Posts, idee, cestino) avvengono lì.
 function clientDir(){if(!root)throw new PostError('ROOT','Scegli la cartella Social.');if(!client)throw new PostError('CLIENT','Scegli o crea un cliente.');return path.join(root,client);}
 // Stato per la home: cartella Social, elenco dei clienti e cliente in uso (se il cliente salvato non c'è più si passa al primo)
-async function status(){
+// Menu dell'app su Mac (barra in alto): le voci mandano un'azione al renderer, che usa le stesse funzioni dei pulsanti.
+// Senza cliente valido le voci dei post e del cliente sono disattivate. Su Windows nessun menu.
+const REPO_URL=`https://github.com/${require('./package.json').updates?.github||''}`;
+function menuAction(action,arg){
+ if(!window||window.isDestroyed())return;
+ if(window.isMinimized())window.restore();window.show();window.focus();
+ window.webContents.send('social:menu',{action,arg});
+}
+function updateMenu(st){
+ if(process.platform!=='darwin')return;
+ const ready=!!st.clientValid,clientsList=st.clients||[];
+ const item=(label,action,extra={})=>({label,click:()=>menuAction(action,extra.arg),...extra,arg:undefined});
+ const template=[
+  {label:app.name,submenu:[
+   {role:'about',label:'Informazioni su SocialDesk'},
+   item('Cerca aggiornamenti…','check-update'),
+   {type:'separator'},
+   item('Impostazioni…','settings-app',{accelerator:'CmdOrCtrl+,'}),
+   {type:'separator'},
+   {role:'services',label:'Servizi'},
+   {type:'separator'},
+   {role:'hide',label:'Nascondi SocialDesk'},{role:'hideOthers',label:'Nascondi altre'},{role:'unhide',label:'Mostra tutte'},
+   {type:'separator'},
+   {role:'quit',label:'Esci da SocialDesk'},
+  ]},
+  {label:'Modifica',submenu:[
+   {role:'undo',label:'Annulla'},{role:'redo',label:'Ripeti'},{type:'separator'},
+   {role:'cut',label:'Taglia'},{role:'copy',label:'Copia'},{role:'paste',label:'Incolla'},{role:'pasteAndMatchStyle',label:'Incolla e adatta stile'},{role:'delete',label:'Elimina'},{role:'selectAll',label:'Seleziona tutto'},
+  ]},
+  {label:'Post',submenu:[
+   item('Nuovo post','new-post',{accelerator:'CmdOrCtrl+N',enabled:ready}),
+   {type:'separator'},
+   item('Home','home',{accelerator:'CmdOrCtrl+Shift+H'}),
+   item('Tutti i post','posts',{accelerator:'CmdOrCtrl+1',enabled:ready}),
+   item('Post in bozza','drafts',{accelerator:'CmdOrCtrl+2',enabled:ready}),
+   item('Idee','ideas',{accelerator:'CmdOrCtrl+3',enabled:ready}),
+   {type:'separator'},
+   item('Aggiorna','refresh',{accelerator:'CmdOrCtrl+R'}),
+  ]},
+  {label:'Cliente',submenu:[
+   {label:'Cambia cliente',enabled:clientsList.length>0,submenu:clientsList.length?clientsList.map(c=>({label:c.name,type:'radio',checked:c.folder===st.client,click:()=>menuAction('client',c.folder)})):[{label:'Nessun cliente',enabled:false}]},
+   item('Crea cliente…','create-client'),
+   {type:'separator'},
+   item('Impostazioni del cliente…','settings-client',{accelerator:'CmdOrCtrl+Shift+,',enabled:ready}),
+   item('Aggiorna archivio asset','sync-assets',{enabled:ready}),
+  ]},
+  {label:'Impostazioni',submenu:[
+   item('Impostazioni dell’app…','settings-app'),
+   item('Impostazioni del cliente…','settings-client',{enabled:ready}),
+   {type:'separator'},
+   item('Collega cartella dei clienti…','link-folder'),
+   item('Cerca aggiornamenti…','check-update'),
+  ]},
+  {label:'Vista',submenu:[
+   {role:'resetZoom',label:'Dimensioni reali'},{role:'zoomIn',label:'Ingrandisci'},{role:'zoomOut',label:'Riduci'},
+   {type:'separator'},
+   {role:'togglefullscreen',label:'Schermo intero'},
+  ]},
+  {role:'windowMenu',label:'Finestra',submenu:[{role:'minimize',label:'Riduci a icona'},{role:'zoom',label:'Ridimensiona'},{type:'separator'},{role:'front',label:'Porta tutto in primo piano'}]},
+  {role:'help',label:'Aiuto',submenu:[
+   {label:'SocialDesk su GitHub',click:()=>shell.openExternal(REPO_URL)},
+   {label:'Novità delle versioni',click:()=>shell.openExternal(`${REPO_URL}/releases`)},
+  ]},
+ ];
+ Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+// Stato per il renderer; su Mac aggiorna anche il menu in alto (clienti, voci attive)
+async function status(){const result=await computeStatus();try{updateMenu(result);}catch(e){log(`menu: ${e.message}`);}return result;}
+async function computeStatus(){
  const version=app.getVersion(),catalog=CATALOG;
  if(!root)return{root:'',valid:false,version,catalog,clients:[],client:'',clientValid:false};
  let list;
@@ -129,7 +197,7 @@ else{
   // residui di un aggiornamento interrotto accanto all'app (solo app installata su Mac)
   if(app.isPackaged&&process.platform==='darwin')update.cleanupLeftovers().then(n=>{if(n)log(`rimossi ${n} residui di aggiornamento`);}).catch(()=>{});
   log(`cartella Social: ${root||'(non scelta)'}, cliente: ${client||'(nessuno)'}`);
-  if(process.platform==='darwin')Menu.setApplicationMenu(Menu.buildFromTemplate([{role:'appMenu'},{role:'editMenu'},{role:'windowMenu'}]));else Menu.setApplicationMenu(null);
+  if(process.platform==='darwin')updateMenu({});else Menu.setApplicationMenu(null);
   endpoint('social:initial',async()=>status());
   endpoint('social:choose',async()=>{
    if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');

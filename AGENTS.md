@@ -152,6 +152,13 @@ anteprima dei file Illustrator con `pdfjs-dist`; Excel modificato con `fflate` +
 - Niente conferma nativa «hai chiuso i file?» prima di salvare: il controllo del piano aperto
   resta automatico. Titoli tutti in maiuscolo non ammessi (sigle sì).
 - Modifica post e Dettagli sono modali a tutto schermo sopra l'elenco.
+- Menu in alto su Mac (`updateMenu` in `main.cjs`, ricostruito a ogni `status()`; su Windows nessun
+  menu): SocialDesk (Informazioni, Cerca aggiornamenti, Impostazioni ⌘,), Modifica, Post (Nuovo
+  post ⌘N, Home ⌘⇧H, Tutti i post ⌘1, Post in bozza ⌘2, Idee ⌘3, Aggiorna ⌘R), Cliente (Cambia
+  cliente con l'elenco, Crea cliente, Impostazioni del cliente ⌘⇧,, Aggiorna archivio asset),
+  Impostazioni, Vista, Finestra, Aiuto (GitHub, novità). Le voci mandano `social:menu` al renderer
+  (`menuAction`), che usa le stesse funzioni dei pulsanti; con una finestra aperta la navigazione
+  aspetta, senza cliente valido le voci dei post sono spente.
 - Gruppi per ID nell'elenco: icone dei social a sinistra (1 al centro, 2 in diagonale, 3 a
   triangolo, 4 in griglia 2×2; con 5 o più le prime 3 e una casella «+N»; tutti i nomi restano
   nell'etichetta accessibile). I badge di stato a destra occupano al massimo metà riga e vanno a
