@@ -359,14 +359,29 @@ function openUpdateModal(){
  });
  modal.open();now.focus();
 }
-// Nessun cliente nella cartella Social: al posto della home il benvenuto con Crea cliente
+// Benvenuto al posto della home: al primo avvio (nessuna cartella scelta) o con una cartella senza clienti.
+// Inizia apre Crea cliente (che, senza cartella, chiede prima dove salvare i clienti); Collega cartella esistente
+// sceglie una cartella che contiene già i clienti.
 function renderWelcome(){
- main.innerHTML=`<section pgs="flex['column' 'itemCenter' 'gapElements']" class="welcome"><img class="welcome-logo" src="assets/socialdesk-logo.svg" alt="" width="120" height="120"><h1 pgs="h2">Benvenuto in SocialDesk</h1><p class="lead">Qui organizzi i post social dei tuoi clienti: idee, testi, grafiche e piano editoriale, tutto nella stessa cartella.</p><p class="hint">Per iniziare crea il primo cliente. In Social verrà creata la sua cartella con il piano editoriale e le cartelle per i post, le impostazioni e i template.</p><button pgs="button['btnStrong']" id="welcome-create" type="button" ${disabled(state.loading)}>${icon('circlePlus')}<span>Crea cliente</span></button></section>${noticeBox()}${errorBox()}`;
+ const folder=state.root&&state.baseValid?state.root:'';
+ const where=folder?`<p class="hint">Cartella collegata: <span class="path">${escape(folder)}</span>. Non contiene ancora clienti: premi Inizia per creare il primo.</p>`:`<p class="hint">Per iniziare scegli dove salvare il lavoro e crea il primo cliente. Se la cartella dei clienti esiste già (per esempio su un disco condiviso con i colleghi), collegala.</p>`;
+ main.innerHTML=`<section pgs="flex['column' 'itemCenter' 'gapElements']" class="welcome"><img class="welcome-logo" src="assets/socialdesk-logo.svg" alt="" width="120" height="120"><h1 pgs="h2">Benvenuto in SocialDesk</h1><p class="lead">Qui organizzi i post social dei tuoi clienti: idee, testi, grafiche e piano editoriale, tutto nella stessa cartella.</p>${where}<div pgs="flex['column' 'itemCenter' 'gapParagraphs']" class="welcome-actions"><button pgs="button['btnStrong']" id="welcome-create" type="button" ${disabled(state.loading)}><span>Inizia</span>${icon('arrowRight')}</button><button pgs="button['btnTransparent']" id="welcome-link" type="button" ${disabled(state.loading)}>${icon('folderOpen')}<span>${folder?'Collega un’altra cartella':'Collega cartella esistente'}</span></button></div></section>${noticeBox()}${errorBox()}`;
  footer.innerHTML='';
  document.getElementById('welcome-create').addEventListener('click',event=>openClientModal(event.currentTarget));
+ document.getElementById('welcome-link').addEventListener('click',linkExistingFolder);
+}
+// Collega cartella esistente: se contiene clienti si va alla home, altrimenti resta il benvenuto con la cartella indicata
+async function linkExistingFolder(){
+ if(state.loading)return;
+ try{
+  const result=await call('chooseRoot');if(!result)return;
+  applyStatus(result);state.notice='';state.route='home';render();refreshUpdate(true);
+  const n=state.clients.length;
+  globalThis.pgs?.toast[n?'success':'neutral']({title:'Cartella collegata',description:n?`${n===1?'Trovato 1 cliente':`Trovati ${n} clienti`}.`:'Nessun cliente in questa cartella: premi Inizia per creare il primo.',timeout:4000,closeTitle:'Chiudi'});bringToastToFront();
+ }catch(e){state.error=e.message;render();}
 }
 function renderHome(){
- if(state.baseValid&&!state.clients.length){renderWelcome();return;}
+ if(!state.root||(state.baseValid&&!state.clients.length)){renderWelcome();return;}
  const card=(id,tone,image,label)=>`<button pgs="button['btnPaddingEqual'] flex['column' 'itemCenter' 'gapParagraphs']" class="home-action home-card" id="${id}" type="button" ${disabled(state.loading||!state.rootValid)}><img src="assets/${image}" alt="" width="240" height="240"><span pgs="h4">${label}</span></button>`;
  // Home: a sinistra Tutti i post e Post in bozza nello stesso riquadro, a destra Crea nuovo post, sotto Idee
  const row=(id,image,label)=>`<button pgs="button['btnTransparent' 'btnPaddingEqual'] flex['row' 'itemCenter' 'gapParagraphs']" class="home-action home-row" id="${id}" type="button" ${disabled(state.loading||!state.rootValid)}><img src="assets/${image}" alt="" width="120" height="120"><span pgs="h4">${label}</span></button>`;
@@ -467,10 +482,13 @@ async function openClientModal(opener){
  if(state.route==='create'&&!(await confirmLeave()))return;
  // il flex sta dentro il passo: su stepTabs-container-tab vincerebbe sul display:none dei passi non attivi
  const tab=(iconName,content,locked=false)=>`<section pgs="stepTabs-container-tab flex['column' 'gapParagraphs']" pgs-data="stepTabsIcon[icon-${iconName}]" tabindex="-1" ${locked?'pgs-state="locked"':''}>${content}</section>`;
- const step1=tab('pencil',`<h3 pgs="h5">Come si chiama il cliente?</h3><div pgs="form flex['column' 'gapParagraphs']">${field('Nome del cliente',`<input pgs="input" id="client-name" maxlength="60" autocomplete="off" required placeholder=" ">`)}<p class="hint" id="client-folder-preview" aria-live="polite">Verrà creata in Social una cartella con questo nome (gli spazi diventano “_”).</p></div>`,true);
+ // senza cartella dei clienti (primo avvio) il primo passo è sceglierla o crearla
+ const needFolder=!state.root||!state.baseValid,nameStep=needFolder?1:0;
+ const step0=needFolder?tab('folderOpen',`<h3 pgs="h5">Dove salvo i clienti?</h3><p class="hint">Scegli o crea la cartella che conterrà tutti i clienti: dentro ognuno avrà la sua cartella con il piano editoriale, i post e i template. Se lavori con altre persone, mettila su un disco condiviso (per esempio un NAS) e fate scegliere a tutti la stessa cartella.</p><div pgs="flex['row' 'wrap' 'itemCenter' 'gapParagraphs']"><button pgs="button" type="button" id="new-client-folder">${icon('folderOpen')}<span>Scegli o crea cartella</span></button></div><p class="hint path" id="new-client-folder-path" aria-live="polite" hidden></p>`,true):'';
+ const step1=tab('pencil',`<h3 pgs="h5">Come si chiama il cliente?</h3><div pgs="form flex['column' 'gapParagraphs']">${field('Nome del cliente',`<input pgs="input" id="client-name" maxlength="60" autocomplete="off" required placeholder=" ">`)}<p class="hint" id="client-folder-preview" aria-live="polite">Verrà creata una cartella con questo nome (gli spazi diventano “_”).</p></div>`,true);
  const step2=tab('image',`<h3 pgs="h5">Logo <span class="optional">(facoltativo)</span></h3><p class="hint">Compare accanto al nome del cliente in alto. PNG, JPG, WEBP, GIF o SVG, massimo 2 MB. Puoi aggiungerlo anche dopo in Impostazioni del cliente.</p><div pgs="flex['row' 'wrap' 'itemCenter' 'gapParagraphs']" class="client-logo-row"><span id="new-client-logo" class="client-logo-preview client-logo-empty" aria-hidden="true">${icon('image')}</span><button pgs="button" type="button" id="new-client-logo-pick">${icon('upload')}<span>Scegli immagine</span></button><button pgs="button['btnTransparent']" type="button" id="new-client-logo-clear" hidden>${icon('trash')}<span>Togli</span></button></div>`);
  const step3=tab('globe',`<h3 pgs="h5">Su quali social pubblica?</h3><p class="hint">Scegline almeno uno. Potrai cambiarli in Impostazioni del cliente.</p><fieldset pgs="chips" class="channel-chips platform-choices"><legend pgs="visuallyHidden">Social del cliente</legend>${CHANNELS.map(c=>`<label pgs="button['btnMini' 'btnTwoState']" class="channel-chip" data-channel="${c}"><input type="checkbox" data-new-platform="${c}">${socialIcon(c)}<span>${c}</span></label>`).join('')}</fieldset>`);
- const body=`<div pgs="stepTabs flex['column' 'gapElements']" class="client-wizard"><div pgs="stepTabs-dots" role="group" aria-label="Passi"></div><div pgs="stepTabs-container">${step1}${step2}${step3}</div><div id="client-error" role="alert" hidden></div><div pgs="flex['row' 'wrap' 'justifyBetween' 'gapParagraphs']" class="client-wizard-actions"><button pgs="stepTabs-prev button" type="button">${icon('arrowLeft')}<span>Indietro</span></button><span pgs="flex['row' 'gapParagraphs']"><button pgs="button" type="button" id="client-cancel">Annulla</button><button pgs="stepTabs-next button['btnReverse']" type="button" id="client-next"><span>Avanti</span>${icon('arrowRight')}</button><button pgs="button['btnStrong']" type="button" id="client-save" hidden disabled>${icon('circlePlus')}<span>Crea cliente</span></button></span></div></div>`;
+ const body=`<div pgs="stepTabs flex['column' 'gapElements']" class="client-wizard"><div pgs="stepTabs-dots" role="group" aria-label="Passi"></div><div pgs="stepTabs-container">${step0}${step1}${step2}${step3}</div><div id="client-error" role="alert" hidden></div><div pgs="flex['row' 'wrap' 'justifyBetween' 'gapParagraphs']" class="client-wizard-actions"><button pgs="stepTabs-prev button" type="button">${icon('arrowLeft')}<span>Indietro</span></button><span pgs="flex['row' 'gapParagraphs']"><button pgs="button" type="button" id="client-cancel">Annulla</button><button pgs="stepTabs-next button['btnReverse']" type="button" id="client-next"><span>Avanti</span>${icon('arrowRight')}</button><button pgs="button['btnStrong']" type="button" id="client-save" hidden disabled>${icon('circlePlus')}<span>Crea cliente</span></button></span></div></div>`;
  let created=false;
  const modal=createModal({title:'Crea cliente',titleId:'client-modal-title',body,size:'dialogMedium',onClose:()=>{if(!created)call('clearClientLogo').catch(()=>{});if(opener?.isConnected)opener.focus({preventScroll:true});}});
  const dialog=modal.dialog,root=dialog.querySelector('.client-wizard');
@@ -480,11 +498,25 @@ async function openClientModal(opener){
  const wizard=()=>{try{return globalThis.pgs?.stepTabs.api(root);}catch{return null;}};
  let checked='',checkTimer=null,valid=false;
  // passo 1: il nome si controlla mentre si scrive; finché non va bene Avanti resta bloccato
- const lock=on=>{valid=!on;try{wizard()?.toggleLock(0,on);}catch{}};
+ const lock=on=>{valid=!on;try{wizard()?.toggleLock(nameStep,on);}catch{}};
+ // passo 0 (solo senza cartella): la cartella scelta diventa subito la cartella dei clienti di questo computer
+ dialog.querySelector('#new-client-folder')?.addEventListener('click',async()=>{
+  setAlert(message,'');
+  try{
+   const result=await call('chooseRoot');if(!result)return;
+   applyStatus(result);
+   const where=dialog.querySelector('#new-client-folder-path');where.hidden=false;
+   const n=state.clients.length;
+   where.textContent=`Cartella: ${state.root}${n?` · contiene già ${n===1?'1 cliente':n+' clienti'}`:''}`;
+   dialog.querySelector('#new-client-folder span').textContent='Cambia cartella';
+   try{wizard()?.toggleLock(0,false);}catch{}
+   if(input.value.trim())checkName();
+  }catch(e){setAlert(message,e.message);}
+ });
  const checkName=async()=>{
   const value=input.value;
-  if(!value.trim()){lock(true);preview.textContent='Verrà creata in Social una cartella con questo nome (gli spazi diventano “_”).';preview.classList.remove('field-error');return;}
-  try{const r=await call('checkClientName',value);if(input.value!==value)return;checked=value;preview.textContent=`Cartella: Social/${r.folder}`;preview.classList.remove('field-error');lock(false);}
+  if(!value.trim()){lock(true);preview.textContent='Verrà creata una cartella con questo nome (gli spazi diventano “_”).';preview.classList.remove('field-error');return;}
+  try{const r=await call('checkClientName',value);if(input.value!==value)return;checked=value;preview.textContent=`Cartella: ${(state.root.split(/[\\/]/).filter(Boolean).pop()||'Social')}/${r.folder}`;preview.classList.remove('field-error');lock(false);}
   catch(e){if(input.value!==value)return;preview.textContent=e.message;preview.classList.add('field-error');lock(true);}
  };
  input.addEventListener('input',()=>{lock(true);clearTimeout(checkTimer);checkTimer=setTimeout(checkName,250);});
@@ -501,7 +533,7 @@ async function openClientModal(opener){
  const chosen=()=>[...dialog.querySelectorAll('[data-new-platform]:checked')].map(x=>x.dataset.newPlatform);
  dialog.querySelectorAll('[data-new-platform]').forEach(x=>x.addEventListener('change',()=>{save.disabled=!chosen().length;}));
  // sull'ultimo passo Avanti diventa Crea cliente
- root.addEventListener('pgs:stepTabs:change',event=>{const last=event.detail?.current===event.detail?.total-1;next.hidden=last;save.hidden=!last;setAlert(message,'');if(event.detail?.current===0)input.focus();});
+ root.addEventListener('pgs:stepTabs:change',event=>{const last=event.detail?.current===event.detail?.total-1;next.hidden=last;save.hidden=!last;setAlert(message,'');if(event.detail?.current===nameStep)input.focus();else if(event.detail?.current===0&&needFolder)dialog.querySelector('#new-client-folder')?.focus();});
  dialog.querySelector('#client-cancel').addEventListener('click',()=>modal.close());
  save.addEventListener('click',async()=>{
   if(modal.busy||!chosen().length)return;
@@ -515,7 +547,7 @@ async function openClientModal(opener){
    globalThis.pgs?.toast[warnings.length?'warning':'success']({title:'Cliente creato',description:`${result.created?.name||''}${warnings.length?': '+warnings.join(' '):': carica i template in Impostazioni del cliente.'}`,timeout:6000,closeTitle:'Chiudi'});bringToastToFront();
   }catch(e){modal.busy=false;save.disabled=false;setAlert(message,e.message);}
  });
- modal.open();input.focus();
+ modal.open();(needFolder?dialog.querySelector('#new-client-folder'):input).focus();
 }
 // Ricontrolla la cartella Social senza riavviare l'app (disco non collegato, VPN spenta…)
 async function recheckRoot(){

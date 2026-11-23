@@ -138,10 +138,14 @@ anteprima dei file Illustrator con `pdfjs-dist`; Excel modificato con `fflate` +
   post (colore del cliente), tutte pulsanti myPgs; immagini tinte col colore del cliente solo
   nelle parti colorate; sotto, al centro: Impostazioni del cliente, Aggiorna archivio asset,
   Aggiorna, Cambia cliente. Sfondo della home per cliente (solo in home, cover/contain, anche
-  sfocato). Senza clienti: schermata di benvenuto con Crea cliente.
+  sfocato).
+- Benvenuto al posto della home al primo avvio (nessuna cartella scelta) o con una cartella senza
+  clienti: «Inizia» (apre Crea cliente) e sotto «Collega cartella esistente». Senza cartella, il
+  primo passo di Crea cliente è «Dove salvo i clienti?» (dialogo che permette anche di crearla);
+  la cartella scelta diventa subito quella di questo computer.
 - Impostazioni separate: dell'app (cartella Social, tema; solo su quel computer) e del cliente
   (nome, logo, sfondo, colore, piattaforme, template, cartelle dei post; per tutti).
-- Crea cliente a tre passi: nome, logo facoltativo, social (almeno uno).
+- Crea cliente a passi: (cartella, solo se manca), nome, logo facoltativo, social (almeno uno).
 - Elenco post: un solo elenco (Post in bozza = filtro interno, senza casella visibile), più
   recenti in alto, raggruppati per ID, ricerca, filtri anno/social/stato/mese; righe compatte;
   data come testo (si cambia da Modifica o Cambia stato); etichette dei dettagli non in grassetto.

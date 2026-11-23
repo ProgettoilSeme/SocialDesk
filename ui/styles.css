@@ -392,6 +392,7 @@ header[pgs~="header"]:not([pgs-state~="compact"]) [pgs~="header-element"]{paddin
 /* Benvenuto (nessun cliente) */
 .welcome{text-align:center;max-width:44rem;margin-inline:auto;padding-block:var(--padding-groups,3rem)}
 .welcome-logo{width:120px;height:auto}
+.welcome-actions>button{min-width:16rem;justify-content:center}
 /* in tema scuro TikTok e X selezionati hanno lo sfondo chiaro: testo e icona scuri */
 :root[pgs-state~=darkmode] .channel-chip:has(input:checked):is([data-channel="TikTok"],[data-channel="X"]){--button-color-twoState:#111}
 :root[pgs-state~=darkmode] .channel-chip:has(input:checked):is([data-channel="TikTok"],[data-channel="X"]) .social-icon{--icon-color:#111}

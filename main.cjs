@@ -133,8 +133,11 @@ else{
   endpoint('social:initial',async()=>status());
   endpoint('social:choose',async()=>{
    if(busy)throw new PostError('BUSY','Attendi la fine dell’operazione.');
-   const result=await dialog.showOpenDialog(window,{title:'Scegli la cartella Social',properties:['openDirectory'],defaultPath:root||app.getPath('documents')});
+   // si può anche creare una cartella nuova dal dialogo (primo avvio: Crea cliente → dove salvare i clienti)
+   const result=await dialog.showOpenDialog(window,{title:'Scegli o crea la cartella dei clienti',buttonLabel:'Usa questa cartella',properties:['openDirectory','createDirectory','promptToCreate'],defaultPath:root||app.getPath('documents')});
    if(result.canceled)return null;
+   // su Windows promptToCreate può restituire una cartella non ancora esistente: la si crea
+   await fs.mkdir(result.filePaths[0],{recursive:true}).catch(()=>{});
    const selected=await clients.baseInfo(result.filePaths[0]);root=selected;await remember();return status();
   });
   // Clienti: una cartella per cliente dentro Social
